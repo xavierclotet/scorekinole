@@ -55,8 +55,8 @@ export interface TournamentRegistration {
   deadline?: number;
   maxParticipants?: number;
   entryFee?: string;
-  rulesUrl?: string;
-  rulesText?: string;
+  /** When false, full tournament blocks registration instead of routing to waitlist. Default: true */
+  allowWaitlist?: boolean;
   notifyOnRegistration: boolean;
   showParticipantList: boolean;
 }

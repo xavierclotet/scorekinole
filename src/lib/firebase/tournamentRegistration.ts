@@ -4,7 +4,7 @@ import type { TournamentParticipant, WaitlistEntry, ParticipantType, TournamentR
 
 export interface RegistrationValidation {
   canRegister: boolean;
-  reason?: 'not_draft' | 'registration_disabled' | 'deadline_passed' | 'already_registered' | 'already_waitlisted';
+  reason?: 'not_draft' | 'registration_disabled' | 'deadline_passed' | 'tournament_full' | 'already_registered' | 'already_waitlisted';
 }
 
 export function validateRegistration(
@@ -13,21 +13,83 @@ export function validateRegistration(
   participantUserIds: string[],
   waitlistUserIds: string[],
   currentUserId: string,
-  now: number
+  now: number,
+  /** userIds that already occupy a partner slot in existing participants or waitlist entries */
+  partnerUserIds: string[] = []
 ): RegistrationValidation {
   if (tournamentStatus !== 'DRAFT') return { canRegister: false, reason: 'not_draft' };
   if (!registration?.enabled) return { canRegister: false, reason: 'registration_disabled' };
   if (registration.deadline && now > registration.deadline) return { canRegister: false, reason: 'deadline_passed' };
+  if (registration.allowWaitlist === false && registration.maxParticipants && participantUserIds.length >= registration.maxParticipants) {
+    return { canRegister: false, reason: 'tournament_full' };
+  }
   if (participantUserIds.includes(currentUserId)) return { canRegister: false, reason: 'already_registered' };
+  if (partnerUserIds.includes(currentUserId)) return { canRegister: false, reason: 'already_registered' };
   if (waitlistUserIds.includes(currentUserId)) return { canRegister: false, reason: 'already_waitlisted' };
   return { canRegister: true };
 }
 
+/**
+ * Map a raw registration error code/string (from validateRegistration reason or
+ * thrown Error.message) to the Paraglide i18n key that describes it to the user.
+ * Returns null when there is no specific key — caller should show a generic fallback.
+ */
+const REGISTRATION_ERROR_KEY_MAP: Record<string, string> = {
+  // Validation reason codes (from validateRegistration)
+  tournament_full: 'registration_full',
+  already_registered: 'registration_registered',
+  already_waitlisted: 'registration_onWaitlist',
+  not_draft: 'registration_closed',
+  registration_disabled: 'registration_closed',
+  deadline_passed: 'registration_closed',
+  // Thrown Error.message strings from Firestore operations
+  'Cannot unregister after tournament has started': 'registration_closed',
+  'Cannot leave waitlist after tournament has started': 'registration_closed',
+  'Not registered': 'registration_closed',
+  'Not on waitlist': 'registration_onWaitlist',
+  'Not authenticated': 'registration_loginToRegister',
+};
+
+export function getRegistrationErrorMessageKey(error: string): string | null {
+  return REGISTRATION_ERROR_KEY_MAP[error] ?? null;
+}
+
+/** Collect all userIds that are already occupying a partner slot (participants + waitlist). */
+export function collectPartnerUserIds(
+  participants: TournamentParticipant[],
+  waitlist: WaitlistEntry[]
+): string[] {
+  const ids: string[] = [];
+  for (const p of participants) {
+    if (p.partner?.userId) ids.push(p.partner.userId);
+  }
+  for (const w of waitlist) {
+    if (w.partner?.userId) ids.push(w.partner.userId);
+  }
+  return ids;
+}
+
+/** Filter a user search result list down to players eligible to be selected as a partner.
+ *  Excludes: self, primary participants, users already assigned as partners, waitlist entries, waitlist partners. */
+export function filterEligiblePartners<T extends { userId: string }>(
+  users: T[],
+  participants: TournamentParticipant[],
+  waitlist: WaitlistEntry[],
+  selfUserId: string
+): T[] {
+  const primaryIds = new Set(participants.map(p => p.userId).filter(Boolean) as string[]);
+  const partnerIds = new Set(collectPartnerUserIds(participants, waitlist));
+  const waitlistIds = new Set(waitlist.map(w => w.userId));
+  const excluded = new Set([selfUserId, ...primaryIds, ...partnerIds, ...waitlistIds]);
+  return users.filter(u => !excluded.has(u.userId));
+}
+
 export function determineRegistrationOutcome(
   participantsCount: number,
-  maxParticipants?: number
+  maxParticipants?: number,
+  allowWaitlist?: boolean
 ): 'registered' | 'waitlisted' {
-  if (maxParticipants && participantsCount >= maxParticipants) return 'waitlisted';
+  if (maxParticipants && participantsCount >= maxParticipants && allowWaitlist !== false) return 'waitlisted';
   return 'registered';
 }
 
@@ -67,8 +129,7 @@ export function buildRegistrationConfig(
   deadlineTime: string,
   maxParticipants: number | undefined,
   entryFee: string,
-  rulesText: string,
-  rulesUrl: string,
+  allowWaitlist: boolean,
   notify: boolean,
   showList: boolean
 ): TournamentRegistration | undefined {
@@ -81,8 +142,7 @@ export function buildRegistrationConfig(
     deadline: ds ? new Date(ds).getTime() : undefined,
     maxParticipants: maxParticipants || undefined,
     entryFee: entryFee.trim() || undefined,
-    rulesText: rulesText.trim() || undefined,
-    rulesUrl: rulesUrl.trim() || undefined,
+    allowWaitlist,
     notifyOnRegistration: notify,
     showParticipantList: showList,
   };
@@ -174,6 +234,7 @@ export async function registerForTournament(
         .filter(p => p.userId)
         .map(p => p.userId!);
       const waitlistUserIds = (tournament.waitlist || []).map((w: WaitlistEntry) => w.userId);
+      const partnerUserIds = collectPartnerUserIds(tournament.participants, tournament.waitlist || []);
 
       const validation = validateRegistration(
         tournament.status,
@@ -181,7 +242,8 @@ export async function registerForTournament(
         participantUserIds,
         waitlistUserIds,
         user.id,
-        Date.now()
+        Date.now(),
+        partnerUserIds
       );
 
       if (!validation.canRegister) {
@@ -190,7 +252,8 @@ export async function registerForTournament(
 
       outcome = determineRegistrationOutcome(
         tournament.participants.length,
-        tournament.registration?.maxParticipants
+        tournament.registration?.maxParticipants,
+        tournament.registration?.allowWaitlist
       );
 
       if (outcome === 'registered') {
@@ -351,6 +414,93 @@ export async function leaveWaitlist(
     return { success: true };
   } catch (error: any) {
     console.error('Leave waitlist failed:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// --- Admin Firestore operations (require runTransaction, no auth check on caller) ---
+
+export interface AdminActionResult {
+  success: boolean;
+  error?: string;
+}
+
+export async function adminPromoteFromWaitlistFirestore(
+  tournamentId: string,
+  userId: string
+): Promise<AdminActionResult> {
+  const { browser } = await import('$app/environment');
+  if (!browser) return { success: false, error: 'Firebase not available' };
+
+  const { db, isFirebaseEnabled } = await import('./config');
+  if (!isFirebaseEnabled() || !db) return { success: false, error: 'Firebase not available' };
+
+  try {
+    const { parseTournamentData } = await import('./tournaments');
+    const { doc, runTransaction, serverTimestamp } = await import('firebase/firestore');
+
+    const tournamentRef = doc(db, 'tournaments', tournamentId);
+
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(tournamentRef);
+      if (!snapshot.exists()) throw new Error('Tournament not found');
+
+      const tournament = parseTournamentData(snapshot.data());
+      const result = adminPromoteFromWaitlist(
+        tournament.participants,
+        tournament.waitlist || [],
+        userId
+      );
+      if (!result) throw new Error('User not on waitlist');
+
+      transaction.update(tournamentRef, {
+        participants: result.participants,
+        waitlist: result.waitlist,
+        updatedAt: serverTimestamp()
+      });
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Admin promote failed:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function adminRemoveFromWaitlistFirestore(
+  tournamentId: string,
+  userId: string
+): Promise<AdminActionResult> {
+  const { browser } = await import('$app/environment');
+  if (!browser) return { success: false, error: 'Firebase not available' };
+
+  const { db, isFirebaseEnabled } = await import('./config');
+  if (!isFirebaseEnabled() || !db) return { success: false, error: 'Firebase not available' };
+
+  try {
+    const { parseTournamentData } = await import('./tournaments');
+    const { doc, runTransaction, serverTimestamp } = await import('firebase/firestore');
+
+    const tournamentRef = doc(db, 'tournaments', tournamentId);
+
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(tournamentRef);
+      if (!snapshot.exists()) throw new Error('Tournament not found');
+
+      const tournament = parseTournamentData(snapshot.data());
+      const currentWaitlist = tournament.waitlist || [];
+      const newWaitlist = adminRemoveFromWaitlist(currentWaitlist, userId);
+      if (newWaitlist.length === currentWaitlist.length) throw new Error('User not on waitlist');
+
+      transaction.update(tournamentRef, {
+        waitlist: newWaitlist,
+        updatedAt: serverTimestamp()
+      });
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Admin remove from waitlist failed:', error);
     return { success: false, error: error.message };
   }
 }

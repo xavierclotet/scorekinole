@@ -163,10 +163,29 @@
 	let isCompleted = $derived(tournament?.status === 'COMPLETED');
 
 	let isDraft = $derived(tournament?.status === 'DRAFT');
+
+	// Whether the current user is already enrolled (as primary or partner) or on waitlist
+	let isCurrentUserEnrolled = $derived.by(() => {
+		if (!$currentUser || !isDraft) return false;
+		const uid = $currentUser.id;
+		const inParticipants = tournament?.participants?.some(
+			p => p.userId === uid || p.partner?.userId === uid
+		) ?? false;
+		const inWaitlist = tournament?.waitlist?.some(w => w.userId === uid) ?? false;
+		return inParticipants || inWaitlist;
+	});
+
+	// Show registration component when:
+	// - tournament is DRAFT + registration enabled
+	// - AND: either deadline hasn't passed, OR the user is already enrolled (so they can unregister)
 	let hasRegistration = $derived(
 		isDraft === true &&
 		tournament?.registration?.enabled === true &&
-		(tournament?.registration?.deadline == null || Date.now() < tournament.registration.deadline)
+		(
+			tournament?.registration?.deadline == null ||
+			Date.now() < tournament.registration.deadline ||
+			isCurrentUserEnrolled
+		)
 	);
 
 	// Admin route based on tournament phase

@@ -12,6 +12,7 @@ import { getFirestore, FieldValue, Firestore, Timestamp } from "firebase-admin/f
 import { getMessaging } from "firebase-admin/messaging";
 import { logger } from "firebase-functions";
 import { shouldNotifyTournament, buildTournamentNotificationMessage } from "./notificationHelpers";
+import { detectNewParticipants, detectNewWaitlistEntries, detectPromotedFromWaitlist } from "./registrationHelpers";
 
 // Telegram secrets
 const telegramBotToken = defineSecret("TELEGRAM_BOT_TOKEN");
@@ -1494,10 +1495,13 @@ export const onTournamentRegistration = onDocumentUpdated(
       ...(afterData.adminIds || [])
     ].filter(Boolean) as string[];
 
-    // New participant registered
-    if (afterParticipants.length > beforeParticipants.length) {
-      const newParticipant = afterParticipants[afterParticipants.length - 1];
-      const playerName: string = newParticipant?.name || "Jugador";
+    // New participant registered (direct self-registration)
+    const newDirectParticipants = detectNewParticipants(beforeParticipants, afterParticipants)
+      .filter(p => !detectPromotedFromWaitlist(beforeParticipants, afterParticipants, beforeWaitlist).some(pr => pr.id === p.id));
+
+    if (newDirectParticipants.length > 0) {
+      const newParticipant = newDirectParticipants[0];
+      const playerName: string = (newParticipant?.name as string) || "Jugador";
       const countDisplay = afterData.registration?.maxParticipants
         ? `${afterParticipants.length}/${afterData.registration.maxParticipants}`
         : `${afterParticipants.length}`;
@@ -1512,15 +1516,29 @@ export const onTournamentRegistration = onDocumentUpdated(
     }
 
     // New waitlist entry
-    if (afterWaitlist.length > beforeWaitlist.length) {
-      const newEntry = afterWaitlist[afterWaitlist.length - 1];
-      const entryName: string = newEntry?.userName || "Jugador";
+    const newWaitlistEntries = detectNewWaitlistEntries(beforeWaitlist, afterWaitlist);
+    if (newWaitlistEntries.length > 0) {
+      const newEntry = newWaitlistEntries[0];
+      const entryName: string = (newEntry?.userName as string) || "Jugador";
 
       for (const adminId of adminIds) {
         await sendPushToUser(adminId, {
           title: tournamentName,
           body: `Lista de espera: ${entryName}`,
           url: `/admin/tournaments/${tournamentId}`,
+        });
+      }
+    }
+
+    // User promoted from waitlist (unregister + auto-promote) — notify the promoted user
+    const promotedParticipants = detectPromotedFromWaitlist(beforeParticipants, afterParticipants, beforeWaitlist);
+    for (const promoted of promotedParticipants) {
+      if (promoted.userId) {
+        await sendPushToUser(promoted.userId as string, {
+          title: `¡Tu plaza está confirmada en ${tournamentName}!`,
+          body: `Has sido promovido de la lista de espera. ¡Nos vemos en el torneo!`,
+          url: `/tournaments/${afterData.key || tournamentId}`,
+          tag: `registration-promoted-${tournamentId}`,
         });
       }
     }

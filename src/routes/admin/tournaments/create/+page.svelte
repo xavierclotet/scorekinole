@@ -72,8 +72,7 @@
   let regDeadlineTime = $state('');
   let regMaxParticipants = $state<number | undefined>(undefined);
   let regEntryFee = $state('');
-  let regRulesText = $state('');
-  let regRulesUrl = $state('');
+  let regAllowWaitlist = $state(true);
   let regNotify = $state(true);
   let regShowList = $state(true);
 
@@ -654,8 +653,7 @@
       regDeadlineTime = reg?.deadline ? new Date(reg.deadline).toTimeString().slice(0, 5) : '';
       regMaxParticipants = reg?.maxParticipants;
       regEntryFee = reg?.entryFee ?? '';
-      regRulesText = reg?.rulesText ?? '';
-      regRulesUrl = reg?.rulesUrl ?? '';
+      regAllowWaitlist = reg?.allowWaitlist !== false;
       regNotify = reg?.notifyOnRegistration ?? true;
       regShowList = reg?.showParticipantList ?? true;
 
@@ -1067,8 +1065,7 @@
       regDeadlineTime = data.regDeadlineTime ?? '';
       regMaxParticipants = data.regMaxParticipants;
       regEntryFee = data.regEntryFee ?? '';
-      regRulesText = data.regRulesText ?? '';
-      regRulesUrl = data.regRulesUrl ?? '';
+      regAllowWaitlist = data.regAllowWaitlist !== false;
       regNotify = data.regNotify ?? true;
       regShowList = data.regShowList ?? true;
 
@@ -1174,7 +1171,7 @@
         tcBreakBetweenPhases,
         tcParallelSemifinals,
         tcParallelFinals,
-        regEnabled, regDeadlineDate, regDeadlineTime, regMaxParticipants, regEntryFee, regRulesText, regRulesUrl, regNotify, regShowList,
+        regEnabled, regDeadlineDate, regDeadlineTime, regMaxParticipants, regEntryFee, regAllowWaitlist, regNotify, regShowList,
       };
 
       const prefsStr = localStorage.getItem(ADMIN_PREFS_KEY);
@@ -1531,7 +1528,7 @@
         phaseType,
         rankingConfig,
         timeConfig,
-        registration: buildRegistrationConfig(regEnabled, regDeadlineDate, regDeadlineTime, regMaxParticipants, regEntryFee, regRulesText, regRulesUrl, regNotify, regShowList),
+        registration: buildRegistrationConfig(regEnabled, regDeadlineDate, regDeadlineTime, regMaxParticipants, regEntryFee, regAllowWaitlist, regNotify, regShowList),
       };
 
       // Set phase configuration based on phase type
@@ -2143,7 +2140,8 @@
                       </div>
                       <div class="info-field">
                         <label>{m.registration_maxParticipants()}</label>
-                        <input type="number" min="2" bind:value={regMaxParticipants} class="input-field" placeholder="Sin límite" />
+                        <input type="number" min="2" bind:value={regMaxParticipants} class="input-field" placeholder={m.registration_maxParticipantsNoLimit()} />
+                        <span class="field-hint">{gameType === 'doubles' ? m.registration_maxParticipantsHintDoubles() : m.registration_maxParticipantsHintSingles()}</span>
                       </div>
                     </div>
 
@@ -2152,13 +2150,13 @@
                       <input type="text" bind:value={regEntryFee} class="input-field" placeholder="Ej: 10€, Gratuito" />
                     </div>
 
-                    <div class="info-field">
-                      <label>{m.registration_rules()}</label>
-                      <textarea bind:value={regRulesText} class="input-field" rows="2" placeholder="Normativa (opcional)"></textarea>
-                      <input type="url" bind:value={regRulesUrl} class="input-field" placeholder="URL normativa (opcional)" style="margin-top: 0.4rem" />
-                    </div>
-
                     <div class="reg-toggles">
+                      {#if regMaxParticipants}
+                        <label class="option-check">
+                          <input type="checkbox" bind:checked={regAllowWaitlist} />
+                          <span>{(m as any).registration_allowWaitlist?.() ?? 'Soportar lista de espera'}</span>
+                        </label>
+                      {/if}
                       <label class="option-check">
                         <input type="checkbox" bind:checked={regNotify} />
                         <span>{m.registration_notifyRegistrations()}</span>

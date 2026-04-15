@@ -10,6 +10,7 @@
   import { adminTheme } from '$lib/stores/theme';
   import { currentUser } from '$lib/firebase/auth';
   import { getTournament, cancelTournament as cancelTournamentFirebase, updateTournament } from '$lib/firebase/tournaments';
+  import { adminPromoteFromWaitlistFirestore, adminRemoveFromWaitlistFirestore } from '$lib/firebase/tournamentRegistration';
   import { transitionTournament } from '$lib/utils/tournamentStateMachine';
   import { type Tournament, type TournamentTier, getParticipantDisplayName, normalizeTier } from '$lib/types/tournament';
   import Toast from '$lib/components/Toast.svelte';
@@ -417,6 +418,83 @@
 
   // Calculate remaining time reactively
   let timeRemaining = $derived(tournament ? calculateRemainingTime(tournament) : null);
+
+  // Registration section state
+  let isAdminActioning = $state<string | null>(null);
+
+  let regRegisteredPlayers = $derived(
+    tournament?.status === 'DRAFT'
+      ? tournament.participants.filter(p => p.type === 'REGISTERED')
+      : []
+  );
+  let regWaitlist = $derived(tournament?.waitlist ?? []);
+  let regIsOpen = $derived(
+    tournament?.registration?.enabled === true &&
+    (!tournament.registration.deadline || Date.now() < tournament.registration.deadline)
+  );
+  let regIsDeadlinePast = $derived(
+    tournament?.registration?.enabled === true &&
+    tournament.registration.deadline != null &&
+    Date.now() >= tournament.registration.deadline
+  );
+  let showRegistrationSection = $derived(
+    tournament?.status === 'DRAFT' &&
+    (tournament.registration?.enabled === true || (tournament.waitlist?.length ?? 0) > 0)
+  );
+
+  function formatDeadline(deadline: number): string {
+    return new Date(deadline).toLocaleDateString('es-ES', {
+      day: 'numeric', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+  }
+
+  async function handleAdminPromote(userId: string) {
+    if (!tournamentId) return;
+    isAdminActioning = userId;
+    try {
+      const result = await adminPromoteFromWaitlistFirestore(tournamentId, userId);
+      if (result.success) {
+        toastMessage = m.registration_promoteSuccess();
+        toastType = 'success';
+        await loadTournament();
+      } else {
+        toastMessage = m.registration_adminActionError();
+        toastType = 'error';
+      }
+    } finally {
+      showToast = true;
+      isAdminActioning = null;
+    }
+  }
+
+  async function handleAdminRemove(userId: string) {
+    if (!tournamentId) return;
+    isAdminActioning = userId;
+    try {
+      const result = await adminRemoveFromWaitlistFirestore(tournamentId, userId);
+      if (result.success) {
+        toastMessage = m.registration_removeSuccess();
+        toastType = 'success';
+        await loadTournament();
+      } else {
+        toastMessage = m.registration_adminActionError();
+        toastType = 'error';
+      }
+    } finally {
+      showToast = true;
+      isAdminActioning = null;
+    }
+  }
+
+  async function handleCopyRegistrationLink() {
+    if (!tournament) return;
+    const link = `${window.location.origin}/tournaments/${tournament.key}`;
+    await navigator.clipboard.writeText(link);
+    toastMessage = m.registration_linkCopied();
+    toastType = 'success';
+    showToast = true;
+  }
 </script>
 
 <AdminGuard>
@@ -679,8 +757,8 @@
             </button>
           </section>
 
-          <!-- Participants Section (only for DRAFT) -->
-          {#if tournament.status === 'DRAFT' && tournament.participants.length > 0}
+          <!-- Participants Section (only for DRAFT without registration — when registration is active it covers this) -->
+          {#if tournament.status === 'DRAFT' && tournament.participants.length > 0 && !showRegistrationSection}
             <section class="dashboard-card participants-card">
               <h2>👥 {m.admin_participants()} ({tournament.participants.length})</h2>
               <div class="participants-grid">
@@ -693,6 +771,124 @@
               <button class="edit-participants-btn" onclick={() => goto(tournament.isImported ? `/admin/tournaments/import?edit=${tournamentId}` : `/admin/tournaments/create?edit=${tournamentId}&step=3`)}>
                 ✏️ {m.admin_editParticipants()}
               </button>
+            </section>
+          {/if}
+
+          <!-- Registration Section (DRAFT only, when registration is enabled or waitlist has entries) -->
+          {#if showRegistrationSection}
+            <section class="dashboard-card registration-card">
+              <div class="reg-header">
+                <h2>📋 {m.registration_sectionTitle()}</h2>
+                <span
+                  class="reg-status-badge"
+                  class:open={regIsOpen}
+                  class:closed={!regIsOpen && !regIsDeadlinePast}
+                  class:deadline-past={regIsDeadlinePast}
+                >
+                  {#if regIsOpen}
+                    {m.registration_statusOpen()}
+                  {:else if regIsDeadlinePast}
+                    {m.registration_deadlinePast()}
+                  {:else}
+                    {m.registration_closed()}
+                  {/if}
+                </span>
+              </div>
+
+              <div class="reg-metrics">
+                <div class="reg-metric">
+                  <span class="reg-metric-value">
+                    {regRegisteredPlayers.length}{tournament.registration?.maxParticipants ? `/${tournament.registration.maxParticipants}` : ''}
+                  </span>
+                  <span class="reg-metric-label">{m.registration_participants()}</span>
+                </div>
+                <div class="reg-metric">
+                  <span class="reg-metric-value">{regWaitlist.length}</span>
+                  <span class="reg-metric-label">{m.registration_waitlist()}</span>
+                </div>
+                {#if tournament.registration?.deadline}
+                  <div class="reg-metric">
+                    <span class="reg-metric-value">{formatDeadline(tournament.registration.deadline)}</span>
+                    <span class="reg-metric-label">{m.registration_deadline()}</span>
+                  </div>
+                {/if}
+                {#if tournament.registration?.entryFee}
+                  <div class="reg-metric">
+                    <span class="reg-metric-value">{tournament.registration.entryFee}</span>
+                    <span class="reg-metric-label">{m.registration_entryFee()}</span>
+                  </div>
+                {/if}
+              </div>
+
+              <!-- Registered players -->
+              <div class="reg-subsection">
+                <h3>{m.registration_participants()} ({regRegisteredPlayers.length})</h3>
+                {#if regRegisteredPlayers.length === 0}
+                  <p class="reg-empty">{m.registration_noParticipantsYet()}</p>
+                {:else}
+                  <div class="reg-list">
+                    {#each regRegisteredPlayers as p (p.id)}
+                      <div class="reg-entry">
+                        <div class="reg-entry-info">
+                          <span class="reg-entry-name">{p.name}</span>
+                          {#if p.partner}
+                            <span class="reg-partner">
+                              + {p.partner.name}
+                              {p.partner.type === 'REGISTERED' ? '✓' : '~'}
+                            </span>
+                          {/if}
+                        </div>
+                      </div>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+
+              <!-- Waitlist -->
+              {#if regWaitlist.length > 0}
+                <div class="reg-subsection">
+                  <h3>{m.registration_waitlist()} ({regWaitlist.length})</h3>
+                  <div class="reg-list">
+                    {#each regWaitlist as entry, i (entry.userId)}
+                      <div class="reg-entry">
+                        <span class="reg-pos">#{i + 1}</span>
+                        <div class="reg-entry-info">
+                          <span class="reg-entry-name">{entry.userName}</span>
+                          {#if entry.partner}
+                            <span class="reg-partner">+ {entry.partner.name}</span>
+                          {/if}
+                        </div>
+                        <div class="reg-entry-actions">
+                          <button
+                            class="reg-action-btn promote"
+                            onclick={() => handleAdminPromote(entry.userId)}
+                            disabled={isAdminActioning === entry.userId}
+                          >
+                            {isAdminActioning === entry.userId ? '...' : m.registration_adminPromote()}
+                          </button>
+                          <button
+                            class="reg-action-btn remove"
+                            onclick={() => handleAdminRemove(entry.userId)}
+                            disabled={isAdminActioning === entry.userId}
+                          >
+                            {m.registration_adminRemove()}
+                          </button>
+                        </div>
+                      </div>
+                    {/each}
+                  </div>
+                </div>
+              {/if}
+
+              <!-- Footer actions -->
+              <div class="reg-footer">
+                <button class="edit-participants-btn" onclick={handleCopyRegistrationLink}>
+                  🔗 {m.registration_copyLink()}
+                </button>
+                <button class="edit-participants-btn" onclick={() => goto(`/admin/tournaments/create?edit=${tournamentId}&step=2`)}>
+                  ✏️ {m.registration_editSettings()}
+                </button>
+              </div>
             </section>
           {/if}
 
@@ -2609,6 +2805,232 @@
 
   .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .qe-footer {
     border-color: #2d3748;
+  }
+
+  /* Registration section */
+  .registration-card {
+    border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
+  }
+
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .registration-card {
+    border-color: color-mix(in srgb, var(--primary) 35%, transparent);
+  }
+
+  .reg-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+  }
+
+  .reg-header h2 {
+    margin: 0;
+  }
+
+  .reg-status-badge {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 20px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .reg-status-badge.open {
+    background: #d1fae5;
+    color: #065f46;
+  }
+
+  .reg-status-badge.closed {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+
+  .reg-status-badge.deadline-past {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .reg-status-badge.open {
+    background: rgba(52, 211, 153, 0.15);
+    color: #34d399;
+  }
+
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .reg-status-badge.closed {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+  }
+
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .reg-status-badge.deadline-past {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
+  }
+
+  .reg-metrics {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+    padding: 0.65rem 0.75rem;
+    background: #f9fafb;
+    border-radius: 6px;
+  }
+
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .reg-metrics {
+    background: #0f1419;
+  }
+
+  .reg-metric {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+  }
+
+  .reg-metric-value {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--primary);
+  }
+
+  .reg-metric-label {
+    font-size: 0.65rem;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .reg-metric-label {
+    color: #64748b;
+  }
+
+  .reg-subsection {
+    margin-bottom: 0.75rem;
+  }
+
+  .reg-subsection h3 {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin: 0 0 0.4rem 0;
+  }
+
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .reg-subsection h3 {
+    color: #64748b;
+  }
+
+  .reg-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .reg-entry {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.6rem;
+    background: #f9fafb;
+    border-radius: 5px;
+    font-size: 0.8rem;
+  }
+
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .reg-entry {
+    background: #0f1419;
+  }
+
+  .reg-pos {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #9ca3af;
+    min-width: 1.5rem;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .reg-entry-info {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+  }
+
+  .reg-entry-name {
+    font-weight: 600;
+    color: #1a1a1a;
+  }
+
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .reg-entry-name {
+    color: #e1e8ed;
+  }
+
+  .reg-partner {
+    font-size: 0.7rem;
+    color: #6b7280;
+  }
+
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .reg-partner {
+    color: #64748b;
+  }
+
+  .reg-entry-actions {
+    display: flex;
+    gap: 0.3rem;
+    flex-shrink: 0;
+  }
+
+  .reg-action-btn {
+    padding: 0.2rem 0.55rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+
+  .reg-action-btn.promote {
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+    color: var(--primary);
+    border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+  }
+
+  .reg-action-btn.promote:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--primary) 22%, transparent);
+  }
+
+  .reg-action-btn.remove {
+    background: rgba(239, 68, 68, 0.08);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+  }
+
+  .reg-action-btn.remove:hover:not(:disabled) {
+    background: rgba(239, 68, 68, 0.18);
+  }
+
+  .reg-action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .reg-empty {
+    font-size: 0.8rem;
+    color: #9ca3af;
+    font-style: italic;
+    margin: 0.25rem 0 0.4rem 0.6rem;
+  }
+
+  .reg-footer {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+
+  .reg-footer .edit-participants-btn {
+    flex: 1;
   }
 
   /* Responsive */
