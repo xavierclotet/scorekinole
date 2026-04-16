@@ -75,6 +75,8 @@
 				error = m.auth_popupClosed();
 			} else if (err.code === 'auth/account-exists-with-different-credential') {
 				error = m.auth_accountExistsDifferentProvider();
+			} else if (err.code === 'auth/user-disabled') {
+				error = m.auth_userDisabled();
 			} else if (err.code === 'auth/network-request-failed') {
 				error = m.auth_networkError();
 			} else {
@@ -104,6 +106,8 @@
 				error = m.auth_invalidCredentials();
 			} else if (err.code === 'auth/too-many-requests') {
 				error = m.auth_tooManyAttempts();
+			} else if (err.code === 'auth/user-disabled') {
+				error = m.auth_userDisabled();
 			} else if (err.code === 'auth/network-request-failed') {
 				error = m.auth_networkError();
 			} else {
