@@ -1712,27 +1712,41 @@ export const disableUser = onCall(
       throw new HttpsError("invalid-argument", "Cannot disable your own account");
     }
 
-    // Validate caller is admin
+    // Validate caller is super admin
     const db = getDb();
     const callerDoc = await db.collection("users").doc(callerUid).get();
-    if (!callerDoc.exists || !callerDoc.data()?.isAdmin) {
-      throw new HttpsError("permission-denied", "Admin access required");
+    if (!callerDoc.exists || !callerDoc.data()?.isSuperAdmin) {
+      throw new HttpsError("permission-denied", "Super admin access required");
     }
 
-    // Disable in Firebase Auth
-    await getAuth().updateUser(userId, { disabled: true });
-    // Revoke refresh tokens so existing sessions are immediately invalidated
-    await getAuth().revokeRefreshTokens(userId);
+    // Verify target user has a Firestore profile
+    const targetDoc = await db.collection("users").doc(userId).get();
+    if (!targetDoc.exists) {
+      throw new HttpsError("not-found", "User profile not found");
+    }
 
-    // Mark in Firestore
-    await db.collection("users").doc(userId).update({
-      disabled: true,
-      disabledAt: FieldValue.serverTimestamp(),
-      disabledBy: callerUid,
-    });
+    try {
+      const auth = getAuth();
+      await auth.updateUser(userId, { disabled: true });
+      // Revoke refresh tokens so existing sessions are immediately invalidated
+      await auth.revokeRefreshTokens(userId);
 
-    logger.info(`✅ User ${userId} disabled by admin ${callerUid}`);
-    return { success: true };
+      // Mark in Firestore
+      await db.collection("users").doc(userId).update({
+        disabled: true,
+        disabledAt: FieldValue.serverTimestamp(),
+        disabledBy: callerUid,
+      });
+
+      logger.info(`User ${userId} disabled by admin ${callerUid}`);
+      return { success: true };
+    } catch (error: any) {
+      logger.error(`Failed to disable user ${userId}:`, error);
+      if (error?.code === "auth/user-not-found") {
+        throw new HttpsError("not-found", "User not found in Firebase Auth");
+      }
+      throw new HttpsError("internal", "Failed to disable user");
+    }
   }
 );
 
@@ -1753,25 +1767,42 @@ export const enableUser = onCall(
       throw new HttpsError("invalid-argument", "userId is required");
     }
 
-    // Validate caller is admin
+    // Validate caller is super admin
     const db = getDb();
     const callerDoc = await db.collection("users").doc(callerUid).get();
-    if (!callerDoc.exists || !callerDoc.data()?.isAdmin) {
-      throw new HttpsError("permission-denied", "Admin access required");
+    if (!callerDoc.exists || !callerDoc.data()?.isSuperAdmin) {
+      throw new HttpsError("permission-denied", "Super admin access required");
     }
 
-    // Re-enable in Firebase Auth
-    await getAuth().updateUser(userId, { disabled: false });
+    // Idempotency guard: verify target exists and is actually disabled
+    const targetDoc = await db.collection("users").doc(userId).get();
+    if (!targetDoc.exists) {
+      throw new HttpsError("not-found", "User profile not found");
+    }
+    if (!targetDoc.data()?.disabled) {
+      return { success: true }; // Already enabled — idempotent no-op
+    }
 
-    // Clear disabled flags in Firestore
-    await db.collection("users").doc(userId).update({
-      disabled: false,
-      disabledAt: FieldValue.delete(),
-      disabledBy: FieldValue.delete(),
-    });
+    try {
+      const auth = getAuth();
+      await auth.updateUser(userId, { disabled: false });
 
-    logger.info(`✅ User ${userId} re-enabled by admin ${callerUid}`);
-    return { success: true };
+      // Clear disabled flags in Firestore
+      await db.collection("users").doc(userId).update({
+        disabled: false,
+        disabledAt: FieldValue.delete(),
+        disabledBy: FieldValue.delete(),
+      });
+
+      logger.info(`User ${userId} re-enabled by admin ${callerUid}`);
+      return { success: true };
+    } catch (error: any) {
+      logger.error(`Failed to enable user ${userId}:`, error);
+      if (error?.code === "auth/user-not-found") {
+        throw new HttpsError("not-found", "User not found in Firebase Auth");
+      }
+      throw new HttpsError("internal", "Failed to enable user");
+    }
   }
 );
 
