@@ -298,8 +298,8 @@
   }
 
   async function confirmEnable(user: AdminUserInfo) {
-    isEnabling = true;
     userToEnable = user;
+    isEnabling = true;
 
     const success = await enableUser(user.userId);
 
@@ -704,7 +704,7 @@
               {#if hasOwner || hasVenues}
                 <div class="block-message">
                   <span>❌</span>
-                  <span>{m.admin_cannotDeleteHasOwnership()}</span>
+                  <span>{m.admin_cannotDisableHasOwnership()}</span>
                 </div>
               {/if}
             {:else}

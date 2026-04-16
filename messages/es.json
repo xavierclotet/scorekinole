@@ -77,6 +77,7 @@
   "admin_cancelled": "Cancelado",
   "admin_cannotBeUndone": "Esta acción no se puede deshacer.",
   "admin_cannotDeleteHasOwnership": "No se puede eliminar: transfiere la propiedad primero",
+  "admin_cannotDisableHasOwnership": "No se puede deshabilitar: transfiere la propiedad de torneos y locales primero.",
   "admin_cannotEditByeMatch": "No se puede editar partido BYE",
   "admin_category": "Categoría",
   "admin_city": "Ciudad",
