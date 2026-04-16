@@ -2,6 +2,19 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.11] - 2026-04-16
+- Auth: add disableUser/enableUser Cloud Functions (soft-delete replaces hard delete)
+- Auth: isSuperAdmin required for disable/enable; revokeRefreshTokens on disable
+- Auth: email normalization (trim + lowercase) in signIn/signUp
+- Auth: rollback Auth user if sendEmailVerification fails
+- Auth: fix onAuthStateChanged listener accumulation on HMR re-init
+- Auth: signOut clears statsCache and tournamentContext (prevents data leakage)
+- Auth: EmailVerificationBanner polls user.reload() every 3s for auto-detection
+- Auth: AdminGuard/SuperAdminGuard remove redirect latch (logout redirects correctly)
+- Auth: handle auth/user-disabled, network, popup errors in LoginModal
+- Admin UI: replace delete with disable/enable user flow; disabled badge in user table
+- Tests: 22 new auth tests; disableUser/enableUser frontend tests
+
 ## [2.5.10] - 2026-04-15
 - Fix self-as-own-partner now rejected at Firestore layer (not just UI)
 - Fix partner already registered as primary/waitlist now blocked on registration

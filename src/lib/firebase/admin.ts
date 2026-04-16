@@ -238,10 +238,10 @@ export async function disableUser(userId: string): Promise<boolean> {
     return false;
   }
 
-  // Check admin permission (fast-fail before calling Cloud Function)
-  const adminStatus = await isAdmin();
-  if (!adminStatus) {
-    console.error('Unauthorized: User is not admin');
+  // Check super admin permission (fast-fail before calling Cloud Function)
+  const superAdminStatus = await isSuperAdmin();
+  if (!superAdminStatus) {
+    console.error('Unauthorized: User is not super admin');
     return false;
   }
 
@@ -272,10 +272,10 @@ export async function enableUser(userId: string): Promise<boolean> {
     return false;
   }
 
-  // Check admin permission (fast-fail before calling Cloud Function)
-  const adminStatus = await isAdmin();
-  if (!adminStatus) {
-    console.error('Unauthorized: User is not admin');
+  // Check super admin permission (fast-fail before calling Cloud Function)
+  const superAdminStatus = await isSuperAdmin();
+  if (!superAdminStatus) {
+    console.error('Unauthorized: User is not super admin');
     return false;
   }
 

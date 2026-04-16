@@ -916,6 +916,7 @@ describe('disableUser', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		mockCurrentUser = { id: 'admin-user' };
+		mockUserProfile = { isAdmin: true, isSuperAdmin: true };
 	});
 
 	it('calls disableUser Cloud Function with correct userId', async () => {
@@ -958,6 +959,7 @@ describe('enableUser', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		mockCurrentUser = { id: 'admin-user' };
+		mockUserProfile = { isAdmin: true, isSuperAdmin: true };
 	});
 
 	it('calls enableUser Cloud Function with correct userId', async () => {

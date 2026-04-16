@@ -1725,6 +1725,11 @@ export const disableUser = onCall(
       throw new HttpsError("not-found", "User profile not found");
     }
 
+    // Idempotency guard: no-op if already disabled (prevents audit-trail overwrite)
+    if (targetDoc.data()?.disabled) {
+      return { success: true };
+    }
+
     try {
       const auth = getAuth();
       await auth.updateUser(userId, { disabled: true });
@@ -1786,6 +1791,7 @@ export const enableUser = onCall(
     try {
       const auth = getAuth();
       await auth.updateUser(userId, { disabled: false });
+      // No revokeRefreshTokens needed — tokens were already revoked when the account was disabled.
 
       // Clear disabled flags in Firestore
       await db.collection("users").doc(userId).update({
