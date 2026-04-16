@@ -2,6 +2,8 @@ import { db, isFirebaseEnabled } from './config';
 import { currentUser } from './auth';
 import { getUserProfile, type UserProfile } from './userProfile';
 import type { MatchHistory } from '$lib/types/history';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getApp } from 'firebase/app';
 import {
   collection,
   getDocs,
@@ -18,6 +20,8 @@ import {
   limit,
   startAfter,
   arrayRemove,
+  runTransaction,
+  writeBatch,
   type QueryDocumentSnapshot,
   type DocumentData
 } from 'firebase/firestore';
@@ -219,9 +223,10 @@ export async function getUsersPaginated(
 }
 
 /**
- * Delete user permanently (admin only)
+ * Disable a user account (admin only).
+ * Calls the disableUser Cloud Function which disables Firebase Auth + marks Firestore.
  */
-export async function deleteUser(userId: string): Promise<boolean> {
+export async function disableUser(userId: string): Promise<boolean> {
   if (!browser || !isFirebaseEnabled()) {
     console.warn('Firebase disabled');
     return false;
@@ -233,21 +238,41 @@ export async function deleteUser(userId: string): Promise<boolean> {
     return false;
   }
 
-  // Check admin permission
-  const adminStatus = await isAdmin();
-  if (!adminStatus) {
-    console.error('Unauthorized: User is not admin');
+  try {
+    const functions = getFunctions(getApp(), 'europe-west1');
+    const fn = httpsCallable(functions, 'disableUser');
+    await fn({ userId });
+    console.log('✅ User disabled:', userId);
+    return true;
+  } catch (error) {
+    console.error('❌ Error disabling user:', error);
+    return false;
+  }
+}
+
+/**
+ * Re-enable a previously disabled user account (admin only).
+ */
+export async function enableUser(userId: string): Promise<boolean> {
+  if (!browser || !isFirebaseEnabled()) {
+    console.warn('Firebase disabled');
+    return false;
+  }
+
+  const user = get(currentUser);
+  if (!user) {
+    console.warn('No user authenticated');
     return false;
   }
 
   try {
-    const userRef = doc(db!, 'users', userId);
-    await deleteDoc(userRef);
-
-    console.log('✅ User permanently deleted:', userId);
+    const functions = getFunctions(getApp(), 'europe-west1');
+    const fn = httpsCallable(functions, 'enableUser');
+    await fn({ userId });
+    console.log('✅ User re-enabled:', userId);
     return true;
   } catch (error) {
-    console.error('❌ Error deleting user:', error);
+    console.error('❌ Error enabling user:', error);
     return false;
   }
 }
@@ -600,6 +625,9 @@ export async function adminDeleteMatch(matchId: string): Promise<boolean> {
  * @param sourceUserId User to merge FROM (will be marked as merged)
  * @param targetUserId User to merge INTO (will receive tournaments)
  */
+/** Maximum number of tournament documents updated per merge to prevent unbounded writes */
+const MAX_TOURNAMENTS_PER_MERGE = 50;
+
 export async function mergeUsers(
   sourceUserId: string,
   targetUserId: string
@@ -622,104 +650,127 @@ export async function mergeUsers(
     return { success: false, error: 'Cannot merge a user with themselves (same userId)' };
   }
 
+  const sourceRef = doc(db!, 'users', sourceUserId);
+  const targetRef = doc(db!, 'users', targetUserId);
+
+  let sourceData: UserProfile;
+  let targetData: UserProfile;
+  let mergedTournaments: UserProfile['tournaments'];
+
+  // 1. Atomically read both profiles and write the merge markers.
+  //    runTransaction ensures the double-merge check + writes are atomic —
+  //    a concurrent merge of the same source user will lose the transaction
+  //    and get a "Source user was already merged" error instead of corrupting data.
   try {
-    // 1. Read both profiles
-    const sourceRef = doc(db!, 'users', sourceUserId);
-    const targetRef = doc(db!, 'users', targetUserId);
+    await runTransaction(db!, async (tx) => {
+      const sourceSnap = await tx.get(sourceRef);
+      const targetSnap = await tx.get(targetRef);
 
-    const [sourceSnap, targetSnap] = await Promise.all([
-      getDoc(sourceRef),
-      getDoc(targetRef)
-    ]);
+      if (!sourceSnap.exists()) throw new Error('source_not_found');
+      if (!targetSnap.exists()) throw new Error('target_not_found');
 
-    if (!sourceSnap.exists()) {
-      return { success: false, error: 'Source user not found' };
-    }
-    if (!targetSnap.exists()) {
-      return { success: false, error: 'Target user not found' };
-    }
+      sourceData = sourceSnap.data() as UserProfile;
+      targetData = targetSnap.data() as UserProfile;
 
-    const sourceData = sourceSnap.data() as UserProfile;
-    const targetData = targetSnap.data() as UserProfile;
+      if (sourceData.mergedTo) throw new Error('already_merged');
 
-    if (sourceData.mergedTo) {
-      return { success: false, error: 'Source user was already merged' };
-    }
+      // Merge tournaments (deduplicate by tournamentId — target wins on conflict)
+      const sourceTournaments = sourceData.tournaments || [];
+      const targetTournaments = targetData.tournaments || [];
+      const targetTournamentIds = new Set(targetTournaments.map(t => t.tournamentId));
+      const newTournaments = sourceTournaments.filter(t => !targetTournamentIds.has(t.tournamentId));
+      mergedTournaments = [...targetTournaments, ...newTournaments];
 
-    // 2. Merge tournaments (deduplicate by tournamentId — target wins on conflict)
-    const sourceTournaments = sourceData.tournaments || [];
-    const targetTournaments = targetData.tournaments || [];
-    const targetTournamentIds = new Set(targetTournaments.map(t => t.tournamentId));
-    const newTournaments = sourceTournaments.filter(t => !targetTournamentIds.has(t.tournamentId));
-    const mergedTournaments = [...targetTournaments, ...newTournaments];
+      const existingMergedFrom = targetData.mergedFrom || [];
 
-    // 3. Update tournament documents where source userId appears
-    let tournamentsUpdated = 0;
-    const tournamentIdsToCheck = new Set(sourceTournaments.map(t => t.tournamentId));
+      // Both writes in a single atomic transaction
+      tx.set(targetRef, {
+        tournaments: mergedTournaments,
+        mergedFrom: [...existingMergedFrom, sourceUserId],
+        updatedAt: serverTimestamp()
+      }, { merge: true });
 
-    for (const tournamentId of tournamentIdsToCheck) {
-      const tournamentRef = doc(db!, 'tournaments', tournamentId);
-      const tournamentSnap = await getDoc(tournamentRef);
-      if (!tournamentSnap.exists()) continue;
-
-      const tournamentData = tournamentSnap.data();
-      const participants = tournamentData!.participants || [];
-      let changed = false;
-
-      const updatedParticipants = participants.map((p: any) => {
-        const updated = { ...p };
-
-        // Replace source userId in main participant
-        if (updated.userId === sourceUserId) {
-          updated.userId = targetUserId;
-          if (targetData.photoURL) updated.photoURL = targetData.photoURL;
-          if (targetData.authProvider) updated.type = 'REGISTERED';
-          changed = true;
-        }
-
-        // Replace source userId in partner
-        if (updated.partner?.userId === sourceUserId) {
-          updated.partner = {
-            ...updated.partner,
-            userId: targetUserId
-          };
-          if (targetData.photoURL) updated.partner.photoURL = targetData.photoURL;
-          if (targetData.authProvider) updated.partner.type = 'REGISTERED';
-          changed = true;
-        }
-
-        return updated;
-      });
-
-      if (changed) {
-        await setDoc(tournamentRef, { participants: updatedParticipants }, { merge: true });
-        tournamentsUpdated++;
-      }
-    }
-
-    // 4. Update target user profile
-    const existingMergedFrom = targetData.mergedFrom || [];
-    await setDoc(targetRef, {
-      tournaments: mergedTournaments,
-      mergedFrom: [...existingMergedFrom, sourceUserId],
-      updatedAt: serverTimestamp()
-    }, { merge: true });
-
-    // 5. Mark source as merged
-    await setDoc(sourceRef, {
-      mergedTo: targetUserId,
-      updatedAt: serverTimestamp()
-    }, { merge: true });
-
-    console.log(`✅ Merged user ${sourceUserId} into ${targetUserId}`);
-    console.log(`   - Tournaments merged: ${newTournaments.length} new + ${targetTournaments.length} existing`);
-    console.log(`   - Tournament docs updated: ${tournamentsUpdated}`);
-
-    return { success: true, tournamentsUpdated };
-  } catch (error) {
-    console.error('❌ Error merging users:', error);
+      tx.set(sourceRef, {
+        mergedTo: targetUserId,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    });
+  } catch (error: any) {
+    if (error.message === 'source_not_found') return { success: false, error: 'Source user not found' };
+    if (error.message === 'target_not_found') return { success: false, error: 'Target user not found' };
+    if (error.message === 'already_merged') return { success: false, error: 'Source user was already merged' };
+    console.error('❌ Error in merge transaction:', error);
     return { success: false, error: 'Error during merge operation' };
   }
+
+  // 2. Update tournament documents where source userId appears.
+  //    Done outside the transaction (idempotent) with a safety cap to prevent
+  //    unbounded writes from users with many tournaments.
+  const tournamentIdsRaw = [...new Set((sourceData!.tournaments || []).map(t => t.tournamentId))];
+  if (tournamentIdsRaw.length > MAX_TOURNAMENTS_PER_MERGE) {
+    console.warn(
+      `⚠️ mergeUsers: source has ${tournamentIdsRaw.length} tournaments — ` +
+      `capping tournament doc updates at ${MAX_TOURNAMENTS_PER_MERGE}`
+    );
+  }
+  const tournamentIdsToCheck = tournamentIdsRaw.slice(0, MAX_TOURNAMENTS_PER_MERGE);
+
+  let tournamentsUpdated = 0;
+  const batch = writeBatch(db!);
+  let batchSize = 0;
+
+  for (const tournamentId of tournamentIdsToCheck) {
+    const tournamentRef = doc(db!, 'tournaments', tournamentId);
+    const tournamentSnap = await getDoc(tournamentRef);
+    if (!tournamentSnap.exists()) continue;
+
+    const tournamentData = tournamentSnap.data();
+    const participants = tournamentData!.participants || [];
+    let changed = false;
+
+    const updatedParticipants = participants.map((p: any) => {
+      const updated = { ...p };
+
+      // Replace source userId in main participant
+      if (updated.userId === sourceUserId) {
+        updated.userId = targetUserId;
+        if (targetData!.photoURL) updated.photoURL = targetData!.photoURL;
+        if (targetData!.authProvider) updated.type = 'REGISTERED';
+        changed = true;
+      }
+
+      // Replace source userId in partner
+      if (updated.partner?.userId === sourceUserId) {
+        updated.partner = { ...updated.partner, userId: targetUserId };
+        if (targetData!.photoURL) updated.partner.photoURL = targetData!.photoURL;
+        if (targetData!.authProvider) updated.partner.type = 'REGISTERED';
+        changed = true;
+      }
+
+      return updated;
+    });
+
+    if (changed) {
+      batch.set(tournamentRef, { participants: updatedParticipants }, { merge: true });
+      batchSize++;
+      tournamentsUpdated++;
+
+      // Firestore batch limit is 500 writes; flush early at 400 for safety
+      if (batchSize >= 400) {
+        await batch.commit();
+        batchSize = 0;
+      }
+    }
+  }
+
+  if (batchSize > 0) {
+    await batch.commit();
+  }
+
+  console.log(`✅ Merged user ${sourceUserId} into ${targetUserId}`);
+  console.log(`   - Tournament docs updated: ${tournamentsUpdated}`);
+
+  return { success: true, tournamentsUpdated };
 }
 
 /**

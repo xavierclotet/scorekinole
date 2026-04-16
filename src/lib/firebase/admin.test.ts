@@ -43,33 +43,68 @@ vi.mock('./userProfile', () => ({
 	getUserProfileById: async () => null
 }));
 
+// Shared write helper used by setDoc, runTransaction tx.set, and writeBatch commit
+function applyWrite(ref: any, data: any, options?: any) {
+	setDocCalls.push({ path: ref.path, data, options });
+	const store = ref._collection === 'users' ? mockUsers : mockTournaments;
+	const existing = store.get(ref.id) || {};
+	if (options?.merge) {
+		store.set(ref.id, { ...existing, ...data });
+	} else {
+		store.set(ref.id, data);
+	}
+}
+
+function makeGetDoc(ref: any) {
+	const store = ref._collection === 'users' ? mockUsers : mockTournaments;
+	const data = store.get(ref.id);
+	return {
+		exists: () => !!data,
+		data: () => (data ? JSON.parse(JSON.stringify(data)) : undefined)
+	};
+}
+
+vi.mock('firebase/functions', () => ({
+	getFunctions: vi.fn(() => ({ app: {} })),
+	httpsCallable: vi.fn()
+}));
+
+vi.mock('firebase/app', () => ({
+	getApp: vi.fn(() => ({ name: '[DEFAULT]' }))
+}));
+
 vi.mock('firebase/firestore', () => ({
 	doc: (_db: any, collection: string, id: string) => ({
 		path: `${collection}/${id}`,
 		id,
 		_collection: collection
 	}),
-	getDoc: async (ref: any) => {
-		const store = ref._collection === 'users' ? mockUsers : mockTournaments;
-		const data = store.get(ref.id);
-		return {
-			exists: () => !!data,
-			data: () => (data ? JSON.parse(JSON.stringify(data)) : undefined)
-		};
-	},
+	getDoc: async (ref: any) => makeGetDoc(ref),
 	getDocs: async () => ({
 		forEach: () => {}
 	}),
 	setDoc: async (ref: any, data: any, options?: any) => {
-		setDocCalls.push({ path: ref.path, data, options });
-		// Also update the mock store so subsequent reads reflect the write
-		const store = ref._collection === 'users' ? mockUsers : mockTournaments;
-		const existing = store.get(ref.id) || {};
-		if (options?.merge) {
-			store.set(ref.id, { ...existing, ...data });
-		} else {
-			store.set(ref.id, data);
-		}
+		applyWrite(ref, data, options);
+	},
+	runTransaction: async (_db: any, fn: (tx: any) => Promise<void>) => {
+		const tx = {
+			get: async (ref: any) => makeGetDoc(ref),
+			set: (ref: any, data: any, options?: any) => {
+				applyWrite(ref, data, options);
+			}
+		};
+		await fn(tx);
+	},
+	writeBatch: (_db: any) => {
+		const ops: { ref: any; data: any; options?: any }[] = [];
+		return {
+			set: (ref: any, data: any, options?: any) => {
+				ops.push({ ref, data, options });
+			},
+			commit: async () => {
+				for (const op of ops) applyWrite(op.ref, op.data, op.options);
+			}
+		};
 	},
 	updateDoc: async () => {},
 	deleteDoc: async () => {},
@@ -872,5 +907,79 @@ describe('mergeUsers', () => {
 			expect(sourceCalls.length).toBeGreaterThan(0);
 			expect(sourceCalls[0].options).toEqual({ merge: true });
 		});
+	});
+});
+
+// ─── disableUser ──────────────────────────────────────────────────────────────
+
+describe('disableUser', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockCurrentUser = { id: 'admin-user' };
+	});
+
+	it('calls disableUser Cloud Function with correct userId', async () => {
+		const { disableUser } = await import('./admin');
+		const innerFn = vi.fn().mockResolvedValue({ data: { success: true } });
+		const { httpsCallable } = await import('firebase/functions');
+		vi.mocked(httpsCallable).mockReturnValue(innerFn as any);
+
+		const result = await disableUser('target-user-id');
+
+		expect(vi.mocked(httpsCallable)).toHaveBeenCalledWith(expect.anything(), 'disableUser');
+		expect(innerFn).toHaveBeenCalledWith({ userId: 'target-user-id' });
+		expect(result).toBe(true);
+	});
+
+	it('returns false if not authenticated', async () => {
+		mockCurrentUser = null;
+		const { disableUser } = await import('./admin');
+		const { httpsCallable } = await import('firebase/functions');
+
+		const result = await disableUser('target-user-id');
+		expect(result).toBe(false);
+		expect(vi.mocked(httpsCallable)).not.toHaveBeenCalled();
+	});
+
+	it('returns false and logs error if Cloud Function throws', async () => {
+		const { disableUser } = await import('./admin');
+		const innerFn = vi.fn().mockRejectedValue(new Error('permission-denied'));
+		const { httpsCallable } = await import('firebase/functions');
+		vi.mocked(httpsCallable).mockReturnValue(innerFn as any);
+
+		const result = await disableUser('target-user-id');
+		expect(result).toBe(false);
+	});
+});
+
+// ─── enableUser ───────────────────────────────────────────────────────────────
+
+describe('enableUser', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockCurrentUser = { id: 'admin-user' };
+	});
+
+	it('calls enableUser Cloud Function with correct userId', async () => {
+		const { enableUser } = await import('./admin');
+		const innerFn = vi.fn().mockResolvedValue({ data: { success: true } });
+		const { httpsCallable } = await import('firebase/functions');
+		vi.mocked(httpsCallable).mockReturnValue(innerFn as any);
+
+		const result = await enableUser('target-user-id');
+
+		expect(vi.mocked(httpsCallable)).toHaveBeenCalledWith(expect.anything(), 'enableUser');
+		expect(innerFn).toHaveBeenCalledWith({ userId: 'target-user-id' });
+		expect(result).toBe(true);
+	});
+
+	it('returns false if Cloud Function throws', async () => {
+		const { enableUser } = await import('./admin');
+		const innerFn = vi.fn().mockRejectedValue(new Error('internal'));
+		const { httpsCallable } = await import('firebase/functions');
+		vi.mocked(httpsCallable).mockReturnValue(innerFn as any);
+
+		const result = await enableUser('target-user-id');
+		expect(result).toBe(false);
 	});
 });
