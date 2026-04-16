@@ -5,11 +5,12 @@
 
 import { onDocumentUpdated, onDocumentCreated } from "firebase-functions/v2/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { onRequest } from "firebase-functions/v2/https";
+import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { initializeApp, getApps } from "firebase-admin/app";
 import { getFirestore, FieldValue, Firestore, Timestamp } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
+import { getAuth } from "firebase-admin/auth";
 import { logger } from "firebase-functions";
 import { shouldNotifyTournament, buildTournamentNotificationMessage } from "./notificationHelpers";
 import { detectNewParticipants, detectNewWaitlistEntries, detectPromotedFromWaitlist } from "./registrationHelpers";
@@ -1685,6 +1686,92 @@ export const migrateTournamentDates = onRequest(
     const msg = `Migration complete: ${docsUpdated}/${docs.length} docs updated, ${fieldsConverted} fields converted`;
     logger.info(msg);
     res.json({ success: true, message: msg, totalDocs: docs.length, docsUpdated, fieldsConverted });
+  }
+);
+
+/**
+ * Disable a user account (admin only).
+ * Disables Firebase Auth + marks Firestore profile as disabled.
+ * Revokes refresh tokens for immediate session invalidation.
+ */
+export const disableUser = onCall(
+  { region: "europe-west1" },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Must be signed in");
+    }
+
+    const callerUid = request.auth.uid;
+    const { userId } = request.data as { userId: string };
+
+    if (!userId || typeof userId !== "string") {
+      throw new HttpsError("invalid-argument", "userId is required");
+    }
+
+    if (userId === callerUid) {
+      throw new HttpsError("invalid-argument", "Cannot disable your own account");
+    }
+
+    // Validate caller is admin
+    const db = getDb();
+    const callerDoc = await db.collection("users").doc(callerUid).get();
+    if (!callerDoc.exists || !callerDoc.data()?.isAdmin) {
+      throw new HttpsError("permission-denied", "Admin access required");
+    }
+
+    // Disable in Firebase Auth
+    await getAuth().updateUser(userId, { disabled: true });
+    // Revoke refresh tokens so existing sessions are immediately invalidated
+    await getAuth().revokeRefreshTokens(userId);
+
+    // Mark in Firestore
+    await db.collection("users").doc(userId).update({
+      disabled: true,
+      disabledAt: FieldValue.serverTimestamp(),
+      disabledBy: callerUid,
+    });
+
+    logger.info(`✅ User ${userId} disabled by admin ${callerUid}`);
+    return { success: true };
+  }
+);
+
+/**
+ * Re-enable a previously disabled user account (admin only).
+ */
+export const enableUser = onCall(
+  { region: "europe-west1" },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Must be signed in");
+    }
+
+    const callerUid = request.auth.uid;
+    const { userId } = request.data as { userId: string };
+
+    if (!userId || typeof userId !== "string") {
+      throw new HttpsError("invalid-argument", "userId is required");
+    }
+
+    // Validate caller is admin
+    const db = getDb();
+    const callerDoc = await db.collection("users").doc(callerUid).get();
+    if (!callerDoc.exists || !callerDoc.data()?.isAdmin) {
+      throw new HttpsError("permission-denied", "Admin access required");
+    }
+
+    // Re-enable in Firebase Auth
+    await getAuth().updateUser(userId, { disabled: false });
+
+    // Clear disabled flags in Firestore
+    await db.collection("users").doc(userId).update({
+      disabled: false,
+      disabledAt: FieldValue.delete(),
+      disabledBy: FieldValue.delete(),
+    });
+
+    logger.info(`✅ User ${userId} re-enabled by admin ${callerUid}`);
+    return { success: true };
   }
 );
 
