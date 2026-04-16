@@ -17,6 +17,9 @@ export interface UserProfile {
   language?: 'es' | 'ca' | 'en';  // User's preferred language
   isAdmin?: boolean;
   isSuperAdmin?: boolean;
+  disabled?: boolean;              // True if admin has disabled this account
+  disabledAt?: any;                // Firestore Timestamp — when disabled
+  disabledBy?: string;             // UID of admin who disabled
   canAutofill?: boolean;           // Can use autofill buttons in groups/bracket pages
   canImportTournaments?: boolean;  // Can import historical tournaments (doesn't count towards quota)
   /** @deprecated Use quotaEntries instead. Kept for backward compatibility. */
@@ -62,16 +65,17 @@ async function isUserKeyUnique(key: string): Promise<boolean> {
 }
 
 /**
- * Generate a unique user key with retry logic
+ * Generate a unique user key with retry logic.
+ * Throws if no unique key can be found after MAX_ATTEMPTS — prevents silently
+ * returning a duplicate key when all retries are exhausted.
  */
 async function generateUniqueUserKey(): Promise<string> {
-  let key = generateUserKey();
-  let attempts = 0;
-  while (!(await isUserKeyUnique(key)) && attempts < 10) {
-    key = generateUserKey();
-    attempts++;
+  const MAX_ATTEMPTS = 30;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const key = generateUserKey();
+    if (await isUserKeyUnique(key)) return key;
   }
-  return key;
+  throw new Error(`generateUniqueUserKey: failed to find a unique key after ${MAX_ATTEMPTS} attempts`);
 }
 
 /**
