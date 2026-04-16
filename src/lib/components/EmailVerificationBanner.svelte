@@ -1,17 +1,42 @@
 <script lang="ts">
+	import { onMount, onDestroy } from 'svelte';
 	import * as m from '$lib/paraglide/messages.js';
-	import { resendVerificationEmail, signOut } from '$lib/firebase/auth';
+	import { resendVerificationEmail, signOut, emailVerificationPending } from '$lib/firebase/auth';
+	import { auth } from '$lib/firebase/config';
 	import { Mail, RefreshCw, LogOut, CheckCircle2 } from '@lucide/svelte';
 
 	let resending = $state(false);
 	let resent = $state(false);
+	let resentTimer: ReturnType<typeof setTimeout> | null = null;
+	let pollInterval: ReturnType<typeof setInterval> | null = null;
+
+	// Poll Firebase every 3s to detect verification in another tab/device
+	onMount(() => {
+		pollInterval = setInterval(async () => {
+			const u = auth?.currentUser;
+			if (!u || u.emailVerified) return;
+			try {
+				await u.reload();
+				if (u.emailVerified) {
+					emailVerificationPending.set(false);
+					window.location.reload();
+				}
+			} catch { /* ignore transient network errors */ }
+		}, 3000);
+	});
+
+	onDestroy(() => {
+		if (pollInterval) clearInterval(pollInterval);
+		if (resentTimer) clearTimeout(resentTimer);
+	});
 
 	async function handleResend() {
+		if (resending) return;
 		resending = true;
 		try {
 			await resendVerificationEmail();
 			resent = true;
-			setTimeout(() => { resent = false; }, 5000);
+			resentTimer = setTimeout(() => { resent = false; }, 5000);
 		} catch (err) {
 			console.error('Error resending verification:', err);
 		} finally {
@@ -19,8 +44,18 @@
 		}
 	}
 
-	function handleAlreadyVerified() {
-		window.location.reload();
+	async function handleAlreadyVerified() {
+		const u = auth?.currentUser;
+		if (u) {
+			try {
+				await u.reload();
+			} catch { /* ignore */ }
+			if (u.emailVerified) {
+				emailVerificationPending.set(false);
+				window.location.reload();
+			}
+			// If still not verified, keep banner visible — no false feedback
+		}
 	}
 
 	async function handleSignOut() {

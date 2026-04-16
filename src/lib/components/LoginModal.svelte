@@ -71,7 +71,15 @@
 			close();
 		} catch (err: any) {
 			console.error('Login error:', err);
-			error = err.message || m.auth_loginError();
+			if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/popup-blocked') {
+				error = m.auth_popupClosed();
+			} else if (err.code === 'auth/account-exists-with-different-credential') {
+				error = m.auth_accountExistsDifferentProvider();
+			} else if (err.code === 'auth/network-request-failed') {
+				error = m.auth_networkError();
+			} else {
+				error = m.auth_loginError();
+			}
 		} finally {
 			isLoading = false;
 		}
@@ -80,27 +88,24 @@
 	async function handleEmailSignIn() {
 		if (!email || !password) return;
 
-		// Block Gmail domains — should use Google Sign-In
-		const domain = email.split('@')[1]?.toLowerCase();
-		if (domain === 'gmail.com' || domain === 'googlemail.com') {
-			error = m.auth_gmailUseGoogleSignIn();
-			showGmailHint = true;
-			return;
-		}
-		showGmailHint = false;
-
 		isLoading = true;
 		error = '';
+		showGmailHint = false;
 
 		try {
-			await signInWithEmail(email, password);
+			await signInWithEmail(email.trim(), password);
 			close();
 		} catch (err: any) {
 			console.error('Email sign in error:', err);
-			if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
+			if (err.code === 'GMAIL_USE_GOOGLE_SIGNIN') {
+				error = m.auth_gmailUseGoogleSignIn();
+				showGmailHint = true;
+			} else if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
 				error = m.auth_invalidCredentials();
 			} else if (err.code === 'auth/too-many-requests') {
 				error = m.auth_tooManyAttempts();
+			} else if (err.code === 'auth/network-request-failed') {
+				error = m.auth_networkError();
 			} else {
 				error = m.auth_loginError();
 			}
@@ -126,8 +131,8 @@
 		error = '';
 
 		try {
-			await signUpWithEmail(email, password);
-			verifyEmail = email;
+			await signUpWithEmail(email.trim(), password);
+			verifyEmail = email.trim().toLowerCase();
 			setView('verify-email');
 		} catch (err: any) {
 			console.error('Email sign up error:', err);
@@ -140,6 +145,8 @@
 				error = m.auth_passwordTooShort();
 			} else if (err.code === 'auth/too-many-requests') {
 				error = m.auth_tooManyAttempts();
+			} else if (err.code === 'auth/network-request-failed') {
+				error = m.auth_networkError();
 			} else {
 				error = m.auth_loginError();
 			}
@@ -155,12 +162,14 @@
 		error = '';
 
 		try {
-			await resetPassword(resetEmail);
+			await resetPassword(resetEmail.trim());
 			setView('reset-sent');
 		} catch (err: any) {
 			console.error('Reset password error:', err);
 			if (err.code === 'auth/too-many-requests') {
 				error = m.auth_tooManyAttempts();
+			} else if (err.code === 'auth/network-request-failed') {
+				error = m.auth_networkError();
 			} else {
 				// Don't reveal if email exists or not — always show success
 				setView('reset-sent');
@@ -170,18 +179,25 @@
 		}
 	}
 
+	let resending = $state(false);
+
 	async function handleResendVerification() {
+		if (resending) return;
+		resending = true;
 		try {
 			await resendVerificationEmail();
 			resent = true;
 			setTimeout(() => { resent = false; }, 5000);
 		} catch (err) {
 			console.error('Error resending verification:', err);
+		} finally {
+			resending = false;
 		}
 	}
 
 	function close() {
 		isOpen = false;
+		isLoading = false;
 		error = '';
 		view = 'providers';
 		resetForm();
@@ -503,8 +519,9 @@
 								variant="primary"
 								size="large"
 								onclick={handleResendVerification}
+								disabled={resending}
 							>
-								{m.auth_resendVerification()}
+								{resending ? m.auth_signingIn() : m.auth_resendVerification()}
 							</Button>
 						{/if}
 					</div>

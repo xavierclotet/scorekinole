@@ -6,9 +6,15 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Helper function to check if user is admin
+    // Helper function to check if the authenticated user's email is verified
+    function isEmailVerified() {
+      return request.auth.token.email_verified == true;
+    }
+
+    // Helper function to check if user is admin (requires verified email)
     function isAdmin() {
       return isAuthenticated() &&
+        isEmailVerified() &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
@@ -39,9 +45,22 @@ service cloud.firestore {
     match /users/{userId} {
       // Anyone can read user profiles (needed for public rankings page)
       allow read: if true;
-      // Users can write their own profile, admins can write any profile
-      allow write: if isAuthenticated() && (
-        request.auth.uid == userId || isAdmin()
+
+      // Create: users can create their own profile (without admin flags) OR admins can create any
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        (request.auth.uid == userId &&
+         request.resource.data.get('isAdmin', false) == false &&
+         request.resource.data.get('isSuperAdmin', false) == false)
+      );
+
+      // Update/delete: users can modify their own profile (but cannot promote themselves to admin)
+      //                OR admins can modify any profile
+      allow update, delete: if isAuthenticated() && (
+        isAdmin() ||
+        (request.auth.uid == userId &&
+         request.resource.data.get('isAdmin', false) == resource.data.get('isAdmin', false) &&
+         request.resource.data.get('isSuperAdmin', false) == resource.data.get('isSuperAdmin', false))
       );
 
       // FCM push notification tokens (subcollection)

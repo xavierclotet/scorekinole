@@ -9,21 +9,16 @@
   }
 
   let { children }: Props = $props();
-  let hasChecked = $state(false);
 
-  // Use $effect to react to both stores simultaneously
-  // This ensures we only redirect after both stores have their final values
+  // React to auth/admin store changes continuously (no latch) so that a
+  // logout while inside /admin correctly redirects to /.
   $effect(() => {
     const loading = $adminCheckLoading;
     const hasAccess = $canAccessAdmin;
 
-    if (!loading && !hasChecked) {
-      hasChecked = true;
-
-      if (!hasAccess) {
-        console.warn('Access denied: User is not admin');
-        goto('/');
-      }
+    if (!loading && !hasAccess) {
+      console.warn('Access denied: User is not admin');
+      goto('/');
     }
   });
 </script>

@@ -1646,5 +1646,8 @@
   "registration_teamNamePlaceholder": "e.g. The Invincibles",
   "registration_maxParticipantsNoLimit": "No limit",
   "registration_maxParticipantsHintDoubles": "In doubles, the limit counts pairs (not individual players)",
-  "registration_maxParticipantsHintSingles": "Maximum number of participants that can register"
+  "registration_maxParticipantsHintSingles": "Maximum number of participants that can register",
+  "auth_networkError": "Connection error. Check your internet connection and try again.",
+  "auth_popupClosed": "The window closed before the login was completed. Please try again.",
+  "auth_accountExistsDifferentProvider": "This account already exists with another login method. Try Google or another method."
 }

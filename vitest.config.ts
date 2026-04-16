@@ -8,7 +8,8 @@ export default defineConfig({
 	},
 	resolve: {
 		alias: {
-			$lib: path.resolve(__dirname, './src/lib')
+			$lib: path.resolve(__dirname, './src/lib'),
+			'$app/environment': path.resolve(__dirname, './src/__mocks__/app-environment.ts')
 		}
 	}
 });

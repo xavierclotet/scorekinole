@@ -973,6 +973,16 @@ describe('enableUser', () => {
 		expect(result).toBe(true);
 	});
 
+	it('returns false if not authenticated', async () => {
+		mockCurrentUser = null;
+		const { enableUser } = await import('./admin');
+		const { httpsCallable } = await import('firebase/functions');
+
+		const result = await enableUser('target-user-id');
+		expect(result).toBe(false);
+		expect(vi.mocked(httpsCallable)).not.toHaveBeenCalled();
+	});
+
 	it('returns false if Cloud Function throws', async () => {
 		const { enableUser } = await import('./admin');
 		const innerFn = vi.fn().mockRejectedValue(new Error('internal'));

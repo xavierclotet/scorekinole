@@ -1646,5 +1646,8 @@
   "registration_teamNamePlaceholder": "Ex: Els Invencibles",
   "registration_maxParticipantsNoLimit": "Sense límit",
   "registration_maxParticipantsHintDoubles": "En dobles, el límit compta parelles (no jugadors individuals)",
-  "registration_maxParticipantsHintSingles": "Nombre màxim de participants que es poden inscriure"
+  "registration_maxParticipantsHintSingles": "Nombre màxim de participants que es poden inscriure",
+  "auth_networkError": "Error de connexió. Comprova el teu internet i torna a intentar-ho.",
+  "auth_popupClosed": "La finestra es va tancar abans de completar linici de sessió. Torneu-ho a provar.",
+  "auth_accountExistsDifferentProvider": "Aquest compte ja existeix amb un altre mètode d'inici de sessió. Proveu amb Google o un altre mètode."
 }

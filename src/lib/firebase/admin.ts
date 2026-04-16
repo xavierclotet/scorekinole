@@ -238,6 +238,13 @@ export async function disableUser(userId: string): Promise<boolean> {
     return false;
   }
 
+  // Check admin permission (fast-fail before calling Cloud Function)
+  const adminStatus = await isAdmin();
+  if (!adminStatus) {
+    console.error('Unauthorized: User is not admin');
+    return false;
+  }
+
   try {
     const functions = getFunctions(getApp(), 'europe-west1');
     const fn = httpsCallable(functions, 'disableUser');
@@ -262,6 +269,13 @@ export async function enableUser(userId: string): Promise<boolean> {
   const user = get(currentUser);
   if (!user) {
     console.warn('No user authenticated');
+    return false;
+  }
+
+  // Check admin permission (fast-fail before calling Cloud Function)
+  const adminStatus = await isAdmin();
+  if (!adminStatus) {
+    console.error('Unauthorized: User is not admin');
     return false;
   }
 

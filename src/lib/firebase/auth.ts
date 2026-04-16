@@ -15,6 +15,8 @@ import {
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
 import { setLocale } from '$lib/paraglide/runtime.js';
+import { statsCache } from '$lib/stores/statsCache';
+import { clearTournamentContext } from '$lib/stores/tournamentContext';
 
 // User type
 export interface User {
@@ -41,9 +43,10 @@ export const emailVerificationPending = writable<boolean>(false);
 const GMAIL_DOMAINS = ['gmail.com', 'googlemail.com'];
 
 /**
- * Check if an email is a Gmail/Google domain
+ * Check if an email is a Gmail/Google domain.
+ * Exported for testing and for use in sign-in flows.
  */
-function isGmailDomain(email: string): boolean {
+export function isGmailDomain(email: string): boolean {
   const domain = email.split('@')[1]?.toLowerCase();
   return GMAIL_DOMAINS.includes(domain);
 }
@@ -106,21 +109,31 @@ export async function signUpWithEmail(email: string, password: string): Promise<
     throw new Error('Firebase is disabled');
   }
 
+  const normalizedEmail = email.trim().toLowerCase();
+
   // Reject Gmail domains
-  if (isGmailDomain(email)) {
+  if (isGmailDomain(normalizedEmail)) {
     const error: any = new Error('Gmail accounts should use Google Sign-In');
     error.code = 'GMAIL_USE_GOOGLE_SIGNIN';
     throw error;
   }
 
   try {
-    const result = await createUserWithEmailAndPassword(auth!, email, password);
+    const result = await createUserWithEmailAndPassword(auth!, normalizedEmail, password);
     const user = result.user;
 
-    // Send verification email
-    await sendEmailVerification(user);
+    // Send verification email — if this fails, roll back the Auth user
+    try {
+      await sendEmailVerification(user);
+    } catch (verifyErr) {
+      try { await user.delete(); } catch { /* Auth user has no usable access anyway */ }
+      throw verifyErr;
+    }
+
     emailVerificationPending.set(true);
 
+    // Do NOT set currentUser here — let onAuthStateChanged handle it.
+    // (The listener will see emailVerified=false and keep currentUser=null, avoiding a race.)
     const appUser: User = {
       id: user.uid,
       name: user.email?.split('@')[0] || 'User',
@@ -129,7 +142,6 @@ export async function signUpWithEmail(email: string, password: string): Promise<
       providerPhotoURL: null
     };
 
-    currentUser.set(appUser);
     return appUser;
   } catch (error) {
     console.error('Email sign up error:', error);
@@ -149,13 +161,25 @@ export async function signInWithEmail(email: string, password: string): Promise<
     throw new Error('Firebase is disabled');
   }
 
+  const normalizedEmail = email.trim().toLowerCase();
+
+  // Reject Gmail domains — they must use Google Sign-In
+  if (isGmailDomain(normalizedEmail)) {
+    const error: any = new Error('Gmail accounts should use Google Sign-In');
+    error.code = 'GMAIL_USE_GOOGLE_SIGNIN';
+    throw error;
+  }
+
   try {
-    const result = await signInWithEmailAndPassword(auth!, email, password);
+    const result = await signInWithEmailAndPassword(auth!, normalizedEmail, password);
     const user = result.user;
 
-    // Check if email is verified
+    // Block sign-in until email is verified
     if (!user.emailVerified) {
       emailVerificationPending.set(true);
+      const err: any = new Error('Email address is not verified');
+      err.code = 'EMAIL_NOT_VERIFIED';
+      throw err;
     }
 
     const appUser: User = {
@@ -215,21 +239,30 @@ export async function signOut(): Promise<void> {
   }
 
   try {
-    // Delete FCM tokens before signing out (while we still have the user ID)
-    await deleteAllFCMTokens();
+    // Delete FCM tokens before signing out (while we still have the user ID).
+    // deleteAllFCMTokens already catches its own errors, but guard anyway.
+    try { await deleteAllFCMTokens(); } catch (e) { console.warn('⚠️ FCM cleanup failed on sign-out:', e); }
     await firebaseSignOut(auth!);
-    currentUser.set(null);
-    emailVerificationPending.set(false);
-    // User signed out
   } catch (error) {
     console.error('❌ Sign out error:', error);
     throw error;
+  } finally {
+    // Always clear reactive state, even if sign-out threw
+    currentUser.set(null);
+    emailVerificationPending.set(false);
+    needsProfileSetup.set(false);
+    // Clear per-user caches to prevent data leakage on shared devices
+    statsCache.set(null);
+    clearTournamentContext();
   }
 }
 
+// Stored unsubscribe fn — prevents duplicate listeners on HMR / re-init
+let authUnsubscribe: (() => void) | null = null;
+
 /**
- * Initialize auth state listener
- * Call this on app initialization
+ * Initialize auth state listener.
+ * Call this on app initialization. Idempotent: disposes any previous listener first.
  */
 export function initAuthListener(): void {
   if (!browser) {
@@ -242,22 +275,20 @@ export function initAuthListener(): void {
     return;
   }
 
-  onAuthStateChanged(auth!, async (user: FirebaseUser | null) => {
+  // Dispose previous listener if called more than once (e.g. HMR)
+  if (authUnsubscribe) {
+    authUnsubscribe();
+    authUnsubscribe = null;
+  }
+
+  authUnsubscribe = onAuthStateChanged(auth!, async (user: FirebaseUser | null) => {
     if (user) {
       // Check if this is an email/password user with unverified email
       const isPasswordProvider = user.providerData.some(p => p.providerId === 'password');
       if (isPasswordProvider && !user.emailVerified) {
-        // Email not verified — blocking full access
+        // Email not verified — do NOT grant session access
         emailVerificationPending.set(true);
-
-        const appUser: User = {
-          id: user.uid,
-          name: user.displayName || user.email?.split('@')[0] || 'User',
-          email: user.email,
-          photoURL: null,
-          providerPhotoURL: null
-        };
-        currentUser.set(appUser);
+        currentUser.set(null);
         authInitialized.set(true);
         return; // Do NOT create profile in Firestore
       }
@@ -306,7 +337,8 @@ export function initAuthListener(): void {
         }
       } catch (error) {
         console.error('❌ Error checking user profile:', error);
-        needsProfileSetup.set(false);
+        // Do NOT change needsProfileSetup on a transient error — leave prior state intact
+        // to avoid hiding the profile setup modal from users who genuinely need it.
       }
 
       currentUser.set(appUser);
@@ -320,4 +352,14 @@ export function initAuthListener(): void {
     // This ensures derived stores see the complete state
     authInitialized.set(true);
   });
+}
+
+/**
+ * Dispose the auth state listener (e.g., for HMR cleanup or testing).
+ */
+export function disposeAuthListener(): void {
+  if (authUnsubscribe) {
+    authUnsubscribe();
+    authUnsubscribe = null;
+  }
 }

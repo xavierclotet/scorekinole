@@ -1,27 +1,25 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { currentUser } from '$lib/firebase/auth';
   import { canAccessSuperAdmin, adminCheckLoading } from '$lib/stores/admin';
   import * as m from '$lib/paraglide/messages.js';
-  import { onMount } from 'svelte';
+  import type { Snippet } from 'svelte';
 
-  let hasChecked = false;
+  interface Props {
+    children: Snippet;
+  }
 
-  onMount(() => {
-    // Wait for admin check to complete
-    const unsubscribe = adminCheckLoading.subscribe((loading) => {
-      if (!loading && !hasChecked) {
-        hasChecked = true;
+  let { children }: Props = $props();
 
-        // Redirect if not super admin
-        if (!$canAccessSuperAdmin) {
-          console.warn('Access denied: User is not super admin');
-          goto('/admin');
-        }
-      }
-    });
+  // React to auth/admin store changes continuously (no latch) so that a
+  // logout while inside /admin/superadmin correctly redirects to /admin.
+  $effect(() => {
+    const loading = $adminCheckLoading;
+    const hasAccess = $canAccessSuperAdmin;
 
-    return unsubscribe;
+    if (!loading && !hasAccess) {
+      console.warn('Access denied: User is not super admin');
+      goto('/admin');
+    }
   });
 </script>
 
@@ -31,7 +29,7 @@
     <p>{m.common_loading()}</p>
   </div>
 {:else if $canAccessSuperAdmin}
-  <slot />
+  {@render children()}
 {:else}
   <div class="superadmin-guard-denied">
     <h1>{m.admin_accessDenied()}</h1>
