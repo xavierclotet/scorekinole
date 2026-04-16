@@ -7,7 +7,7 @@
   import * as m from '$lib/paraglide/messages.js';
   import { goto } from '$app/navigation';
   import { adminTheme } from '$lib/stores/theme';
-  import { getUsersPaginated, fetchAllUsers, deleteUser, getUsersTournamentCounts, mergeUsers, removeUserFromTournamentCollaborators, type AdminUserInfo } from '$lib/firebase/admin';
+  import { getUsersPaginated, fetchAllUsers, disableUser, enableUser, getUsersTournamentCounts, mergeUsers, removeUserFromTournamentCollaborators, type AdminUserInfo } from '$lib/firebase/admin';
   import { getUserTournamentDependencies, type UserTournamentDependencies } from '$lib/firebase/tournaments';
   import { getVenuesByOwner } from '$lib/firebase/venues';
   import type { Venue } from '$lib/types/venue';
@@ -31,19 +31,23 @@
   let isLoading = $state(true);
   let isLoadingMore = $state(false);
   let selectedUser: AdminUserInfo | null = $state(null);
-  let userToDelete: AdminUserInfo | null = $state(null);
-  let isDeleting = $state(false);
+  let userToDisable: AdminUserInfo | null = $state(null);
+  let isDisabling = $state(false);
   let isLoadingDependencies = $state(false);
   let tournamentDependencies: UserTournamentDependencies | null = $state(null);
   let userVenues: Venue[] = $state([]);
 
-  // Derived: can we delete this user?
-  let canDeleteUser = $derived(
+  // Derived: can we disable this user?
+  let canDisableUser = $derived(
     !isLoadingDependencies &&
     tournamentDependencies !== null &&
     tournamentDependencies.asOwner.length === 0 &&
     userVenues.length === 0
   );
+
+  // Enable state
+  let userToEnable: AdminUserInfo | null = $state(null);
+  let isEnabling = $state(false);
 
   // Migration state
   let userToMigrate: AdminUserInfo | null = $state(null);
@@ -240,8 +244,8 @@
     await loadInitialUsers();
   }
 
-  async function showDeleteConfirm(user: AdminUserInfo) {
-    userToDelete = user;
+  async function showDisableConfirm(user: AdminUserInfo) {
+    userToDisable = user;
     isLoadingDependencies = true;
     tournamentDependencies = null;
     userVenues = [];
@@ -257,39 +261,59 @@
     isLoadingDependencies = false;
   }
 
-  function cancelDelete() {
-    userToDelete = null;
+  function cancelDisable() {
+    userToDisable = null;
     tournamentDependencies = null;
     userVenues = [];
     isLoadingDependencies = false;
   }
 
-  async function confirmDelete() {
-    if (!userToDelete || !canDeleteUser) return;
+  async function confirmDisable() {
+    if (!userToDisable || !canDisableUser) return;
 
-    isDeleting = true;
+    isDisabling = true;
 
     // 1. If user is a collaborator, remove from adminIds first
     if (tournamentDependencies?.asCollaborator.length) {
       await removeUserFromTournamentCollaborators(
-        userToDelete.userId,
+        userToDisable.userId,
         tournamentDependencies.asCollaborator.map((t) => t.id)
       );
     }
 
-    // 2. Delete the user
-    const success = await deleteUser(userToDelete.userId);
+    // 2. Disable the user
+    const success = await disableUser(userToDisable.userId);
 
     if (success) {
-      users = users.filter((u) => u.userId !== userToDelete!.userId);
-      totalCount = Math.max(0, totalCount - 1);
+      users = users.map((u) =>
+        u.userId === userToDisable!.userId ? { ...u, disabled: true } : u
+      );
       allUsersCache = null;
     }
 
-    isDeleting = false;
-    userToDelete = null;
+    isDisabling = false;
+    userToDisable = null;
     tournamentDependencies = null;
     userVenues = [];
+  }
+
+  async function confirmEnable(user: AdminUserInfo) {
+    isEnabling = true;
+    userToEnable = user;
+
+    const success = await enableUser(user.userId);
+
+    if (success) {
+      users = users.map((u) =>
+        u.userId === user.userId
+          ? { ...u, disabled: false, disabledAt: undefined, disabledBy: undefined }
+          : u
+      );
+      allUsersCache = null;
+    }
+
+    isEnabling = false;
+    userToEnable = null;
   }
 
   function formatDate(timestamp: any): string {
@@ -521,13 +545,25 @@
                       🔗
                     </button>
                   {/if}
-                  <button
-                    class="action-btn delete-btn"
-                    onclick={(e) => { e.stopPropagation(); showDeleteConfirm(user); }}
-                    title={m.common_delete()}
-                  >
-                    🗑️
-                  </button>
+                  {#if user.disabled}
+                    <span class="user-disabled-badge">{m.admin_userDisabledBadge()}</span>
+                    <button
+                      class="action-btn enable-btn"
+                      onclick={(e) => { e.stopPropagation(); confirmEnable(user); }}
+                      disabled={isEnabling && userToEnable?.userId === user.userId}
+                      title={m.admin_enableUser()}
+                    >
+                      {isEnabling && userToEnable?.userId === user.userId ? m.admin_enabling() : '✓'}
+                    </button>
+                  {:else}
+                    <button
+                      class="action-btn delete-btn"
+                      onclick={(e) => { e.stopPropagation(); showDisableConfirm(user); }}
+                      title={m.admin_disableUser()}
+                    >
+                      🚫
+                    </button>
+                  {/if}
                 </td>
               </tr>
             {/each}
@@ -558,20 +594,20 @@
     />
   {/if}
 
-  {#if userToDelete}
+  {#if userToDisable}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="delete-overlay" data-theme={$adminTheme} onclick={cancelDelete} onkeydown={(e) => e.key === 'Escape' && cancelDelete()} role="presentation">
+    <div class="delete-overlay" data-theme={$adminTheme} onclick={cancelDisable} onkeydown={(e) => e.key === 'Escape' && cancelDisable()} role="presentation">
       <div class="delete-modal delete-modal-wide" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
-        <h3>{m.admin_deleteUser()}</h3>
+        <h3>{m.admin_disableUserTitle()}</h3>
         <div class="user-preview">
-          {#if userToDelete.photoURL}
-            <img src={userToDelete.photoURL} alt="" class="preview-avatar" referrerpolicy="no-referrer" />
+          {#if userToDisable.photoURL}
+            <img src={userToDisable.photoURL} alt="" class="preview-avatar" referrerpolicy="no-referrer" />
           {:else}
             <div class="preview-avatar-placeholder">
-              {userToDelete.playerName?.charAt(0).toUpperCase() || '?'}
+              {userToDisable.playerName?.charAt(0).toUpperCase() || '?'}
             </div>
           {/if}
-          <strong>{userToDelete.playerName || userToDelete.email || '?'}</strong>
+          <strong>{userToDisable.playerName || userToDisable.email || '?'}</strong>
         </div>
 
         <!-- Dependencies section -->
@@ -681,17 +717,17 @@
           {/if}
         </div>
 
-        <p class="delete-warning">{m.admin_cannotBeUndone()}</p>
+        <p class="delete-warning">{m.admin_disableUserDescription()}</p>
         <div class="delete-actions">
-          <button class="cancel-btn" onclick={cancelDelete} disabled={isDeleting || isLoadingDependencies}>
+          <button class="cancel-btn" onclick={cancelDisable} disabled={isDisabling || isLoadingDependencies}>
             {m.common_cancel()}
           </button>
           <button
             class="confirm-btn"
-            onclick={confirmDelete}
-            disabled={isDeleting || isLoadingDependencies || !canDeleteUser}
+            onclick={confirmDisable}
+            disabled={isDisabling || isLoadingDependencies || !canDisableUser}
           >
-            {isDeleting ? m.admin_deleting() : m.common_delete()}
+            {isDisabling ? m.admin_disabling() : m.admin_disableUserConfirm()}
           </button>
         </div>
       </div>
@@ -1764,6 +1800,21 @@
   .confirm-btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+  }
+
+  .user-disabled-badge {
+    background: color-mix(in srgb, var(--destructive) 15%, transparent);
+    color: var(--destructive);
+    border: 1px solid color-mix(in srgb, var(--destructive) 30%, transparent);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 0.7rem;
+    font-weight: 600;
+  }
+
+  .enable-btn {
+    color: var(--primary);
+    font-weight: 600;
   }
 
   /* Migration button */
