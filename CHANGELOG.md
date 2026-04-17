@@ -2,6 +2,20 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.12] - 2026-04-17
+- Security: harden Firestore rules — super-admin required to modify isAdmin/isSuperAdmin/disabled flags on user profiles
+- Security: remove world-writable tournament updates; restrict to owner/adminIds + scoped scoring/registration updates
+- Security: matchInvites payload validation (host match, status, expiresAt window, size caps)
+- Security: pageViewStats admin-write only; venues scoped to owner (super-admin sees all)
+- Security: storage.rules restrict tournament assets to owner/adminIds
+- Security: remove public unauthenticated Cloud Function migrateTournamentDates
+- Security: toggleAdminStatus client-side check upgraded to isSuperAdmin
+- Security: defensive caps on match result inputs (games/points/20s/rounds) to block inflation attacks and client bugs
+- Security: per-UID sliding-window rate limit on disableUser/enableUser Cloud Functions (10/min)
+- Fix: live-play bug where last-match-of-round writes included countdownTimer and were rejected by Firestore rules, dropping the match result
+- Tests: firestore rules test suite (80+ cases) via @firebase/rules-unit-testing + npm run test:rules
+- Tests: matchResultValidation (29) and rateLimit (10) unit tests
+
 ## [2.5.11] - 2026-04-16
 - Auth: add disableUser/enableUser Cloud Functions (soft-delete replaces hard delete)
 - Auth: isSuperAdmin required for disable/enable; revokeRefreshTokens on disable
