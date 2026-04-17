@@ -295,6 +295,42 @@ describe('Tournaments', () => {
 			);
 		});
 
+		it('T6c — participante puede actualizar countdownTimer junto al scoring (auto-reset al cerrar ronda)', async () => {
+			await setupTournament('t6c', {
+				status: 'GROUP_STAGE',
+				ownerId: 'owner-uid',
+				adminIds: [],
+				participants: [{ userId: 'player1' }],
+				rankingConfig: { tier: 'LOCAL' },
+				isTest: false,
+				key: 'ABC123',
+				countdownTimer: { status: 'running', remaining: 300, duration: 600 }
+			});
+			const ctx = userCtx('player1');
+			await assertSucceeds(
+				updateDoc(doc(ctx.firestore(), 'tournaments', 't6c'), {
+					groupStage: { rounds: [{ match: { scoreA: 15, scoreB: 10 } }] },
+					countdownTimer: { status: 'stopped', remaining: 600, duration: 600 }
+				})
+			);
+		});
+
+		it('T6d — participante NO puede modificar ownerId ni siquiera junto al scoring', async () => {
+			await setupTournament('t6d', {
+				status: 'GROUP_STAGE',
+				ownerId: 'owner-uid',
+				adminIds: [],
+				participants: [{ userId: 'player1' }]
+			});
+			const ctx = userCtx('player1');
+			await assertFails(
+				updateDoc(doc(ctx.firestore(), 'tournaments', 't6d'), {
+					groupStage: { test: true },
+					ownerId: 'player1'
+				})
+			);
+		});
+
 		it('T6b — participante puede actualizar finalStage (scoring)', async () => {
 			await setupTournament('t6b', {
 				status: 'FINAL_STAGE',

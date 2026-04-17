@@ -14,6 +14,7 @@ import { getAuth } from "firebase-admin/auth";
 import { logger } from "firebase-functions";
 import { shouldNotifyTournament, buildTournamentNotificationMessage } from "./notificationHelpers";
 import { detectNewParticipants, detectNewWaitlistEntries, detectPromotedFromWaitlist } from "./registrationHelpers";
+import { enforceRateLimit } from "./rateLimit";
 
 // Telegram secrets
 const telegramBotToken = defineSecret("TELEGRAM_BOT_TOKEN");
@@ -1669,6 +1670,9 @@ export const disableUser = onCall(
       throw new HttpsError("permission-denied", "Super admin access required");
     }
 
+    // Rate limit: protects against a compromised super-admin mass-disabling users
+    await enforceRateLimit(db, callerUid, "disableUser");
+
     // Verify target user has a Firestore profile
     const targetDoc = await db.collection("users").doc(userId).get();
     if (!targetDoc.exists) {
@@ -1728,6 +1732,9 @@ export const enableUser = onCall(
     if (!callerDoc.exists || !callerDoc.data()?.isSuperAdmin) {
       throw new HttpsError("permission-denied", "Super admin access required");
     }
+
+    // Rate limit: symmetrical with disableUser to cap bulk account state changes
+    await enforceRateLimit(db, callerUid, "enableUser");
 
     // Idempotency guard: verify target exists and is actually disabled
     const targetDoc = await db.collection("users").doc(userId).get();

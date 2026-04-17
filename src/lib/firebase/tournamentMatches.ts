@@ -13,6 +13,7 @@ import { DEFAULT_TIME_CONFIG } from '$lib/firebase/timeConfig';
 import { resolveTiebreaker, updateHeadToHeadRecord, calculateMatchPoints } from '$lib/algorithms/tiebreaker';
 import { browser } from '$app/environment';
 import { cleanUndefined } from './cleanUndefined';
+import { validateMatchResult } from './matchResultValidation';
 
 /**
  * Reassign a freed table to the best pending match without a table.
@@ -150,6 +151,12 @@ export async function updateMatchResult(
 ): Promise<boolean> {
   if (!db) {
     console.error('Firestore not initialized');
+    return false;
+  }
+
+  const validation = validateMatchResult(result);
+  if (!validation.valid) {
+    console.error(`Invalid match result for ${matchId}: ${validation.error}`);
     return false;
   }
 

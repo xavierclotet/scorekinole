@@ -64,13 +64,18 @@ service cloud.firestore {
           && after.diff(before).affectedKeys().hasOnly(['participants', 'waitlist', 'updatedAt']);
     }
 
-    // Scoring update: ONLY groupStage, finalStage, and updatedAt may change.
-    // Uses affectedKeys() so structural fields cannot be modified.
-    // Only allowed when tournament is active (not in DRAFT).
+    // Scoring update: ONLY groupStage, finalStage, updatedAt, and countdownTimer
+    // may change. countdownTimer is included because updateMatchResult resets
+    // the round timer atomically with the final match of each round — a
+    // non-owner scorer finishing that match would otherwise be rejected.
+    // Uses affectedKeys() so structural fields (owner, tier, etc.) cannot be
+    // sneaked in. Only allowed when tournament is active (not in DRAFT).
     // Note: any authenticated user may score (scorer is whoever holds the device).
     function isScoringUpdate(before, after) {
       return !isTournamentDraft(before)
-          && after.diff(before).affectedKeys().hasOnly(['groupStage', 'finalStage', 'updatedAt']);
+          && after.diff(before).affectedKeys().hasOnly(
+               ['groupStage', 'finalStage', 'updatedAt', 'countdownTimer']
+             );
     }
 
 

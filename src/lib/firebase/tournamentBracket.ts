@@ -20,6 +20,7 @@ import {
 } from '$lib/algorithms/bracket';
 import type { ConsolationSource } from '$lib/algorithms/bracket';
 import { calculateFinalPositionsForTournament } from './tournamentRanking';
+import { validateMatchResult } from './matchResultValidation';
 import type { Bracket, BracketMatch, BracketWithConfig, BracketConfig, PhaseConfig, Tournament } from '$lib/types/tournament';
 
 /**
@@ -2168,6 +2169,12 @@ export async function completeBracketMatchAndAdvance(
   result: Partial<BracketMatch>
 ): Promise<boolean> {
   if (!db) return false;
+
+  const validation = validateMatchResult(result);
+  if (!validation.valid) {
+    console.error(`Invalid bracket match result for ${matchId}: ${validation.error}`);
+    return false;
+  }
 
   const callId = Math.random().toString(36).substring(2, 8);
 
