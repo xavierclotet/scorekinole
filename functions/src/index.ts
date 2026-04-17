@@ -5,7 +5,7 @@
 
 import { onDocumentUpdated, onDocumentCreated } from "firebase-functions/v2/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
+import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { initializeApp, getApps } from "firebase-admin/app";
 import { getFirestore, FieldValue, Firestore, Timestamp } from "firebase-admin/firestore";
@@ -1636,56 +1636,6 @@ export const cleanupExpiredInvites = onSchedule(
 
     await Promise.all(batches.map((b) => b.commit()));
     logger.info(`Cleaned up ${count} expired matchInvites`);
-  }
-);
-
-/**
- * One-time migration: normalize tournamentDate fields from Firestore Timestamp to epoch ms.
- * Run via: curl https://<region>-<project>.cloudfunctions.net/migrateTournamentDates
- * Safe to run multiple times (idempotent).
- */
-export const migrateTournamentDates = onRequest(
-  { region: "europe-west1", memory: "512MiB", timeoutSeconds: 300 },
-  async (_req, res) => {
-    const db = getDb();
-    const snapshot = await db.collection("tournaments").get();
-
-    const TIMESTAMP_FIELDS = ["tournamentDate", "createdAt", "startedAt", "completedAt", "updatedAt"] as const;
-    let docsUpdated = 0;
-    let fieldsConverted = 0;
-
-    // Process in batches of 500 (Firestore limit)
-    const docs = snapshot.docs;
-    for (let i = 0; i < docs.length; i += 500) {
-      const batch = db.batch();
-      let batchHasUpdates = false;
-
-      for (const docSnap of docs.slice(i, i + 500)) {
-        const data = docSnap.data();
-        const updates: Record<string, number> = {};
-
-        for (const field of TIMESTAMP_FIELDS) {
-          if (data[field] instanceof Timestamp) {
-            updates[field] = data[field].toMillis();
-            fieldsConverted++;
-          }
-        }
-
-        if (Object.keys(updates).length > 0) {
-          batch.update(docSnap.ref, updates);
-          batchHasUpdates = true;
-          docsUpdated++;
-        }
-      }
-
-      if (batchHasUpdates) {
-        await batch.commit();
-      }
-    }
-
-    const msg = `Migration complete: ${docsUpdated}/${docs.length} docs updated, ${fieldsConverted} fields converted`;
-    logger.info(msg);
-    res.json({ success: true, message: msg, totalDocs: docs.length, docsUpdated, fieldsConverted });
   }
 );
 

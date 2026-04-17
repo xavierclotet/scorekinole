@@ -1,108 +1,211 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function to check if user is authenticated
+
+    // ---------------------------------------------------------------
+    // Auth helpers
+    // ---------------------------------------------------------------
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    // Helper function to check if the authenticated user's email is verified
     function isEmailVerified() {
       return request.auth.token.email_verified == true;
     }
 
-    // Helper function to check if user is admin (requires verified email)
+    // Platform admin: authenticated + verified email + isAdmin flag in /users
     function isAdmin() {
       return isAuthenticated() &&
         isEmailVerified() &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
-    // Helper function to check if user is the owner/participant of the match
-    function isMatchParticipant(matchData) {
-      return matchData.savedBy.userId == request.auth.uid ||
-             (matchData.players.team1.userId != null && matchData.players.team1.userId == request.auth.uid) ||
-             (matchData.players.team2.userId != null && matchData.players.team2.userId == request.auth.uid);
+    // Platform super-admin: same as admin but with isSuperAdmin flag
+    function isSuperAdmin() {
+      return isAuthenticated() &&
+        isEmailVerified() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isSuperAdmin == true;
     }
 
+    // ---------------------------------------------------------------
+    // Match participant helper
+    // ---------------------------------------------------------------
+    function isMatchParticipant(matchData) {
+      return matchData.savedBy.userId == request.auth.uid ||
+             (matchData.players.team1.userId != null &&
+              matchData.players.team1.userId == request.auth.uid) ||
+             (matchData.players.team2.userId != null &&
+              matchData.players.team2.userId == request.auth.uid);
+    }
+
+    // ---------------------------------------------------------------
+    // Tournament helpers
+    // ---------------------------------------------------------------
+
+    // True when the caller is the tournament owner, listed in adminIds,
+    // OR is a platform admin (needed for admin UI actions like bracket completion).
+    function isTournamentOwnerOrAdmin(t) {
+      return isAuthenticated()
+          && (request.auth.uid == t.ownerId
+              || (t.adminIds is list && request.auth.uid in t.adminIds)
+              || isAdmin());
+    }
+
+    // True when the tournament is still in the setup/registration phase
+    function isTournamentDraft(t) {
+      return t.status == 'DRAFT';
+    }
+
+    // Registration update: ONLY participants, waitlist, and updatedAt may change.
+    // Uses affectedKeys() so that fields like name/location cannot be sneaked in.
+    // Only allowed during DRAFT status.
+    function isRegistrationUpdate(before, after) {
+      return isTournamentDraft(before)
+          && after.diff(before).affectedKeys().hasOnly(['participants', 'waitlist', 'updatedAt']);
+    }
+
+    // Scoring update: ONLY groupStage, finalStage, and updatedAt may change.
+    // Uses affectedKeys() so structural fields cannot be modified.
+    // Only allowed when tournament is active (not in DRAFT).
+    // Note: any authenticated user may score (scorer is whoever holds the device).
+    function isScoringUpdate(before, after) {
+      return !isTournamentDraft(before)
+          && after.diff(before).affectedKeys().hasOnly(['groupStage', 'finalStage', 'updatedAt']);
+    }
+
+
+    // ---------------------------------------------------------------
+    // Friendly matches (non-tournament)
+    // ---------------------------------------------------------------
     match /matches/{matchId} {
-      // Allow create if authenticated and user is the one creating it
       allow create: if isAuthenticated() &&
                       request.resource.data.savedBy.userId == request.auth.uid;
 
-      // Allow read if authenticated and user is a participant OR admin
       allow read: if isAuthenticated() && (
         isMatchParticipant(resource.data) || isAdmin()
       );
 
-      // Allow update/delete if authenticated and user is the owner (savedBy) OR admin
       allow update, delete: if isAuthenticated() && (
         resource.data.savedBy.userId == request.auth.uid || isAdmin()
       );
     }
 
+    // ---------------------------------------------------------------
     // User profiles
+    // ---------------------------------------------------------------
     match /users/{userId} {
-      // Anyone can read user profiles (needed for public rankings page)
+      // Public read: names and rankings are needed for public tournament pages
+      // and the global leaderboard. PII migration to /users/{uid}/private is deferred.
       allow read: if true;
 
-      // Create: users can create their own profile (without admin flags) OR admins can create any
+      // Create: super-admin unrestricted; platform admin without setting admin flags;
+      // a user creating their own profile without admin flags.
       allow create: if isAuthenticated() && (
-        isAdmin() ||
+        isSuperAdmin() ||
+        (isAdmin()
+         && request.resource.data.get('isAdmin',      false) == false
+         && request.resource.data.get('isSuperAdmin', false) == false) ||
         (request.auth.uid == userId &&
-         request.resource.data.get('isAdmin', false) == false &&
+         request.resource.data.get('isAdmin',      false) == false &&
          request.resource.data.get('isSuperAdmin', false) == false)
       );
 
-      // Update/delete: users can modify their own profile (but cannot promote themselves to admin)
-      //                OR admins can modify any profile
-      allow update, delete: if isAuthenticated() && (
-        isAdmin() ||
-        (request.auth.uid == userId &&
-         request.resource.data.get('isAdmin', false) == resource.data.get('isAdmin', false) &&
-         request.resource.data.get('isSuperAdmin', false) == resource.data.get('isSuperAdmin', false))
+      // Update policy (defense-in-depth against privilege escalation):
+      //   - Super-admin: unrestricted.
+      //   - Platform admin: can edit other users but CANNOT touch security flags
+      //     (isAdmin, isSuperAdmin, disabled, disabledBy). Disable/enable go through
+      //     the disableUser/enableUser Cloud Functions (admin SDK, super-admin gated).
+      //   - Owner (self): standard per-field guards.
+      //     CF-owned fields cannot be touched: tournaments[], rankingSnapshot,
+      //     playerNameLower, registrationIP, deviceFingerprint, authProvider, mergedTo.
+      allow update: if isAuthenticated() && (
+        isSuperAdmin() ||
+        (isAdmin()
+         && request.resource.data.get('isAdmin',           false) == resource.data.get('isAdmin',           false)
+         && request.resource.data.get('isSuperAdmin',      false) == resource.data.get('isSuperAdmin',      false)
+         && request.resource.data.get('disabled',          false) == resource.data.get('disabled',          false)
+         && request.resource.data.get('disabledBy',         null) == resource.data.get('disabledBy',         null)) ||
+        (request.auth.uid == userId
+         && request.resource.data.get('isAdmin',           false) == resource.data.get('isAdmin',           false)
+         && request.resource.data.get('isSuperAdmin',      false) == resource.data.get('isSuperAdmin',      false)
+         && request.resource.data.get('tournaments',          []) == resource.data.get('tournaments',          [])
+         && request.resource.data.get('rankingSnapshot',    null) == resource.data.get('rankingSnapshot',    null)
+         && request.resource.data.get('playerNameLower',      '') == resource.data.get('playerNameLower',      '')
+         && request.resource.data.get('registrationIP',    null) == resource.data.get('registrationIP',    null)
+         && request.resource.data.get('deviceFingerprint', null) == resource.data.get('deviceFingerprint', null)
+         && request.resource.data.get('authProvider',      null) == resource.data.get('authProvider',      null)
+         && request.resource.data.get('mergedTo',          null) == resource.data.get('mergedTo',          null)
+         && request.resource.data.get('disabled',         false) == resource.data.get('disabled',         false)
+         && request.resource.data.get('disabledBy',        null) == resource.data.get('disabledBy',        null))
       );
 
-      // FCM push notification tokens (subcollection)
+      // Delete: only platform admins (preserves original effective behavior)
+      allow delete: if isAdmin();
+
+      // Private PII sub-collection: only owner and platform admins.
+      // Populated on migration (post-Fase-0) with email, registrationIP,
+      // deviceFingerprint, authProvider. Currently empty on most docs.
+      match /private/{doc} {
+        allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+        allow write: if isAdmin();
+      }
+
+      // FCM push tokens (per-user subcollection)
       match /fcmTokens/{tokenId} {
         allow read, write: if isAuthenticated() && request.auth.uid == userId;
       }
     }
 
-    // Current match per user - users can only access their own
+    // Per-user current match state
     match /currentMatch/{userId} {
       allow read, write: if isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Tournaments - key-based access control
+    // ---------------------------------------------------------------
+    // Tournaments
+    // ---------------------------------------------------------------
     match /tournaments/{tournamentId} {
-      // Only admins can create tournaments
+      // Public read: guests need to view tournament pages without auth.
+      // The 6-char key serves as a share-link (cosmetic), not as a security gate.
+      allow read: if true;
+
+      // Only platform admins can create tournaments
       allow create: if isAdmin();
 
-      // Anyone can read tournaments (key acts as access control)
-      // This allows non-authenticated users to join with tournament key
-      allow read: if true;
+      // Updates are allowed if the caller is:
+      //   (a) the tournament owner or in adminIds  → full update
+      //   (b) any authenticated user + valid registration update (DRAFT phase only)
+      //   (c) any authenticated user + valid scoring update (active phases only)
+      allow update: if isTournamentOwnerOrAdmin(resource.data)
+                    || (isAuthenticated() && isRegistrationUpdate(resource.data, request.resource.data))
+                    || (isAuthenticated() && isScoringUpdate(resource.data, request.resource.data));
 
-      // Anyone can update tournaments (key acts as access control)
-      // This allows non-authenticated users to update match status/results
-      // Security note: The 6-character key provides access control
-      allow update: if true;
-
-      // Only admins can delete tournaments
-      allow delete: if isAdmin();
+      // Tournament owner or platform admin can delete
+      allow delete: if isAdmin()
+                    || (isAuthenticated() && request.auth.uid == resource.data.ownerId);
     }
 
-    // Match invitations for friendly matches
-    // Allows registered users to invite others via QR code/link
+    // ---------------------------------------------------------------
+    // Match invitations (friendly match QR-code flow)
+    // ---------------------------------------------------------------
     match /matchInvites/{inviteId} {
-      // Anyone can read invites (to validate invite codes)
+      // Anyone can read invites to validate invite codes
       allow read: if true;
 
-      // Authenticated users can create invites (must be the host)
-      allow create: if isAuthenticated() &&
-        request.resource.data.hostUserId == request.auth.uid;
+      // Authenticated + verified users may create invites with validated payload
+      allow create: if isAuthenticated()
+          && isEmailVerified()
+          && request.resource.data.hostUserId  == request.auth.uid
+          && request.resource.data.status      == 'pending'
+          && request.resource.data.expiresAt   is timestamp
+          && request.resource.data.expiresAt   <  request.time + duration.value(24, 'h')
+          && request.resource.data.guestUserId is string
+          && request.resource.data.guestUserId.size() > 0
+          && request.resource.data.guestUserId.size() < 200
+          && (!('guestUserName' in request.resource.data) || request.resource.data.guestUserName.size() < 200)
+          && (!('hostUserName'  in request.resource.data) || request.resource.data.hostUserName.size()  < 200);
 
-      // Host can update/cancel, or guest can accept pending invites
+      // Host can update/cancel; guest can accept a pending invite
       allow update: if isAuthenticated() && (
         resource.data.hostUserId == request.auth.uid ||
         (resource.data.status == 'pending' &&
@@ -110,53 +213,59 @@ service cloud.firestore {
          request.resource.data.guestUserId == request.auth.uid)
       );
 
-      // Host can delete their own invites
+      // Only the host can delete their invite
       allow delete: if isAuthenticated() &&
         resource.data.hostUserId == request.auth.uid;
     }
 
-    // Venues collection - for tournament locations
+    // ---------------------------------------------------------------
+    // Venues (tournament locations)
+    // ---------------------------------------------------------------
     match /venues/{venueId} {
-      // Admins can read venues (query filters by ownerId in code)
-      // Note: Firestore can't enforce ownerId filter in rules for queries,
-      // so we allow read for all admins and filter in the query itself
-      allow read: if isAdmin();
+      // Platform admins see their own venues; super-admins see all
+      allow read: if isAdmin()
+                  && (isSuperAdmin() || resource.data.ownerId == request.auth.uid);
 
       // Admins can create venues for themselves
       allow create: if isAdmin() && request.resource.data.ownerId == request.auth.uid;
 
-      // Admins can update/delete their own venues, SuperAdmins can update/delete any venue
+      // Admins can update/delete their own venues; super-admins can touch any
       allow update, delete: if isAdmin() && (
-        resource.data.ownerId == request.auth.uid ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isSuperAdmin == true
+        resource.data.ownerId == request.auth.uid || isSuperAdmin()
       );
     }
 
-    // Settings collection - for global app configuration
+    // ---------------------------------------------------------------
+    // Global settings
+    // ---------------------------------------------------------------
     match /settings/{settingId} {
-      // Anyone authenticated can read settings
       allow read: if isAuthenticated();
-
-      // Only super admins can write settings
-      allow write: if isAuthenticated() &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isSuperAdmin == true;
+      // Only super-admins (verified) can write global settings
+      allow write: if isSuperAdmin();
     }
 
-    // Page view analytics (immutable log)
+    // ---------------------------------------------------------------
+    // Page-view analytics (append-only log)
+    // ---------------------------------------------------------------
     match /pageViews/{viewId} {
-      allow create: if isAuthenticated();
+      allow create: if isAuthenticated()
+                    && (!('path'      in request.resource.data) || request.resource.data.path.size()      < 500)
+                    && (!('referrer'  in request.resource.data) || request.resource.data.referrer.size()  < 500)
+                    && (!('userAgent' in request.resource.data) || request.resource.data.userAgent.size() < 500);
       allow read: if isAdmin();
       allow update, delete: if false;
     }
 
-    // Aggregated daily page view stats
+    // Aggregated daily page-view stats (admin-write only — was world-writable!)
     match /pageViewStats/{dateId} {
-      allow create, update: if isAuthenticated();
+      allow create, update: if isAdmin();
       allow read: if isAdmin();
       allow delete: if false;
     }
 
-    // Deny all other access
+    // ---------------------------------------------------------------
+    // Default deny
+    // ---------------------------------------------------------------
     match /{document=**} {
       allow read, write: if false;
     }

@@ -332,7 +332,9 @@ export async function updateUserProfile(
 }
 
 /**
- * Toggle admin status for a user (admin only)
+ * Toggle admin status for a user (super-admin only).
+ * Granting/revoking isAdmin is a privilege-escalation action and is gated on
+ * super-admin both here and in firestore.rules.
  */
 export async function toggleAdminStatus(
   userId: string,
@@ -349,10 +351,10 @@ export async function toggleAdminStatus(
     return false;
   }
 
-  // Check admin permission
-  const adminCheck = await isAdmin();
-  if (!adminCheck) {
-    console.error('Unauthorized: User is not admin');
+  // Super-admin gate: regular admins cannot promote/demote other admins
+  const superAdminCheck = await isSuperAdmin();
+  if (!superAdminCheck) {
+    console.error('Unauthorized: super-admin required to toggle admin status');
     return false;
   }
 

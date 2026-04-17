@@ -1,42 +1,56 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Helper: check if user is admin via Firestore
+
+    // Helper: check if user is an admin via Firestore
     function isAdmin() {
       return request.auth != null
         && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
-    // User avatars - owner or admin can write, anyone can read
+    // Helper: check if user is the owner or an admin of the given tournament
+    function isTournamentOwnerOrAdmin(tournamentId) {
+      let t = firestore.get(/databases/(default)/documents/tournaments/$(tournamentId)).data;
+      return request.auth != null
+          && (request.auth.uid == t.ownerId
+              || (t.adminIds is list && request.auth.uid in t.adminIds));
+    }
+
+    // ---------------------------------------------------------------
+    // User avatars
+    // ---------------------------------------------------------------
     match /users/{userId}/avatar.jpg {
-      // Anyone can read avatars (for rankings, tournament pages, etc.)
+      // Anyone can read avatars (used on rankings, tournament pages, etc.)
       allow read: if true;
 
-      // Owner can upload their avatar
+      // Owner uploads their own avatar (exclude SVG via explicit mime types)
       allow write: if request.auth != null
                    && request.auth.uid == userId
-                   && request.resource.size < 2 * 1024 * 1024  // Max 2MB
-                   && request.resource.contentType.matches('image/.*');
+                   && request.resource.size < 2 * 1024 * 1024
+                   && request.resource.contentType.matches('image/(jpeg|jpg|png|webp|gif)');
 
-      // Admin can upload avatar for any user
+      // Platform admin can upload avatar for any user
       allow write: if isAdmin()
                    && request.resource.size < 2 * 1024 * 1024
-                   && request.resource.contentType.matches('image/.*');
+                   && request.resource.contentType.matches('image/(jpeg|jpg|png|webp|gif)');
 
       // Owner or admin can delete avatar
       allow delete: if request.auth != null
                     && (request.auth.uid == userId || isAdmin());
     }
 
-    // Tournament photos (future use)
+    // ---------------------------------------------------------------
+    // Tournament photos
+    // ---------------------------------------------------------------
     match /tournaments/{tournamentId}/{allPaths=**} {
-      // Anyone can read tournament photos
+      // Anyone can read tournament photos (public tournament pages)
       allow read: if true;
 
-      // Only authenticated users can write (will add admin check later)
-      allow write: if request.auth != null
+      // Only the tournament owner or an admin of that specific tournament can upload.
+      // SVG is excluded to prevent polyglot/script injection attacks.
+      allow write: if isTournamentOwnerOrAdmin(tournamentId)
                    && request.resource.size < 2 * 1024 * 1024
-                   && request.resource.contentType.matches('image/.*');
+                   && request.resource.contentType.matches('image/(jpeg|jpg|png|webp|gif)');
     }
   }
 }

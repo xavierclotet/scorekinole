@@ -19,9 +19,11 @@
 		"machine-translate": "inlang machine translate --project project.inlang",
 		"preview:prod": "npm run build && npm run preview",
 		"test": "vitest run",
-		"test:watch": "vitest"
+		"test:watch": "vitest",
+		"test:rules": "vitest run --config vitest.rules.config.ts"
 	},
 	"devDependencies": {
+		"@firebase/rules-unit-testing": "^5.0.0",
 		"@inlang/cli": "^3.0.0",
 		"@inlang/paraglide-js": "^2.9.1",
 		"@internationalized/date": "^3.11.0",
