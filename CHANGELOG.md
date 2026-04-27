@@ -2,6 +2,14 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.14] - 2026-04-27
+- Registration: deadline now validated against tournamentDate — wizard rejects deadlines in the past, on/after the tournament date, or less than 24h before it
+- Registration: defense-in-depth — registrations close automatically once tournamentDate passes, even if admin forgot to start the tournament
+- Bracket: hide "Regenerate consolation" button when all consolation matches are already played
+- Docs: new Spanish player guide (`GUIA_JUGADOR.md`) covering friendly + tournament matches, stats page, QR entry, doubles invites
+- Docs: new Spanish tournament management guide (`GESTIONAR_TORNEO.md`) with screenshots
+- i18n: new translations for registration deadline error messages (es/ca/en)
+
 ## [2.5.13] - 2026-04-27
 - Registration: localize error messages in `TournamentRegistration` component (no more raw codes like `tournament_full` shown to users)
 - Docs: reorganize docs into `docs/en/` (technical) and `docs/es/` (end-user guides)
