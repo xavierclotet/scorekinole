@@ -1662,5 +1662,8 @@
   "auth_userDisabled": "Aquest compte ha estat deshabilitat. Contacteu amb l'administrador.",
   "registration_errorRegister": "Error en inscriure's",
   "registration_errorUnregister": "Error en desapuntar-te",
-  "registration_errorLeaveWaitlist": "Error en sortir de la llista"
+  "registration_errorLeaveWaitlist": "Error en sortir de la llista",
+  "registration_deadlineErrorPast": "La data límit ja ha passat.",
+  "registration_deadlineErrorAfterTournament": "La data límit ha de ser anterior al dia del torneig.",
+  "registration_deadlineErrorTooClose": "La data límit ha de ser com a mínim 24 hores abans del torneig."
 }

@@ -1662,5 +1662,8 @@
   "auth_userDisabled": "This account has been disabled. Contact the administrator.",
   "registration_errorRegister": "Registration error",
   "registration_errorUnregister": "Error unsubscribing",
-  "registration_errorLeaveWaitlist": "Error exiting the list"
+  "registration_errorLeaveWaitlist": "Error exiting the list",
+  "registration_deadlineErrorPast": "The deadline has already passed.",
+  "registration_deadlineErrorAfterTournament": "The deadline must be before the day of the tournament.",
+  "registration_deadlineErrorTooClose": "The deadline must be at least 24 hours before the tournament."
 }
