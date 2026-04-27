@@ -142,9 +142,21 @@ Cuando se cumple la condición de victoria (alguien llega a X puntos, o se compl
 
 Si te han apuntado a un torneo, así es como entras y juegas tus partidos.
 
-### Paso 1: Cómo entrar al torneo
+### Antes del torneo: apuntarse (inscripción)
 
-Hay **3 formas** de acceder:
+Si el torneo permite inscripciones online, puedes apuntarte **los días previos** desde la lista pública de torneos:
+
+1. En la pantalla de inicio, pulsa **"Torneos"**.
+2. Filtra por país/fecha/modo y entra en el torneo que te interesa.
+3. Si las inscripciones están abiertas, verás un botón **"Inscribirme"**. Si está lleno y hay lista de espera, podrás unirte a la **lista de espera**.
+
+> ⚠️ La **inscripción tiene una fecha límite** que pone el admin. Una vez pasada, **el torneo deja de aceptar inscripciones desde la app** — solo el admin puede añadir manualmente algún jugador de última hora desde su panel. Si llegas tarde, **háblalo con el admin** del torneo.
+
+> 💡 La inscripción y "entrar a jugar el día del torneo" son **dos cosas distintas**. Estar inscrito no te lleva automáticamente al partido — el día del torneo necesitas igualmente la **clave del torneo** o un **enlace de invitación** (sección siguiente).
+
+### El día del torneo: cómo entrar a jugar tus partidos
+
+Hay **2 formas** de acceder al torneo en directo:
 
 #### Opción A: Con la clave del torneo (lo más habitual)
 
@@ -167,12 +179,6 @@ A veces el admin (o un compañero de pareja) te manda un enlace tipo `https://sc
 
 - Si **no tienes cuenta**: te pedirá iniciar sesión (con Google es lo más rápido) antes de entrar.
 - Si **ya tienes cuenta**: entras directamente al torneo.
-
-#### Opción C: Desde la lista pública de torneos
-
-1. En la pantalla de inicio, pulsa **"Torneos"**.
-2. Busca tu torneo (puedes filtrar por país, fecha, modo, etc.).
-3. Pulsa el torneo → "Inscribirme" si las inscripciones están abiertas.
 
 ### Paso 2: Una vez dentro del torneo
 
