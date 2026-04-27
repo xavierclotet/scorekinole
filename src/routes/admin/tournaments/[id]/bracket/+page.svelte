@@ -117,6 +117,15 @@
   let silverConsolationBrackets = $derived(silverBracket?.consolationBrackets || []);
   let consolationBrackets = $derived(activeTab === 'gold' ? goldConsolationBrackets : silverConsolationBrackets);
 
+  // Hide the Regenerate button when there's nothing left to regenerate (all consolation
+  // matches already played). The function preserves completed matches, but if everything
+  // is done the button is just visual noise.
+  let hasPendingConsolationMatches = $derived(
+    consolationBrackets.some(c =>
+      c.rounds.some(r => r.matches.some(m => m.status === 'PENDING'))
+    )
+  );
+
   // Backward compat: offset for silver consolation positions (0 for new data with global offset, goldCount for old data)
   let consolationPosOffset = $derived.by(() => {
     if (activeTab !== 'silver' || !silverBracket?.rounds?.[0]?.matches?.[0] || !goldBracket?.rounds?.[0]) return 0;
@@ -2273,18 +2282,20 @@
             <div class="consolation-section" data-theme={$adminTheme}>
               <div class="consolation-header">
                 <h3 class="consolation-title">🏅 {m.bracket_consolationBrackets()}</h3>
-                <button
-                  class="regenerate-consolation-btn"
-                  onclick={handleGenerateConsolation}
-                  disabled={isGeneratingConsolation}
-                  title={m.bracket_regenerateConsolation()}
-                >
-                  {#if isGeneratingConsolation}
-                    <span class="spinner"></span> {m.bracket_regenerating()}
-                  {:else}
-                    🔄 {m.bracket_regenerate()}
-                  {/if}
-                </button>
+                {#if hasPendingConsolationMatches}
+                  <button
+                    class="regenerate-consolation-btn"
+                    onclick={handleGenerateConsolation}
+                    disabled={isGeneratingConsolation}
+                    title={m.bracket_regenerateConsolation()}
+                  >
+                    {#if isGeneratingConsolation}
+                      <span class="spinner"></span> {m.bracket_regenerating()}
+                    {:else}
+                      🔄 {m.bracket_regenerate()}
+                    {/if}
+                  </button>
+                {/if}
               </div>
               <div class="consolation-unified">
                 <!-- R16 consolation (9º-16º) -->
