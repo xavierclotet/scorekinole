@@ -9,7 +9,7 @@ Carpeta para imágenes referenciadas desde los docs de `docs/`.
 
 ## Pantallazos pendientes — Guía de admin
 
-Captura estos pantallazos y guárdalos aquí con el nombre exacto. Ya están referenciados en `docs/GUIA_ADMIN_TORNEOS.md`, así que en cuanto pegues el archivo se verán automáticamente.
+Captura estos pantallazos y guárdalos aquí con el nombre exacto. Ya están referenciados en `docs/es/GUIA_ADMIN_TORNEOS.md`, así que en cuanto pegues el archivo se verán automáticamente.
 
 | Archivo | Qué capturar |
 |---------|--------------|

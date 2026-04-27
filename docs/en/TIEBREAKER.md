@@ -230,7 +230,7 @@ A BYE match is recorded as a WALKOVER with fixed scores:
 
 ### Implementation
 
-See: [`src/lib/algorithms/swiss.ts`](../src/lib/algorithms/swiss.ts) — `generatePointBasedPairings()`, `getByeHistory()`
+See: [`src/lib/algorithms/swiss.ts`](../../src/lib/algorithms/swiss.ts) — `generatePointBasedPairings()`, `getByeHistory()`
 
 ---
 
@@ -291,7 +291,7 @@ buchholz?: number;  // Calculated upfront in resolveTiebreaker()
 
 ## Implementation
 
-See: [`src/lib/algorithms/tiebreaker.ts`](../src/lib/algorithms/tiebreaker.ts)
+See: [`src/lib/algorithms/tiebreaker.ts`](../../src/lib/algorithms/tiebreaker.ts)
 
 **Used by both LIVE and IMPORTED tournaments:**
 - LIVE: Called from finalize page and `recalculateStandings()`

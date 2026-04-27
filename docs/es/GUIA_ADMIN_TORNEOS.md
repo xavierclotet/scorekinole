@@ -256,7 +256,7 @@ Puedes editar lo que quieras antes de pulsar **Crear torneo**.
 - Estás haciendo pruebas de la app.
 - Has duplicado un torneo de prueba y quieres simular su desarrollo entero en segundos.
 
-**⚠️ Solo disponible para SuperAdmin.** No aparece para admins normales.
+**¿Quién puede usarlo?** Aparece para cualquier usuario con acceso de administración a ese torneo: el **creador del torneo**, los **admins invitados a administrarlo** y los **SuperAdmin**. No aparece para usuarios sin permisos sobre el torneo.
 
 **Cómo se usa**:
 1. Entra en un torneo en curso (en fase de grupos o en cuadro final).
@@ -332,17 +332,13 @@ Si por lo que sea ningún jugador de la mesa registra el resultado en la app (po
 
 **Botones útiles**:
 - 🔁 **Duplicar**: clonar config de otro torneo
-- ⚡ **Autorellenar**: rellenar partidos al azar (solo testing, solo SuperAdmin)
+- ⚡ **Autorellenar**: rellenar partidos al azar (solo para testing — disponible para el creador del torneo, admins invitados y SuperAdmin)
 - 🧪 **Torneo de prueba**: lo oculta del listado público y no cuenta para el ranking (desmárcalo cuando esté listo)
 
 ---
 
 ## Documentación relacionada (para profundizar)
 
-- [TOURNAMENT_DATA_STRUCTURE.md](./TOURNAMENT_DATA_STRUCTURE.md) — Estructura técnica de torneos
-- [TOURNAMENT_ADMIN.md](./TOURNAMENT_ADMIN.md) — Funciones avanzadas (WO, DSQ, fin por tiempo)
-- [TOURNAMENT_REGISTRATION.md](./TOURNAMENT_REGISTRATION.md) — Sistema de inscripciones
-- [DOUBLES_TOURNAMENTS.md](./DOUBLES_TOURNAMENTS.md) — Particularidades de torneos de dobles
-- [SCORING_TERMINOLOGY.md](./SCORING_TERMINOLOGY.md) — Terminología (Round/Game/Match)
-- [TIEBREAKER.md](./TIEBREAKER.md) — Cómo se resuelven empates
-- [RANKING_SYSTEM.md](./RANKING_SYSTEM.md) — Cómo funciona el sistema de puntos
+- [ADMIN_TORNEO_FUNCIONES.md](./ADMIN_TORNEO_FUNCIONES.md) — Funciones avanzadas durante el torneo (WO, DSQ, fin por tiempo, control en vivo)
+- [DESEMPATES.md](./DESEMPATES.md) — Cómo se resuelven los empates en la clasificación
+- [DOBLES.md](./DOBLES.md) — Particularidades de los torneos de dobles (parejas, nombre de equipo, ranking)

@@ -303,7 +303,7 @@ Stored as `tournament.waitlist[]` (optional). Created when `participants.length 
 - `registration.enabled` is automatically set to `false` when the tournament transitions from DRAFT to GROUP_STAGE.
 - Push notifications use the `onTournamentRegistration` Cloud Function.
 
-> For full details on the registration flow, concurrency model, doubles modes, admin tooling, and known issues see **[docs/TOURNAMENT_REGISTRATION.md](./TOURNAMENT_REGISTRATION.md)**.
+> For full details on the registration flow, concurrency model, doubles modes, admin tooling, and known issues see **[TOURNAMENT_REGISTRATION.md](./TOURNAMENT_REGISTRATION.md)**.
 
 ---
 

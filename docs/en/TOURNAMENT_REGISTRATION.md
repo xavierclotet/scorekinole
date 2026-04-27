@@ -102,7 +102,7 @@ tournament.status === 'DRAFT'
 && (!registration.deadline || Date.now() < registration.deadline)
 ```
 
-⚠️ **Known issue:** the block disappears once the deadline passes, even for users who are already enrolled (they lose the "Desapuntarme" button). Should continue showing enrolment status post-deadline until tournament starts.
+> ✅ Fixed in v2.5.9: enrolled users keep seeing the registration block (with the "Desapuntarme" / "Salir de la lista" buttons) even after the deadline has passed, until the tournament actually starts.
 
 ---
 
@@ -122,9 +122,13 @@ Partner data is stored as `TournamentParticipant.partner` (nested object inside 
 
 ## Push Notifications
 
-The `onTournamentRegistration` Cloud Function (`functions/src/index.ts:~1471`) fires when `tournament.participants` or `tournament.waitlist` grows. It sends a push to the tournament's `ownerId` and `adminIds` if `notifyOnRegistration` is true.
+The `onTournamentRegistration` Cloud Function (`functions/src/index.ts:~1474`) fires on tournament document updates. It uses the helpers in `functions/src/registrationHelpers.ts` to robustly detect:
 
-⚠️ **Known gap:** when an unregister triggers FIFO promotion (`participants.length` stays the same, `waitlist` shrinks), neither condition fires — the promoted player receives **no notification**. The i18n key `registration_promotedFromWaitlist` exists but is never sent.
+- **New direct registrants** — `detectNewParticipants()` (id-based diff, not array-length heuristic) → notifies `ownerId` + `adminIds`.
+- **New waitlist entries** — `detectNewWaitlistEntries()` (userId-based diff) → notifies admins.
+- **Promotions from the waitlist** — `detectPromotedFromWaitlist()` (covers the `unregister + auto-promote` case where `participants.length` stays the same) → sends the **promoted user** a push: *"¡Tu plaza está confirmada en {tournamentName}!"*.
+
+All three detection functions are pure and unit-tested in `registrationHelpers.test.ts`.
 
 ---
 
@@ -147,11 +151,13 @@ Fixed (v2.5.9):
 - ✅ **Registration block hidden post-deadline for enrolled users**: `hasRegistration` in the public route now stays `true` when `isCurrentUserEnrolled`, even after deadline has passed, so they keep the "Desapuntarme" / "Salir de la lista" buttons.
 - ✅ **Admin has no live view of registrants / waitlist**: new "Inscripciones" section on the admin detail page with promote/remove actions (no wizard re-entry needed).
 
+Fixed later:
+- ✅ **No push on waitlist promotion after unregister**: rewritten with id-based diff helpers (`detectPromotedFromWaitlist` in `functions/src/registrationHelpers.ts`). The promoted user now receives a push *"¡Tu plaza está confirmada en {tournamentName}!"*.
+- ✅ **CF "newly added" detection fragile**: `onTournamentRegistration` no longer uses `array[length-1]`. It uses `detectNewParticipants` / `detectNewWaitlistEntries` / `detectPromotedFromWaitlist`, all id-based diffs with unit tests in `registrationHelpers.test.ts`.
+- ✅ **Hardcoded Spanish strings in doubles panel**: all labels in `TournamentRegistration.svelte`'s partner selection UI now go through Paraglide (`m.registration_partner*`).
+- ✅ **`maxParticipants` unit ambiguity for doubles**: the wizard now shows a `gameType`-aware hint — `registration_maxParticipantsHintDoubles` clarifies that the limit counts pairs, not individual players.
+- ✅ **Error codes not localised**: `getRegistrationErrorMessageKey()` (in `tournamentRegistration.ts`) maps backend reason codes and thrown error messages to Paraglide keys. `TournamentRegistration.svelte` uses a `localizeError()` wrapper so the user sees translated strings instead of raw `tournament_full` etc.
+- ✅ **`rankingSnapshot: 0` at registration is by design**: not a bug — `syncParticipantRankings()` (called from `tournamentStateMachine.ts` when the tournament starts) reads the real ranking from each user's profile and overwrites the snapshot. Direct registrants and promoted-from-waitlist participants both get correct rankings before the tournament begins. There is an explicit test for this in `tournamentRegistration.test.ts`.
+
 Still open:
-- [ ] **No push on waitlist promotion after unregister**: `onTournamentRegistration` CF uses array length delta to detect changes; a simultaneous remove+promote produces no growth. Promoted player is never notified. The key `registration_promotedFromWaitlist` exists but is never sent.
-- [ ] **Firestore rules don't enforce registration invariants server-side**: any authenticated user can overwrite `participants`/`waitlist` directly, bypassing the client-side transaction validation.
-- [ ] **`rankingSnapshot: 0` on promoted participants**: `adminPromoteFromWaitlist` always assigns 0. Affects ranking-based seeding.
-- [ ] **Error codes not localised**: backend throws strings like `"tournament_full"` which surface raw in the UI error toast.
-- [ ] **Hardcoded Spanish strings in doubles panel**: `TournamentRegistration.svelte` contains untranslated labels in the partner selection UI.
-- [ ] **`maxParticipants` unit ambiguity for doubles**: the wizard label says "Máximo participantes" but the value counts pairs, not individual players. No hint in the UI.
-- [ ] **CF "newly added" detection fragile**: `onTournamentRegistration` uses `array[length-1]` to identify the new participant; any reorder/remove+add in one write mis-identifies the target.
+- [ ] **Firestore rules don't enforce registration invariants server-side**: any authenticated user can overwrite `participants`/`waitlist` directly, bypassing the client-side transaction validation. Needs a careful security review and granular rules so writes from non-admins are restricted to *adding* themselves to participants/waitlist (and removing themselves), respecting `maxParticipants` and `deadline`.

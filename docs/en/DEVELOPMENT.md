@@ -68,10 +68,10 @@ Legacy CSS variables (`--bg-primary`, `--accent-green`, etc.) are preserved for 
 
 ## Project Structure
 
-See [CLAUDE.md](../CLAUDE.md) for detailed project structure and architecture documentation.
+See [CLAUDE.md](../../CLAUDE.md) for detailed project structure and architecture documentation.
 
 ## Related Documentation
 
-- [TIEBREAKER.md](TIEBREAKER.md) - Tiebreaker rules for tournaments
-- [DEPLOYMENT.md](../DEPLOYMENT.md) - Deployment instructions
-- [FIRESTORE_INDEXES.md](../FIRESTORE_INDEXES.md) - Firestore index configuration
+- [TIEBREAKER.md](./TIEBREAKER.md) - Tiebreaker rules for tournaments
+- [DEPLOYMENT.md](../../DEPLOYMENT.md) - Deployment instructions
+- [FIRESTORE_INDEXES.md](../../FIRESTORE_INDEXES.md) - Firestore index configuration

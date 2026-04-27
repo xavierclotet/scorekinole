@@ -1657,5 +1657,10 @@
   "registration_maxParticipantsHintSingles": "Nombre màxim de participants que es poden inscriure",
   "auth_networkError": "Error de connexió. Comprova el teu internet i torna a intentar-ho.",
   "auth_popupClosed": "La finestra es va tancar abans de completar linici de sessió. Torneu-ho a provar.",
-  "auth_accountExistsDifferentProvider": "Aquest compte ja existeix amb un altre mètode d'inici de sessió. Proveu amb Google o un altre mètode."
+  "auth_accountExistsDifferentProvider": "Aquest compte ja existeix amb un altre mètode d'inici de sessió. Proveu amb Google o un altre mètode.",
+  "admin_cannotDisableHasOwnership": "No es pot deshabilitar: transferiu la propietat de torneigs i locals primer.",
+  "auth_userDisabled": "Aquest compte ha estat deshabilitat. Contacteu amb l'administrador.",
+  "registration_errorRegister": "Error en inscriure's",
+  "registration_errorUnregister": "Error en desapuntar-te",
+  "registration_errorLeaveWaitlist": "Error en sortir de la llista"
 }

@@ -1657,5 +1657,10 @@
   "registration_maxParticipantsHintSingles": "Maximum number of participants that can register",
   "auth_networkError": "Connection error. Check your internet connection and try again.",
   "auth_popupClosed": "The window closed before the login was completed. Please try again.",
-  "auth_accountExistsDifferentProvider": "This account already exists with another login method. Try Google or another method."
+  "auth_accountExistsDifferentProvider": "This account already exists with another login method. Try Google or another method.",
+  "admin_cannotDisableHasOwnership": "It cannot be disabled: transfer ownership of tournaments and venues first.",
+  "auth_userDisabled": "This account has been disabled. Contact the administrator.",
+  "registration_errorRegister": "Registration error",
+  "registration_errorUnregister": "Error unsubscribing",
+  "registration_errorLeaveWaitlist": "Error exiting the list"
 }

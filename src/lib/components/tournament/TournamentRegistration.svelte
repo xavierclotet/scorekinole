@@ -2,7 +2,7 @@
   import type { Tournament } from '$lib/types/tournament';
   import type { UserProfile } from '$lib/firebase/userProfile';
   import { currentUser } from '$lib/firebase/auth';
-  import { registerForTournament, unregisterFromTournament, leaveWaitlist, filterEligiblePartners } from '$lib/firebase/tournamentRegistration';
+  import { registerForTournament, unregisterFromTournament, leaveWaitlist, filterEligiblePartners, getRegistrationErrorMessageKey } from '$lib/firebase/tournamentRegistration';
   import * as Dialog from '$lib/components/ui/dialog';
   import LoginModal from '$lib/components/LoginModal.svelte';
   import * as m from '$lib/paraglide/messages.js';
@@ -90,6 +90,20 @@
     registrationResult
   );
 
+  /** Convert a backend error code/message into a localized user-facing string. */
+  function localizeError(error: string | undefined, fallback: string): string {
+    if (!error) return fallback;
+    const key = getRegistrationErrorMessageKey(error);
+    switch (key) {
+      case 'registration_full': return m.registration_full();
+      case 'registration_registered': return m.registration_registered();
+      case 'registration_onWaitlist': return m.registration_onWaitlist();
+      case 'registration_closed': return m.registration_closed();
+      case 'registration_loginToRegister': return m.registration_loginToRegister();
+      default: return fallback;
+    }
+  }
+
   let searchTimeout: ReturnType<typeof setTimeout>;
   async function searchPartner(query: string) {
     partnerSearchResults = [];
@@ -141,7 +155,7 @@
     if (result.success) {
       registrationResult = null;
     } else {
-      errorMessage = result.error || 'Error al salir de la lista';
+      errorMessage = localizeError(result.error, m.registration_errorLeaveWaitlist());
     }
   }
 
@@ -154,7 +168,7 @@
     if (result.success) {
       registrationResult = null;
     } else {
-      errorMessage = result.error || 'Error al desapuntarte';
+      errorMessage = localizeError(result.error, m.registration_errorUnregister());
     }
   }
 
@@ -183,7 +197,7 @@
       partnerName = '';
       showPartnerField = false;
     } else {
-      errorMessage = result.error || 'Error al inscribirse';
+      errorMessage = localizeError(result.error, m.registration_errorRegister());
     }
   }
 </script>
