@@ -2,6 +2,12 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.13] - 2026-04-27
+- Registration: localize error messages in `TournamentRegistration` component (no more raw codes like `tournament_full` shown to users)
+- Docs: reorganize docs into `docs/en/` (technical) and `docs/es/` (end-user guides)
+- Docs: add Spanish admin guides — `GUIA_ADMIN_TORNEOS.md`, `ADMIN_TORNEO_FUNCIONES.md`, `DESEMPATES.md`, `DOBLES.md`
+- Docs: refresh `TOURNAMENT_REGISTRATION.md` to reflect actual bug status (5 of 7 known issues already fixed)
+
 ## [2.5.12] - 2026-04-17
 - Security: harden Firestore rules — super-admin required to modify isAdmin/isSuperAdmin/disabled flags on user profiles
 - Security: remove world-writable tournament updates; restrict to owner/adminIds + scoped scoring/registration updates
