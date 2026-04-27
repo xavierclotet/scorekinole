@@ -300,6 +300,8 @@ Si por lo que sea ningún jugador de la mesa registra el resultado en la app (po
 
 > 📢 Deja claro a los jugadores: **"Si no podéis anotar el resultado en la app, avisadme y lo introduzco yo."** Es la forma de evitar partidos perdidos o fantasma.
 
+> 💡 **¿Quieres ahorrarte explicaciones?** Pasa a tus jugadores el enlace a la [GUIA_JUGADOR.md](./GUIA_JUGADOR.md) — explica paso a paso cómo entrar al torneo con la clave, cómo anotar el resultado y qué hacer en los casos típicos.
+
 ---
 
 ## Errores frecuentes y consejos
