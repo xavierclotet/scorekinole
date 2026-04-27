@@ -70,7 +70,7 @@ Works on any device with a browser. You can also **install it as an app** on you
 - **Push Notifications**: Opt-in FCM-based notifications when your tournament match is assigned to a table
 - **Per-Category Preferences**: Toggle notifications individually (match ready, phase changes, rankings, invite responses)
 - **Screen Wake Lock**: Display stays on during match scoring — no more screen timeouts mid-game
-- See [Push Notifications & Wake Lock docs](docs/PWA_PUSH_NOTIFICATIONS.md) for technical details
+- See [Push Notifications & Wake Lock docs](docs/en/PWA_PUSH_NOTIFICATIONS.md) for technical details
 
 ### 📶 **Offline Mode & Network Status**
 - **Offline-First**: Works perfectly without internet connection
@@ -171,7 +171,7 @@ Complete tournament administration system for professional Crokinole events.
 
 #### **Visualization**
 - **Beautiful bracket display**: Visual connectors between matches
-- **Group standings**: Live updated tables with tiebreakers ([see tiebreaker rules](docs/TIEBREAKER.md))
+- **Group standings**: Live updated tables with tiebreakers ([see tiebreaker rules](docs/en/TIEBREAKER.md))
 - **Match details**: Round-by-round breakdown
 - **Tournament results**: Final standings with all statistics
 
