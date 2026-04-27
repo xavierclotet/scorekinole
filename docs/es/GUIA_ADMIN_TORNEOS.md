@@ -339,6 +339,7 @@ Si por lo que sea ningún jugador de la mesa registra el resultado en la app (po
 
 ## Documentación relacionada (para profundizar)
 
+- [GESTIONAR_TORNEO.md](./GESTIONAR_TORNEO.md) — Cómo gestionar el torneo una vez creado: introducir resultados, transición, cuadro final
 - [ADMIN_TORNEO_FUNCIONES.md](./ADMIN_TORNEO_FUNCIONES.md) — Funciones avanzadas durante el torneo (WO, DSQ, fin por tiempo, control en vivo)
 - [DESEMPATES.md](./DESEMPATES.md) — Cómo se resuelven los empates en la clasificación
 - [DOBLES.md](./DOBLES.md) — Particularidades de los torneos de dobles (parejas, nombre de equipo, ranking)
