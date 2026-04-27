@@ -15,8 +15,9 @@ Guía rápida para usar **Scorekinole** como jugador. Te explica cómo jugar un 
 | Sin cuenta | Con cuenta |
 |------------|-----------|
 | ✅ Puedes jugar partidos amistosos sin restricciones | ✅ Puedes jugar partidos amistosos |
-| ❌ No se guarda tu historial entre dispositivos | ✅ Tu historial se sincroniza en la nube |
-| ❌ No apareces en el ranking | ✅ Tus partidos cuentan para el ranking |
+| ❌ Los amistosos solo se guardan en este dispositivo (se pierden si borras el navegador) | ✅ Todos tus partidos se guardan en la nube y los puedes consultar en **Estadísticas** |
+| ❌ No tienes página de **Estadísticas** personales | ✅ Ves tu historial completo: amistosos + torneos, con filtros |
+| ❌ No apareces en el ranking | ✅ Tus partidos de torneo cuentan para el ranking |
 | ❌ Para torneos puedes ser "invitado", pero con limitaciones | ✅ Acceso completo a los torneos en los que participes |
 
 **Para crear cuenta**: pulsa el menú (esquina superior derecha) → "Iniciar sesión" → continúa con Google, o regístrate con email + contraseña.
@@ -31,7 +32,7 @@ Al abrir la app, esto es lo que ves:
 - **Atajos rápidos** (debajo, en cuadrícula):
   - **Torneos**: lista de torneos públicos que puedes ver o en los que apuntarte.
   - **Rankings**: clasificación general de jugadores.
-  - **Mis estadísticas**: tu historial personal *(necesita cuenta)*.
+  - **Estadísticas**: tu historial personal de partidos *(necesita cuenta)*. Ver sección [Tu historial: la página de Estadísticas](#tu-historial-la-página-de-estadísticas).
 - **Menú** (esquina superior derecha): perfil, idioma (español/catalán/inglés), tema (claro/oscuro), notificaciones.
 
 ---
@@ -79,6 +80,49 @@ La pantalla del juego te enseña:
 - **Timer** (si lo activaste): cuenta atrás en la parte de arriba. Cuando bajan de 20 segundos aparece un aviso visible.
 - **Menú de configuración** (esquina): cambiar nombres/colores, intercambiar lados de los equipos, cambiar tema, resetear el partido.
 
+### Si juegas en dobles: invitar a tu compañero y rivales
+
+En modo **dobles** un partido tiene 4 jugadores: **tú + tu compañero (partner)** vs **2 rivales**. Por defecto, los otros tres aparecen como "invitados" (sin cuenta), por lo que el partido **solo se contará en TUS estadísticas**.
+
+Si quieres que **cada jugador tenga este partido en su propio historial de Estadísticas y cuente como un partido jugado para los 4**, debes invitarlos a la app como jugadores registrados. Para eso usas los botones **"+"** que aparecen en cada hueco de jugador.
+
+#### Cómo invitar a otro jugador registrado
+
+En la pantalla del partido (en dobles), cada hueco de jugador tiene un botón **"+"**. Al pulsarlo se abre un modal que ofrece:
+
+- Un **enlace** que puedes copiar y enviar (WhatsApp, Telegram, etc.).
+- Un **código QR** que el otro jugador puede escanear con su móvil desde el menú de la app.
+
+El invitado:
+1. Abre el enlace o escanea el QR.
+2. Si no tenía sesión iniciada, se la pide (Google o email).
+3. Verá quién le invita y las reglas del partido.
+4. Pulsa **"Aceptar"** y queda añadido al equipo correspondiente.
+5. A partir de ahí, su nombre aparece en el partido y, cuando termine, **el resultado se sumará también a SUS estadísticas**.
+
+#### Quién puedes invitar en cada hueco
+
+| Botón "+" en… | Invita a… |
+|---------------|-----------|
+| Tu hueco de **partner** (tu equipo) | Tu compañero/a registrado. |
+| Cualquiera de los 2 huecos del **equipo rival** | Los rivales registrados. |
+
+> 💡 En **singles**, también funciona igual: hay un único botón "+" en el equipo rival para invitar a tu oponente registrado.
+
+#### ¿Qué pasa si alguien no acepta?
+
+- El partido se puede jugar igualmente — los huecos sin aceptar quedan como "invitado".
+- Pero el resultado **solo cuenta en las estadísticas de los que sí aceptaron**.
+- Si alguien acepta a mitad de partido, también se le suma al terminar.
+
+#### Aceptar / rechazar y caducidad
+
+- Las invitaciones tienen un **tiempo límite** (cuenta atrás visible en el modal). Si no se acepta a tiempo, hay que generar una nueva.
+- El que invita puede **cancelar** la invitación en cualquier momento desde el mismo modal.
+- El invitado también puede **rechazar** la invitación.
+
+> ⚠️ Para que las estadísticas se sumen a un jugador, ese jugador **necesita tener cuenta** y **aceptar el partido**. Si juega como simple "invitado" anónimo, el partido no aparecerá en su historial.
+
 ### Paso 3: Terminar el partido
 
 Cuando se cumple la condición de victoria (alguien llega a X puntos, o se completan las N rondas):
@@ -108,10 +152,14 @@ El admin te da una **clave de 6 caracteres** (ej: `A3X9KL`). Para entrar:
 
 1. Abre Scorekinole.
 2. Pulsa **"Nuevo Juego"** o el botón con icono de trofeo *"Torneo"* en la barra de acciones.
-3. Aparece un campo para introducir la clave del torneo. Escríbela (no distingue mayúsculas/minúsculas).
+3. Tienes **dos formas** de meter la clave:
+   - **A mano**: escribe los 6 caracteres en el campo (no distingue mayúsculas/minúsculas).
+   - **Escaneando un QR**: pulsa el icono de **QR** dentro del modal. Se abre la cámara del móvil. Apunta al **código QR que el admin muestra** (en una pizarra, en su pantalla, en un cartel de la sede…) y la clave se rellena sola.
 4. Pulsa **"Entrar"**.
 
-> ⚠️ **Necesitas la clave**. Sin ella no puedes entrar al torneo desde la app, ni siquiera si tienes cuenta. Pídesela al admin.
+> ⚠️ **Necesitas la clave** (escrita o por QR). Sin ella no puedes entrar al torneo desde la app, ni siquiera si tienes cuenta. Pídesela al admin.
+
+> 💡 **Truco para admins**: si tienes muchos jugadores entrando a la vez, mostrar el QR en una pantalla grande es lo más rápido — todos lo escanean a la vez sin teclear nada.
 
 #### Opción B: Con un enlace de invitación
 
@@ -197,6 +245,35 @@ Puedes jugar **sin internet**. El amistoso funciona 100% offline. El torneo tamb
 
 ---
 
+## Tu historial: la página de Estadísticas
+
+Si tienes cuenta, en la pantalla de inicio aparece un atajo llamado **"Estadísticas"** (ruta `/my-stats`). Ahí encuentras todo tu historial.
+
+### ¿Qué se ve?
+
+- **Todos tus partidos** que has jugado con la cuenta abierta:
+  - **Amistosos** que iniciaste tú con la cuenta iniciada.
+  - **Amistosos en los que te invitaron y aceptaste** (mediante el botón "+" del partido).
+  - **De torneo** (todos los que has disputado en torneos oficiales).
+- **Filtros** para encontrar lo que buscas:
+  - Por **año** (todos / 2026 / 2025…).
+  - Por **tipo**: todos · solo amistosos · solo torneos.
+  - Por **modo**: por puntos / por rondas.
+  - Por **resultado**: ganados / perdidos / empates.
+- **Detalle de cada partido**: rival, marcador, fecha, mesa (si era de torneo), nombre del torneo (si aplica).
+
+### ¿Qué pasa si NO tengo cuenta?
+
+- Esta página **no aparece para ti**. El atajo "Estadísticas" te pide iniciar sesión si lo pulsas.
+- Los **amistosos** que juegues se guardan **solo en el navegador** del dispositivo donde juegas (no en la nube). Si borras los datos del navegador o cambias de móvil, se pierden.
+- Los partidos de **torneo** que juegues sin cuenta (entrando como invitado, si el torneo lo permite) **no se guardan en tu historial personal** — pero sí siguen contando dentro del torneo en sí.
+
+### Truco
+
+Si llevas tiempo jugando amistosos sin cuenta y luego te registras: los amistosos antiguos del navegador **no se suben automáticamente** a la nube. Solo a partir de que inicies sesión, los partidos nuevos quedarán guardados en Estadísticas.
+
+---
+
 ## Diferencias amistoso vs torneo
 
 | Aspecto | Amistoso | Torneo |
@@ -234,10 +311,17 @@ Amistoso (sin cuenta):
 
 Amistoso (con cuenta):
   Igual, pero el resultado se guarda en tu historial automáticamente.
+  Si quieres que cuente para todos los jugadores: usa el botón "+" en
+  cada hueco para invitarlos. Cada invitado debe aceptar para que el
+  partido aparezca también en SUS estadísticas.
+
+Amistoso de dobles:
+  4 jugadores. Tú + tu partner vs 2 rivales.
+  Botón "+" en cada hueco para invitar a registrados (con enlace o QR).
 
 Torneo:
-  1. Pide al admin la clave del torneo (6 caracteres).
-  2. Inicio → "Nuevo Juego" o "Torneo" → introduce la clave → entra.
+  1. Pide al admin la clave del torneo (6 caracteres) o escanea su QR.
+  2. Inicio → "Nuevo Juego" o "Torneo" → introduce la clave (a mano o por QR) → entra.
   3. Pulsa "Jugar" en tu partido.
   4. Solo uno de los dos jugadores anota.
   5. Confirma el resultado al terminar.
