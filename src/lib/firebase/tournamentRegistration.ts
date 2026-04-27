@@ -24,11 +24,14 @@ export function validateRegistration(
   /** userIds that already occupy a partner slot in existing participants or waitlist entries */
   partnerUserIds: string[] = [],
   /** userId of the partner the current user wants to register with (doubles only) */
-  partnerUserId?: string
+  partnerUserId?: string,
+  /** Tournament scheduled date (ms). Defense-in-depth: close registrations once it passes. */
+  tournamentDate?: number
 ): RegistrationValidation {
   if (tournamentStatus !== 'DRAFT') return { canRegister: false, reason: 'not_draft' };
   if (!registration?.enabled) return { canRegister: false, reason: 'registration_disabled' };
   if (registration.deadline && now > registration.deadline) return { canRegister: false, reason: 'deadline_passed' };
+  if (tournamentDate !== undefined && now >= tournamentDate) return { canRegister: false, reason: 'deadline_passed' };
   if (registration.allowWaitlist === false && registration.maxParticipants && participantUserIds.length >= registration.maxParticipants) {
     return { canRegister: false, reason: 'tournament_full' };
   }
@@ -41,6 +44,43 @@ export function validateRegistration(
     if (waitlistUserIds.includes(partnerUserId)) return { canRegister: false, reason: 'partner_on_waitlist' };
   }
   return { canRegister: true };
+}
+
+// --- Deadline configuration validation (used by the create-tournament wizard) ---
+
+export type DeadlineValidationReason =
+  | 'in_past'           // deadline is already in the past
+  | 'after_tournament'  // deadline is on or after tournamentDate
+  | 'too_close';        // deadline is less than 24h before tournamentDate
+
+export interface DeadlineValidation {
+  valid: boolean;
+  reason?: DeadlineValidationReason;
+}
+
+/**
+ * Validate that a configured registration deadline is sane relative to the tournament date.
+ *
+ * Rules:
+ *  - Deadline must not be in the past (relative to `now`).
+ *  - If `tournamentDate` is provided, deadline must be strictly before it.
+ *  - If `tournamentDate` is provided, deadline must be at least 24h before it
+ *    (to give the admin time to close registrations and start the tournament).
+ *
+ * Pure function — no Firebase / Date.now() side effects.
+ */
+export function validateRegistrationDeadline(
+  deadlineMs: number,
+  tournamentDate: number | undefined,
+  now: number = Date.now()
+): DeadlineValidation {
+  if (deadlineMs < now) return { valid: false, reason: 'in_past' };
+  if (tournamentDate !== undefined) {
+    if (deadlineMs >= tournamentDate) return { valid: false, reason: 'after_tournament' };
+    const oneDayMs = 24 * 60 * 60 * 1000;
+    if (tournamentDate - deadlineMs < oneDayMs) return { valid: false, reason: 'too_close' };
+  }
+  return { valid: true };
 }
 
 /**
@@ -276,7 +316,9 @@ export async function registerForTournament(
         waitlistUserIds,
         user.id,
         Date.now(),
-        partnerUserIds
+        partnerUserIds,
+        undefined,
+        tournament.tournamentDate
       );
 
       if (!validation.canRegister) {

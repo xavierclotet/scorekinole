@@ -12,6 +12,7 @@ import {
   getRegistrationErrorMessageKey,
   shouldAutoPromote,
   normalizeEmail,
+  validateRegistrationDeadline,
 } from './tournamentRegistration';
 import type { TournamentParticipant, WaitlistEntry } from '$lib/types/tournament';
 
@@ -1718,4 +1719,110 @@ describe('documentation: known limitations and UX debt', () => {
   });
   it.todo('notifies partner when primary unregisters them — requires new Cloud Function + FCM token lookup');
   it.todo('firestore security rules should prevent direct client overwrite of participants/waitlist');
+});
+
+// ─── Deadline vs tournamentDate consistency (Option-3 defense in depth) ──────
+// Layer 1: validateRegistrationDeadline — used by the create-tournament wizard
+//          to refuse a deadline that doesn't fit the tournamentDate.
+// Layer 2: validateRegistration — closes registrations once deadline OR
+//          tournamentDate has passed, even if the admin forgot to start the tournament.
+
+describe('validateRegistrationDeadline (wizard-side validation)', () => {
+  const oneDay = 24 * 60 * 60 * 1000;
+  const now = new Date('2026-05-01T12:00:00').getTime();
+
+  it('rejects a deadline already in the past', () => {
+    const result = validateRegistrationDeadline(now - oneDay, undefined, now);
+    expect(result).toEqual({ valid: false, reason: 'in_past' });
+  });
+
+  it('rejects a deadline AFTER the tournament date', () => {
+    const tournamentDate = new Date('2026-06-01T10:00:00').getTime();
+    const deadline = new Date('2026-06-05T12:00:00').getTime();
+    const result = validateRegistrationDeadline(deadline, tournamentDate, now);
+    expect(result).toEqual({ valid: false, reason: 'after_tournament' });
+  });
+
+  it('rejects a deadline EXACTLY at the tournament date', () => {
+    const tournamentDate = new Date('2026-06-01T10:00:00').getTime();
+    const result = validateRegistrationDeadline(tournamentDate, tournamentDate, now);
+    expect(result).toEqual({ valid: false, reason: 'after_tournament' });
+  });
+
+  it('rejects a deadline less than 24h before the tournament', () => {
+    const tournamentDate = new Date('2026-06-01T10:00:00').getTime();
+    const deadline = tournamentDate - 12 * 60 * 60 * 1000; // 12h before
+    const result = validateRegistrationDeadline(deadline, tournamentDate, now);
+    expect(result).toEqual({ valid: false, reason: 'too_close' });
+  });
+
+  it('accepts a deadline exactly 24h before the tournament', () => {
+    const tournamentDate = new Date('2026-06-01T10:00:00').getTime();
+    const deadline = tournamentDate - oneDay;
+    const result = validateRegistrationDeadline(deadline, tournamentDate, now);
+    expect(result).toEqual({ valid: true });
+  });
+
+  it('accepts a deadline well before the tournament', () => {
+    const tournamentDate = new Date('2026-06-01T10:00:00').getTime();
+    const deadline = new Date('2026-05-25T23:59:00').getTime();
+    const result = validateRegistrationDeadline(deadline, tournamentDate, now);
+    expect(result).toEqual({ valid: true });
+  });
+
+  it('skips tournamentDate checks when tournamentDate is undefined', () => {
+    // Admin didn't set a tournament date → only the in_past check applies.
+    const future = now + 5 * oneDay;
+    expect(validateRegistrationDeadline(future, undefined, now)).toEqual({ valid: true });
+  });
+});
+
+describe('validateRegistration with tournamentDate (defense in depth)', () => {
+  const baseReg = { enabled: true, notifyOnRegistration: false, showParticipantList: true };
+  const oneDay = 24 * 60 * 60 * 1000;
+
+  it('still rejects when current time is past the deadline (existing behavior preserved)', () => {
+    const pastDeadline = Date.now() - oneDay;
+    const reg = { ...baseReg, deadline: pastDeadline };
+    const result = validateRegistration('DRAFT', reg, [], [], 'u1', Date.now());
+    expect(result).toEqual({ canRegister: false, reason: 'deadline_passed' });
+  });
+
+  it('rejects registration when tournamentDate has passed even if status is still DRAFT', () => {
+    // Admin set tournamentDate in the past but forgot to transition to GROUP_STAGE.
+    // Registration must close anyway.
+    const reg = { ...baseReg, deadline: Date.now() + 30 * oneDay };
+    const tournamentDate = Date.now() - 1000;
+    const result = validateRegistration(
+      'DRAFT', reg, [], [], 'u1', Date.now(), [], undefined, tournamentDate
+    );
+    expect(result).toEqual({ canRegister: false, reason: 'deadline_passed' });
+  });
+
+  it('rejects registration exactly at tournamentDate', () => {
+    const now = Date.now();
+    const reg = { ...baseReg };
+    const result = validateRegistration(
+      'DRAFT', reg, [], [], 'u1', now, [], undefined, now
+    );
+    expect(result).toEqual({ canRegister: false, reason: 'deadline_passed' });
+  });
+
+  it('still accepts registration when both deadline and tournamentDate are in the future', () => {
+    const reg = { ...baseReg, deadline: Date.now() + oneDay };
+    const tournamentDate = Date.now() + 5 * oneDay;
+    const result = validateRegistration(
+      'DRAFT', reg, [], [], 'u1', Date.now(), [], undefined, tournamentDate
+    );
+    expect(result).toEqual({ canRegister: true });
+  });
+
+  it('still accepts when tournamentDate is undefined (legacy tournaments)', () => {
+    // Tournaments created before this validation existed have no tournamentDate.
+    const reg = { ...baseReg, deadline: Date.now() + oneDay };
+    const result = validateRegistration(
+      'DRAFT', reg, [], [], 'u1', Date.now(), [], undefined, undefined
+    );
+    expect(result).toEqual({ canRegister: true });
+  });
 });

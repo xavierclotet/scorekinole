@@ -14,7 +14,7 @@
   import { goto } from '$app/navigation';
   import { createTournament, getTournament, updateTournament, searchTournamentNames, checkTournamentKeyExists, checkTournamentQuota, type TournamentNameInfo } from '$lib/firebase/tournaments';
   import { addParticipants } from '$lib/firebase/tournamentParticipants';
-  import { buildRegistrationConfig, adminPromoteFromWaitlist, adminRemoveFromWaitlist } from '$lib/firebase/tournamentRegistration';
+  import { buildRegistrationConfig, adminPromoteFromWaitlist, adminRemoveFromWaitlist, validateRegistrationDeadline } from '$lib/firebase/tournamentRegistration';
   import type { TournamentParticipant, WaitlistEntry, RankingConfig, TournamentTier } from '$lib/types/tournament';
   import { normalizeTier } from '$lib/types/tournament';
   import { getTierInfo, getPointsDistribution, calculateRankingPoints, getNaturalThreshold } from '$lib/algorithms/ranking';
@@ -75,6 +75,25 @@
   let regAllowWaitlist = $state(true);
   let regNotify = $state(true);
   let regShowList = $state(true);
+
+  /** Validate the registration deadline against the tournamentDate.
+   * Returns an i18n message key when invalid, or null when valid / not applicable. */
+  let regDeadlineErrorKey = $derived.by(() => {
+    if (!regEnabled || !regDeadlineDate) return null;
+    const deadlineMs = new Date(`${regDeadlineDate}T${regDeadlineTime || '23:59'}`).getTime();
+    if (isNaN(deadlineMs)) return null;
+    const tournamentMs = tournamentDate
+      ? new Date(`${tournamentDate}T${tournamentTime || '00:00'}`).getTime()
+      : undefined;
+    const result = validateRegistrationDeadline(deadlineMs, tournamentMs);
+    if (result.valid) return null;
+    switch (result.reason) {
+      case 'in_past': return 'registration_deadlineErrorPast' as const;
+      case 'after_tournament': return 'registration_deadlineErrorAfterTournament' as const;
+      case 'too_close': return 'registration_deadlineErrorTooClose' as const;
+      default: return null;
+    }
+  });
 
   // Step 2: Tournament Format
   let numTables = $state(4);
@@ -1363,6 +1382,13 @@
     if (!city.trim()) {
       errors.push(m.wizard_errorCityRequired());
     }
+    if (regDeadlineErrorKey === 'registration_deadlineErrorPast') {
+      errors.push(m.registration_deadlineErrorPast());
+    } else if (regDeadlineErrorKey === 'registration_deadlineErrorAfterTournament') {
+      errors.push(m.registration_deadlineErrorAfterTournament());
+    } else if (regDeadlineErrorKey === 'registration_deadlineErrorTooClose') {
+      errors.push(m.registration_deadlineErrorTooClose());
+    }
     return errors;
   }
 
@@ -2134,9 +2160,16 @@
                       <div class="info-field">
                         <label>{m.registration_deadline()}</label>
                         <div class="date-time-row">
-                          <input type="date" bind:value={regDeadlineDate} class="input-field" />
-                          <input type="time" bind:value={regDeadlineTime} class="input-field" />
+                          <input type="date" bind:value={regDeadlineDate} class="input-field" class:input-error={regDeadlineErrorKey} />
+                          <input type="time" bind:value={regDeadlineTime} class="input-field" class:input-error={regDeadlineErrorKey} />
                         </div>
+                        {#if regDeadlineErrorKey === 'registration_deadlineErrorPast'}
+                          <span class="field-error">{m.registration_deadlineErrorPast()}</span>
+                        {:else if regDeadlineErrorKey === 'registration_deadlineErrorAfterTournament'}
+                          <span class="field-error">{m.registration_deadlineErrorAfterTournament()}</span>
+                        {:else if regDeadlineErrorKey === 'registration_deadlineErrorTooClose'}
+                          <span class="field-error">{m.registration_deadlineErrorTooClose()}</span>
+                        {/if}
                       </div>
                       <div class="info-field">
                         <label>{m.registration_maxParticipants()}</label>
