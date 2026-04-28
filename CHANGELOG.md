@@ -2,6 +2,14 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.15] - 2026-04-28
+- Time breakdown: critical fix — bracket sub-rounds no longer inflate by `breakBetweenPhases` (30 min was wrongly added between QF→SF and SF→Final). Replaced with new `breakBetweenBracketRounds` config (default 5 min)
+- Time breakdown modal: now openable from DRAFT (clickable duration row in admin tournament page)
+- Time breakdown modal: hide redundant 'matchRounds' row in Swiss (same value as `numSwissRounds`)
+- Rules modal: ranking line now shows the real winner points based on participant count, not the tier max
+- Rules modal: 'final stage' line now states the actual qualifier count (split divisions vs single bracket)
+- Tests: 7 regression tests added under 'BUG: bracket sub-phase transitions inflate times'
+
 ## [2.5.14] - 2026-04-27
 - Registration: deadline now validated against tournamentDate — wizard rejects deadlines in the past, on/after the tournament date, or less than 24h before it
 - Registration: defense-in-depth — registrations close automatically once tournamentDate passes, even if admin forgot to start the tournament
