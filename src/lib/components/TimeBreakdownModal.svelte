@@ -138,10 +138,12 @@
                   <span class="stat-label">{m.time_totalMatches()}</span>
                   <span class="stat-value">{breakdown.groupStage.totalMatches}</span>
                 </div>
-                <div class="stat-row">
-                  <span class="stat-label">{m.time_matchRounds()}</span>
-                  <span class="stat-value">{breakdown.groupStage.matchRounds}</span>
-                </div>
+                {#if breakdown.groupStage.type !== 'SWISS'}
+                  <div class="stat-row">
+                    <span class="stat-label">{m.time_matchRounds()}</span>
+                    <span class="stat-value">{breakdown.groupStage.matchRounds}</span>
+                  </div>
+                {/if}
 
                 <!-- Calculation Box -->
                 <div class="calc-box">

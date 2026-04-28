@@ -358,7 +358,16 @@
         </h2>
         <p>
           {#if tournament.phaseType === 'TWO_PHASE'}
-            {m.rules_qualifiersAdvance()}.
+            {#if timeBreakdown.finalStage?.qualifiedCount}
+              <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+              {@html formatText(
+                hasSplitDivisions
+                  ? m.rules_qualifiersSplitDivisionsCount({ count: timeBreakdown.finalStage.qualifiedCount })
+                  : m.rules_qualifiersAdvanceCount({ count: timeBreakdown.finalStage.qualifiedCount })
+              )}
+            {:else}
+              {m.rules_qualifiersAdvance()}.
+            {/if}
           {/if}
           <!-- eslint-disable-next-line svelte/no-at-html-tags -->
           {@html formatText(finalStageDesc || '')}.
@@ -461,7 +470,7 @@
         {#if rankingInfo}
           <p>
             <!-- eslint-disable-next-line svelte/no-at-html-tags -->
-            {@html formatText(m.rules_rankingPoints({ tier: rankingInfo.name, maxPoints: rankingInfo.maxPoints }))}
+            {@html formatText(m.rules_rankingPoints({ tier: rankingInfo.name, maxPoints: pointsDistribution?.[0]?.points ?? rankingInfo.maxPoints }))}
           </p>
           {#if pointsDistribution}
             <div class="points-distribution">

@@ -20,6 +20,7 @@ export const DEFAULT_TIME_CONFIG: TournamentTimeConfig = {
   },
   breakBetweenMatches: 2,
   breakBetweenPhases: 30,
+  breakBetweenBracketRounds: 5,
   parallelSemifinals: true,
   parallelFinals: true
 };

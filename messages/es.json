@@ -941,6 +941,8 @@
   "rules_onePhaseIntro": "El torneo es de eliminación directa: todos los participantes entran directamente en un cuadro eliminatorio.",
   "rules_pointsMode": "a {n} puntos",
   "rules_qualifiersAdvance": "Los mejores clasificados de la fase de grupos avanzan a la fase final",
+  "rules_qualifiersAdvanceCount": "Los **{count} mejores clasificados** de la fase de grupos avanzan a la fase final.",
+  "rules_qualifiersSplitDivisionsCount": "Los **{count} mejores clasificados** pasan a la división Oro y el resto a la división Plata.",
   "rules_rankingPoints": "Este torneo es puntuable para el **ranking** con categoría **{tier}**. El ganador recibe **{maxPoints} puntos** y el resto según su posición final como se puede ver a continuación.",
   "rules_rankingNotEnabled": "Este torneo es amistoso y no otorga puntos para el ranking.",
   "rules_roundRobinMultiGroup": "Los participantes se dividen en **{n} grupos** donde **todos juegan contra todos**",

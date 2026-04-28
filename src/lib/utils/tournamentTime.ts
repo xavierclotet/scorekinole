@@ -172,7 +172,7 @@ function calculateBracketRoundsBreakdown(
     semifinals?: PhaseConfig;
     finals?: PhaseConfig;
   },
-  breakBetweenPhases: number = 0
+  breakBetweenBracketRounds: number = 0
 ): Array<{ name: string; matches: number; minutes: number; parallel?: boolean; config?: string }> {
   if (numParticipants < 2) return [];
 
@@ -249,7 +249,7 @@ function calculateBracketRoundsBreakdown(
   // Continue with subsequent rounds (starting from round where all participants compete)
   currentParticipants = byes > 0 ? bracketSize / 2 : bracketSize;
 
-  // Track phase transitions to add break between phases
+  // Track phase transitions to add a small break before the final
   let lastPhase: 'early' | 'semi' | 'final' | null = null;
 
   while (currentParticipants >= 2) {
@@ -272,10 +272,11 @@ function calculateBracketRoundsBreakdown(
     // Determine current phase
     const currentPhase: 'early' | 'semi' | 'final' = isFinal ? 'final' : (isSemifinals ? 'semi' : 'early');
 
-    // Add break between phases if transitioning to a new phase
+    // Small break between bracket phases (early→semi, semi→final).
+    // The 30-min group→final break is handled separately as `breakdown.transitionMinutes`.
     let phaseTransitionMinutes = 0;
-    if (lastPhase !== null && lastPhase !== currentPhase && breakBetweenPhases > 0) {
-      phaseTransitionMinutes = breakBetweenPhases;
+    if (lastPhase !== null && lastPhase !== currentPhase && breakBetweenBracketRounds > 0) {
+      phaseTransitionMinutes = breakBetweenBracketRounds;
     }
     lastPhase = currentPhase;
 
@@ -796,7 +797,7 @@ export function calculateTimeBreakdown(
             roundsToPlay: finalRoundsToPlay
           } : undefined
         },
-        effectiveConfig.breakBetweenPhases
+        effectiveConfig.breakBetweenBracketRounds ?? 5
       );
 
       // Calculate total from bracket rounds breakdown (more accurate)

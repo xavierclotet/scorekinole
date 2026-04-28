@@ -614,7 +614,8 @@ export interface TournamentTimeConfig {
   minutesPer4RoundsDoubles: number;     // default: 15
   avgRoundsForPointsMode: Record<number, number>;  // e.g., {5: 4, 7: 6, 9: 8, 11: 10}
   breakBetweenMatches: number;          // default: 5 minutes
-  breakBetweenPhases: number;           // default: 10 minutes
+  breakBetweenPhases: number;           // default: 30 minutes — ONLY between group stage and final stage
+  breakBetweenBracketRounds?: number;   // default: 5 minutes — small break between bracket phases (early→semi, semi→final)
   parallelSemifinals: boolean;          // default: true - if semifinals are played in parallel
   parallelFinals: boolean;              // default: true - if final and 3rd place match are played in parallel
 }

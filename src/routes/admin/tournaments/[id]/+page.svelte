@@ -728,12 +728,20 @@
               </div>
 
               {#if tournament.timeEstimate?.totalMinutes}
-                <div class="config-item">
+                <button
+                  type="button"
+                  class="config-item config-item-clickable"
+                  onclick={openTimeBreakdown}
+                  title={m.time_timeBreakdown()}
+                >
                   <span class="config-label">{m.admin_estimatedDuration()}:</span>
                   <span class="config-value duration-value">
                     ~{formatDuration(tournament.timeEstimate.totalMinutes)}
+                    <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="9 18 15 12 9 6"/>
+                    </svg>
                   </span>
-                </div>
+                </button>
               {/if}
 
               {#if tournament.externalLink}
@@ -1925,6 +1933,31 @@
     border-radius: 4px;
     font-size: 0.85rem;
     font-weight: 600;
+  }
+
+  button.config-item.config-item-clickable {
+    width: 100%;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    text-align: left;
+  }
+
+  button.config-item.config-item-clickable:hover {
+    background: color-mix(in srgb, var(--primary) 8%, #f9fafb);
+  }
+
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) button.config-item.config-item-clickable:hover {
+    background: color-mix(in srgb, var(--primary) 15%, #0f1419);
+  }
+
+  button.config-item.config-item-clickable .chevron {
+    opacity: 0.85;
+  }
+
+  button.config-item.config-item-clickable:hover .chevron {
+    transform: translateX(2px);
+    transition: transform 0.15s;
   }
 
   .external-link-value {
