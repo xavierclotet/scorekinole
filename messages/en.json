@@ -459,8 +459,8 @@
   "sync_selectTeamBeforeSyncing": "Select which team you played on before syncing to your account",
   "sync_syncSelected": "Sync selected",
   "timeout_accept": "Accept",
-  "timeout_annotateRound": "Record this last round",
-  "timeout_description": "Time is up. Stop throwing discs. Count the 20s and what's on the board.",
+  "timeout_annotateRound": "Record the result of this last round once you finish",
+  "timeout_description": "Time is up. Finish the current round (throw any discs you have left). Once you're done, count the 20s and mark who won this round.",
   "timeout_paused": "PAUSED",
   "timeout_timeUp": "TIME!",
   "timeout_title": "Time's up!",
@@ -1665,5 +1665,7 @@
   "registration_errorLeaveWaitlist": "Error exiting the list",
   "registration_deadlineErrorPast": "The deadline has already passed.",
   "registration_deadlineErrorAfterTournament": "The deadline must be before the day of the tournament.",
-  "registration_deadlineErrorTooClose": "The deadline must be at least 24 hours before the tournament."
+  "registration_deadlineErrorTooClose": "The deadline must be at least 24 hours before the tournament.",
+  "rules_qualifiersAdvanceCount": "The ** {count} highest ranked teams** from the group stage advance to the final stage.",
+  "rules_qualifiersSplitDivisionsCount": "The ** {count} highest ranked** move to the Gold division and the rest to the Silver division."
 }

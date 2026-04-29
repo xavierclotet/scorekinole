@@ -459,8 +459,8 @@
   "sync_selectTeamBeforeSyncing": "Indica a quin equip vas jugar abans de sincronitzar al teu compte",
   "sync_syncSelected": "Sincronitzar seleccionades",
   "timeout_accept": "Acceptar",
-  "timeout_annotateRound": "Anoteu aquesta última ronda",
-  "timeout_description": "S'ha acabat el temps. No tireu més fitxes. Compteu els 20s i el que hi ha al tauler.",
+  "timeout_annotateRound": "Marqueu el resultat d'aquesta última ronda quan hàgiu acabat",
+  "timeout_description": "S'ha acabat el temps. Acabeu la ronda en curs (llanceu les fitxes que us queden). Quan hàgiu acabat, compteu els 20s i marqueu qui ha guanyat aquesta ronda.",
   "timeout_paused": "PAUSAT",
   "timeout_timeUp": "TEMPS!",
   "timeout_title": "Temps esgotat!",
@@ -1665,5 +1665,7 @@
   "registration_errorLeaveWaitlist": "Error en sortir de la llista",
   "registration_deadlineErrorPast": "La data límit ja ha passat.",
   "registration_deadlineErrorAfterTournament": "La data límit ha de ser anterior al dia del torneig.",
-  "registration_deadlineErrorTooClose": "La data límit ha de ser com a mínim 24 hores abans del torneig."
+  "registration_deadlineErrorTooClose": "La data límit ha de ser com a mínim 24 hores abans del torneig.",
+  "rules_qualifiersAdvanceCount": "Els millors classificats {count} de la fase de grups avancen a la fase final.",
+  "rules_qualifiersSplitDivisionsCount": "Els ** {count} millors classificats** passen a la divisió Or i la resta a la divisió Plata."
 }
