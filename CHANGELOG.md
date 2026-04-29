@@ -2,6 +2,12 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.16] - 2026-04-29
+- Tournament join: bug fix — saved tournament key was being wiped when the tournament moved to `TRANSITION` (between group stage and bracket), forcing players to re-enter the 6-char key. Now retained across `GROUP_STAGE`, `TRANSITION`, and `FINAL_STAGE`; only cleared on `COMPLETED`/`CANCELLED`/`DRAFT`
+- Swiss table assignment: pairwise-swap optimization runs after the greedy pass to escape cases where the last match was cornered into a table one of its players had just used. Eliminates avoidable consecutive-round table repeats
+- New `shouldClearSavedTournamentKey` util shared by `/game` join flow and `TournamentMatchModal` so the two saved-key checks can't drift apart
+- Tests: 8 regression tests for `tournamentStatus` (incl. TRANSITION); 2 regression tests for Swiss table swap (12-player/6-table cross pairings + worst-case constructed)
+
 ## [2.5.15] - 2026-04-28
 - Time breakdown: critical fix — bracket sub-rounds no longer inflate by `breakBetweenPhases` (30 min was wrongly added between QF→SF and SF→Final). Replaced with new `breakBetweenBracketRounds` config (default 5 min)
 - Time breakdown modal: now openable from DRAFT (clickable duration row in admin tournament page)
