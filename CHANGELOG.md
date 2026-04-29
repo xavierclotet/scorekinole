@@ -2,6 +2,9 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.17] - 2026-04-29
+- Timeout modal copy: rewritten in es/ca/en — now tells players to **finish the current round** (throw any discs they have left) before counting 20s and marking the winner. Matches the NCA / tournament convention; previous wording said the opposite ("stop throwing discs")
+
 ## [2.5.16] - 2026-04-29
 - Tournament join: bug fix — saved tournament key was being wiped when the tournament moved to `TRANSITION` (between group stage and bracket), forcing players to re-enter the 6-char key. Now retained across `GROUP_STAGE`, `TRANSITION`, and `FINAL_STAGE`; only cleared on `COMPLETED`/`CANCELLED`/`DRAFT`
 - Swiss table assignment: pairwise-swap optimization runs after the greedy pass to escape cases where the last match was cornered into a table one of its players had just used. Eliminates avoidable consecutive-round table repeats
