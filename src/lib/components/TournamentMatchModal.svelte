@@ -6,6 +6,7 @@
 	import { currentUser } from '$lib/firebase/auth';
 	import QRScanner from './QRScanner.svelte';
 	import { getTournamentByKey } from '$lib/firebase/tournaments';
+	import { shouldClearSavedTournamentKey } from '$lib/utils/tournamentStatus';
 	import {
 		getPendingMatchesForUser,
 		getAllPendingMatches,
@@ -142,13 +143,13 @@
 				return;
 			}
 
-			// Check if tournament exists and is active (IN_PROGRESS or GROUP_STAGE or FINAL_STAGE)
-			if (result.status !== 'COMPLETED' && result.status !== 'CANCELLED' && result.status !== 'DRAFT') {
-				// Tournament is active, use the saved key
+			// Tournament is "active for the saved key" in any phase except finished
+			// (COMPLETED/CANCELLED) or not-yet-playable (DRAFT). TRANSITION counts
+			// as active — see shouldClearSavedTournamentKey for the canonical list.
+			if (!shouldClearSavedTournamentKey(result.status)) {
 				tournamentKey = savedKey;
 				await searchTournament();
 			} else {
-				// Tournament not found or not active, clear saved key and show key input
 				console.log('🔑 Saved tournament key no longer active, clearing...');
 				gameSettings.update(s => ({ ...s, tournamentKey: undefined }));
 				gameSettings.save();

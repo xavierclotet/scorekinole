@@ -551,4 +551,91 @@ describe('assignTablesWithVariety — table distribution fairness', () => {
 		expect(p1Table3, 'p1 should avoid table from round 1').not.toBe(p1Table1);
 		expect(p1Table3, 'p1 should avoid table from round 2').not.toBe(p1Table2);
 	});
+
+	it('regression: 12 players, 6 tables, R2 cross pairings — no avoidable consecutive-round repeat', () => {
+		// Reported scenario: a Swiss tournament with 12 players and 6 tables.
+		// Round 1 used tables 1-6 sequentially; round 2 cross-paired players.
+		// The pure greedy was leaving the LAST match cornered into the table one
+		// player had just used, even though a perfect "every player on a fresh
+		// table" assignment was achievable. Swap optimization must find it.
+		const tableHistory = new Map<string, number[]>();
+		const totalTables = 6;
+
+		// Round 1: P1-P2@T1, P3-P4@T2, ..., P11-P12@T6
+		const round1: GroupMatch[] = [
+			{ id: 'r1m1', participantA: 'P1', participantB: 'P2', status: 'PENDING' },
+			{ id: 'r1m2', participantA: 'P3', participantB: 'P4', status: 'PENDING' },
+			{ id: 'r1m3', participantA: 'P5', participantB: 'P6', status: 'PENDING' },
+			{ id: 'r1m4', participantA: 'P7', participantB: 'P8', status: 'PENDING' },
+			{ id: 'r1m5', participantA: 'P9', participantB: 'P10', status: 'PENDING' },
+			{ id: 'r1m6', participantA: 'P11', participantB: 'P12', status: 'PENDING' }
+		];
+		assignTablesWithVariety(round1, totalTables, tableHistory);
+
+		// Round 2: cross pairings where a perfect no-repeat assignment exists
+		const round2: GroupMatch[] = [
+			{ id: 'r2m1', participantA: 'P1', participantB: 'P3', status: 'PENDING' },
+			{ id: 'r2m2', participantA: 'P2', participantB: 'P5', status: 'PENDING' },
+			{ id: 'r2m3', participantA: 'P4', participantB: 'P7', status: 'PENDING' },
+			{ id: 'r2m4', participantA: 'P6', participantB: 'P9', status: 'PENDING' },
+			{ id: 'r2m5', participantA: 'P8', participantB: 'P11', status: 'PENDING' },
+			{ id: 'r2m6', participantA: 'P10', participantB: 'P12', status: 'PENDING' }
+		];
+		const r2Assigned = assignTablesWithVariety(round2, totalTables, tableHistory);
+
+		// No player should sit at their R1 table in R2
+		for (const match of r2Assigned) {
+			const t = match.tableNumber!;
+			const lastA = tableHistory.get(match.participantA)!.slice(-2)[0];
+			const lastB = tableHistory.get(match.participantB)!.slice(-2)[0];
+			expect(lastA, `${match.participantA} repeated table ${t} from R1 in R2`).not.toBe(t);
+			expect(lastB, `${match.participantB} repeated table ${t} from R1 in R2`).not.toBe(t);
+		}
+
+		// All 6 tables used exactly once in R2
+		const r2Tables = new Set(r2Assigned.map(m => m.tableNumber));
+		expect(r2Tables.size).toBe(6);
+	});
+
+	it('swap finds perfect assignment when greedy fails (constructed worst case)', () => {
+		// Force the greedy into the bad path: same as above but with a pairing
+		// permutation that strands the last match. Swap must repair it so that
+		// the round's total consecutive-repeat count is 0.
+		const tableHistory = new Map<string, number[]>();
+		// Seed history so each player has played exactly one specific table
+		tableHistory.set('A', [1]);
+		tableHistory.set('B', [2]);
+		tableHistory.set('C', [3]);
+		tableHistory.set('D', [4]);
+		tableHistory.set('E', [5]);
+		tableHistory.set('F', [6]);
+		tableHistory.set('G', [1]);
+		tableHistory.set('H', [2]);
+		tableHistory.set('I', [3]);
+		tableHistory.set('J', [4]);
+		tableHistory.set('K', [5]);
+		tableHistory.set('L', [6]);
+
+		const matches: GroupMatch[] = [
+			{ id: 'm1', participantA: 'A', participantB: 'C', status: 'PENDING' }, // not 1, not 3
+			{ id: 'm2', participantA: 'G', participantB: 'I', status: 'PENDING' }, // not 1, not 3
+			{ id: 'm3', participantA: 'B', participantB: 'D', status: 'PENDING' }, // not 2, not 4
+			{ id: 'm4', participantA: 'H', participantB: 'J', status: 'PENDING' }, // not 2, not 4
+			{ id: 'm5', participantA: 'E', participantB: 'F', status: 'PENDING' }, // not 5, not 6
+			{ id: 'm6', participantA: 'K', participantB: 'L', status: 'PENDING' }  // not 5, not 6
+		];
+
+		const assigned = assignTablesWithVariety(matches, 6, tableHistory);
+
+		// Count consecutive repeats: any player whose new table equals their previous
+		let repeats = 0;
+		for (const m of assigned) {
+			const t = m.tableNumber!;
+			const prevA = tableHistory.get(m.participantA)!.slice(-2)[0];
+			const prevB = tableHistory.get(m.participantB)!.slice(-2)[0];
+			if (prevA === t) repeats++;
+			if (prevB === t) repeats++;
+		}
+		expect(repeats, 'swap should eliminate all avoidable consecutive repeats').toBe(0);
+	});
 });

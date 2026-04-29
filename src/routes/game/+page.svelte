@@ -48,6 +48,7 @@
 		retryPendingTournamentCompletion
 	} from '$lib/firebase/tournamentSync';
 	import { getTournamentByKey } from '$lib/firebase/tournaments';
+	import { shouldClearSavedTournamentKey } from '$lib/utils/tournamentStatus';
 	import {
 		getUserActiveMatches,
 		startTournamentMatch,
@@ -1566,8 +1567,10 @@
 
 			console.log('✅ Tournament found:', { id: tournament.id, status: tournament.status });
 
-			// Check tournament is active
-			if (!['IN_PROGRESS', 'GROUP_STAGE', 'FINAL_STAGE'].includes(tournament.status)) {
+			// Clear key only when the tournament is finished or not yet playable.
+			// TRANSITION (between groups and bracket) keeps the key — there are no
+			// pending matches yet, and the modal handles that with its 'no_matches' view.
+			if (shouldClearSavedTournamentKey(tournament.status)) {
 				console.log('❌ Tournament not active, clearing key');
 				gameSettings.update(s => ({ ...s, tournamentKey: undefined }));
 				showTournamentModal = true;

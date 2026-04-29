@@ -287,6 +287,12 @@ export function assignTablesWithVariety(
   // Track tables used in THIS round (must be unique)
   const tablesUsedInRound = new Set<number>(tablesAlreadyUsed);
 
+  // Snapshot of history BEFORE this round. Both greedy and swap optimization
+  // score against this snapshot so swaps are sound regardless of greedy order.
+  const historyBefore = new Map<string, number[]>();
+  for (const [p, h] of tableHistory) historyBefore.set(p, [...h]);
+
+  // Phase 1: greedy assignment (locally optimal, can corner the last match)
   for (const match of assignedMatches) {
     if (match.participantB === 'BYE') {
       // BYE matches don't need tables
@@ -294,8 +300,8 @@ export function assignTablesWithVariety(
     }
 
     // Get tables already used by these participants historically
-    const usedByA = tableHistory.get(match.participantA) || [];
-    const usedByB = tableHistory.get(match.participantB) || [];
+    const usedByA = historyBefore.get(match.participantA) || [];
+    const usedByB = historyBefore.get(match.participantB) || [];
 
     // Build usage maps for O(1) lookup
     const usageMapA = new Map<number, number>();
@@ -315,7 +321,7 @@ export function assignTablesWithVariety(
 
     // Track global table usage across ALL matches (for diversity tiebreak)
     const globalTableUsage = new Map<number, number>();
-    for (const hist of tableHistory.values()) {
+    for (const hist of historyBefore.values()) {
       for (const t of hist) {
         globalTableUsage.set(t, (globalTableUsage.get(t) || 0) + 1);
       }
@@ -381,22 +387,120 @@ export function assignTablesWithVariety(
     }
 
     match.tableNumber = bestTable;
-
-    // Mark table as used in this round
     tablesUsedInRound.add(bestTable);
+  }
 
-    // Update history
-    if (!tableHistory.has(match.participantA)) {
-      tableHistory.set(match.participantA, []);
-    }
-    if (!tableHistory.has(match.participantB)) {
-      tableHistory.set(match.participantB, []);
-    }
-    tableHistory.get(match.participantA)!.push(bestTable);
-    tableHistory.get(match.participantB)!.push(bestTable);
+  // Phase 2: pairwise-swap optimization. Greedy is myopic — when a "fresh"
+  // table is tied between two matches, it picks the lower-numbered one and
+  // can leave the last match cornered into the very table one of its players
+  // just used. Try swapping pairs of tables; keep the swap if it lex-improves
+  // the round's cost tuple (sumPrimary, sumConsecutiveRepeats, sumMaxUsage,
+  // sumSecondary). Bounded passes — converges fast for ≤16 matches.
+  optimizeTablesBySwap(assignedMatches, totalTables, historyBefore);
+
+  // Phase 3: persist final (post-swap) assignments to the shared tableHistory
+  for (const match of assignedMatches) {
+    if (match.tableNumber === undefined || match.participantB === 'BYE') continue;
+    if (!tableHistory.has(match.participantA)) tableHistory.set(match.participantA, []);
+    if (!tableHistory.has(match.participantB)) tableHistory.set(match.participantB, []);
+    tableHistory.get(match.participantA)!.push(match.tableNumber);
+    tableHistory.get(match.participantB)!.push(match.tableNumber);
   }
 
   return assignedMatches;
+}
+
+/**
+ * Score a single (match, table) assignment against the pre-round history.
+ * Tuple: [primaryRepeat, consecutiveRepeat, maxUsage, sumUsage] — all ascending.
+ */
+function scoreMatchTable(
+  match: GroupMatch,
+  table: number,
+  totalTables: number,
+  history: Map<string, number[]>
+): [number, number, number, number] {
+  const usedByA = history.get(match.participantA) || [];
+  const usedByB = history.get(match.participantB) || [];
+  const usageMapA = new Map<number, number>();
+  const usageMapB = new Map<number, number>();
+  for (const t of usedByA) usageMapA.set(t, (usageMapA.get(t) || 0) + 1);
+  for (const t of usedByB) usageMapB.set(t, (usageMapB.get(t) || 0) + 1);
+
+  let minA = Infinity;
+  let minB = Infinity;
+  for (let t = 1; t <= totalTables; t++) {
+    minA = Math.min(minA, usageMapA.get(t) || 0);
+    minB = Math.min(minB, usageMapB.get(t) || 0);
+  }
+  if (minA === Infinity) minA = 0;
+  if (minB === Infinity) minB = 0;
+
+  const uA = usageMapA.get(table) || 0;
+  const uB = usageMapB.get(table) || 0;
+  const primary = Math.max(uA - minA, uB - minB);
+  const lastA = usedByA.length > 0 ? usedByA[usedByA.length - 1] : -1;
+  const lastB = usedByB.length > 0 ? usedByB[usedByB.length - 1] : -1;
+  const consecutiveRepeat = (lastA === table ? 1 : 0) + (lastB === table ? 1 : 0);
+  return [primary, consecutiveRepeat, Math.max(uA, uB), uA + uB];
+}
+
+function optimizeTablesBySwap(
+  matches: GroupMatch[],
+  totalTables: number,
+  history: Map<string, number[]>
+): void {
+  const lexLess = (a: number[], b: number[]): boolean => {
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) return a[i] < b[i];
+    }
+    return false;
+  };
+
+  const MAX_PASSES = 50;
+  let improved = true;
+  let pass = 0;
+
+  while (improved && pass < MAX_PASSES) {
+    improved = false;
+    pass++;
+
+    for (let i = 0; i < matches.length; i++) {
+      const mi = matches[i];
+      if (mi.tableNumber === undefined || mi.participantB === 'BYE') continue;
+
+      for (let j = i + 1; j < matches.length; j++) {
+        const mj = matches[j];
+        if (mj.tableNumber === undefined || mj.participantB === 'BYE') continue;
+
+        const ti = mi.tableNumber;
+        const tj = mj.tableNumber;
+        const ci = scoreMatchTable(mi, ti, totalTables, history);
+        const cj = scoreMatchTable(mj, tj, totalTables, history);
+        const ciSwap = scoreMatchTable(mi, tj, totalTables, history);
+        const cjSwap = scoreMatchTable(mj, ti, totalTables, history);
+
+        const before = [
+          ci[0] + cj[0],
+          ci[1] + cj[1],
+          ci[2] + cj[2],
+          ci[3] + cj[3]
+        ];
+        const after = [
+          ciSwap[0] + cjSwap[0],
+          ciSwap[1] + cjSwap[1],
+          ciSwap[2] + cjSwap[2],
+          ciSwap[3] + cjSwap[3]
+        ];
+
+        if (lexLess(after, before)) {
+          mi.tableNumber = tj;
+          mj.tableNumber = ti;
+          improved = true;
+        }
+      }
+    }
+  }
 }
 
 /**
