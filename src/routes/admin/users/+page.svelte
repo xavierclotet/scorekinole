@@ -7,7 +7,7 @@
   import * as m from '$lib/paraglide/messages.js';
   import { goto } from '$app/navigation';
   import { adminTheme } from '$lib/stores/theme';
-  import { getUsersPaginated, fetchAllUsers, disableUser, enableUser, getUsersTournamentCounts, mergeUsers, removeUserFromTournamentCollaborators, type AdminUserInfo } from '$lib/firebase/admin';
+  import { getUsersPaginated, fetchAllUsers, disableUser, enableUser, deleteUserAccount, getUsersTournamentCounts, mergeUsers, removeUserFromTournamentCollaborators, type AdminUserInfo } from '$lib/firebase/admin';
   import { getUserTournamentDependencies, type UserTournamentDependencies } from '$lib/firebase/tournaments';
   import { getVenuesByOwner } from '$lib/firebase/venues';
   import type { Venue } from '$lib/types/venue';
@@ -33,6 +33,8 @@
   let selectedUser: AdminUserInfo | null = $state(null);
   let userToDisable: AdminUserInfo | null = $state(null);
   let isDisabling = $state(false);
+  let isDeleting = $state(false);
+  let disableError: string | null = $state(null);
   let isLoadingDependencies = $state(false);
   let tournamentDependencies: UserTournamentDependencies | null = $state(null);
   let userVenues: Venue[] = $state([]);
@@ -43,6 +45,20 @@
     tournamentDependencies !== null &&
     tournamentDependencies.asOwner.length === 0 &&
     userVenues.length === 0
+  );
+
+  // Derived: can we permanently delete this user? Requires zero history.
+  let canDeleteUser = $derived(
+    !isLoadingDependencies &&
+    tournamentDependencies !== null &&
+    userToDisable !== null &&
+    tournamentDependencies.asOwner.length === 0 &&
+    tournamentDependencies.asCollaborator.length === 0 &&
+    tournamentDependencies.asParticipant.length === 0 &&
+    userVenues.length === 0 &&
+    !userToDisable.tournaments?.length &&
+    !userToDisable.mergedFrom?.length &&
+    !userToDisable.mergedTo
   );
 
   // Enable state
@@ -246,6 +262,7 @@
 
   async function showDisableConfirm(user: AdminUserInfo) {
     userToDisable = user;
+    disableError = null;
     isLoadingDependencies = true;
     tournamentDependencies = null;
     userVenues = [];
@@ -266,12 +283,14 @@
     tournamentDependencies = null;
     userVenues = [];
     isLoadingDependencies = false;
+    disableError = null;
   }
 
   async function confirmDisable() {
     if (!userToDisable || !canDisableUser) return;
 
     isDisabling = true;
+    disableError = null;
 
     // 1. If user is a collaborator, remove from adminIds first
     if (tournamentDependencies?.asCollaborator.length) {
@@ -289,12 +308,41 @@
         u.userId === userToDisable!.userId ? { ...u, disabled: true } : u
       );
       allUsersCache = null;
+      isDisabling = false;
+      userToDisable = null;
+      tournamentDependencies = null;
+      userVenues = [];
+    } else {
+      // Surface failure: keep modal open so admin sees the message.
+      disableError = m.admin_disableUserError();
+      isDisabling = false;
+    }
+  }
+
+  async function confirmDelete() {
+    if (!userToDisable || !canDeleteUser) return;
+
+    if (!window.confirm(m.admin_deleteForeverConfirm({ name: userToDisable.playerName ?? userToDisable.email ?? userToDisable.userId }))) {
+      return;
     }
 
-    isDisabling = false;
-    userToDisable = null;
-    tournamentDependencies = null;
-    userVenues = [];
+    isDeleting = true;
+    disableError = null;
+
+    const targetId = userToDisable.userId;
+    try {
+      await deleteUserAccount(targetId);
+      users = users.filter((u) => u.userId !== targetId);
+      totalCount = Math.max(0, totalCount - 1);
+      allUsersCache = null;
+      userToDisable = null;
+      tournamentDependencies = null;
+      userVenues = [];
+    } catch (error: any) {
+      disableError = error?.message ?? m.admin_deleteForeverError();
+    } finally {
+      isDeleting = false;
+    }
   }
 
   async function confirmEnable(user: AdminUserInfo) {
@@ -718,14 +766,32 @@
         </div>
 
         <p class="delete-warning">{m.admin_disableUserDescription()}</p>
+
+        {#if canDeleteUser}
+          <p class="delete-forever-hint">{m.admin_deleteForeverHint()}</p>
+        {/if}
+
+        {#if disableError}
+          <p class="disable-error">⚠️ {disableError}</p>
+        {/if}
+
         <div class="delete-actions">
-          <button class="cancel-btn" onclick={cancelDisable} disabled={isDisabling || isLoadingDependencies}>
+          <button class="cancel-btn" onclick={cancelDisable} disabled={isDisabling || isDeleting || isLoadingDependencies}>
             {m.common_cancel()}
           </button>
+          {#if canDeleteUser}
+            <button
+              class="confirm-btn delete-forever-btn"
+              onclick={confirmDelete}
+              disabled={isDisabling || isDeleting || isLoadingDependencies}
+            >
+              {isDeleting ? m.admin_deleting() : m.admin_deleteForever()}
+            </button>
+          {/if}
           <button
             class="confirm-btn"
             onclick={confirmDisable}
-            disabled={isDisabling || isLoadingDependencies || !canDisableUser}
+            disabled={isDisabling || isDeleting || isLoadingDependencies || !canDisableUser}
           >
             {isDisabling ? m.admin_disabling() : m.admin_disableUserConfirm()}
           </button>
@@ -1539,6 +1605,47 @@
     color: #dc2626;
     font-size: 0.85rem;
     margin: 0 0 1rem 0;
+  }
+
+  .delete-forever-hint {
+    background: color-mix(in srgb, #dc2626 8%, transparent);
+    border: 1px solid color-mix(in srgb, #dc2626 25%, transparent);
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    margin: 0 0 0.75rem 0;
+    font-size: 0.78rem;
+    color: #991b1b;
+    text-align: left;
+  }
+
+  .delete-overlay:is([data-theme='dark'], [data-theme='violet']) .delete-forever-hint {
+    background: color-mix(in srgb, #dc2626 15%, transparent);
+    color: #fca5a5;
+  }
+
+  .disable-error {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #b91c1c;
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    margin: 0 0 0.75rem 0;
+    font-size: 0.8rem;
+    text-align: left;
+  }
+
+  .delete-overlay:is([data-theme='dark'], [data-theme='violet']) .disable-error {
+    background: #4d1f24;
+    border-color: #7f1d1d;
+    color: #fca5a5;
+  }
+
+  .delete-forever-btn {
+    background: #7f1d1d;
+  }
+
+  .delete-forever-btn:hover:not(:disabled) {
+    background: #5e1010;
   }
 
   /* Dependencies section */

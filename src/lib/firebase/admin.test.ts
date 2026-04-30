@@ -995,3 +995,53 @@ describe('enableUser', () => {
 		expect(result).toBe(false);
 	});
 });
+
+// ─── deleteUserAccount ────────────────────────────────────────────────────────
+
+describe('deleteUserAccount', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockCurrentUser = { id: 'admin-user' };
+		mockUserProfile = { isAdmin: true, isSuperAdmin: true };
+	});
+
+	it('calls deleteUserAccount Cloud Function with correct userId', async () => {
+		const { deleteUserAccount } = await import('./admin');
+		const innerFn = vi.fn().mockResolvedValue({ data: { success: true } });
+		const { httpsCallable } = await import('firebase/functions');
+		vi.mocked(httpsCallable).mockReturnValue(innerFn as any);
+
+		await deleteUserAccount('target-user-id');
+
+		expect(vi.mocked(httpsCallable)).toHaveBeenCalledWith(expect.anything(), 'deleteUserAccount');
+		expect(innerFn).toHaveBeenCalledWith({ userId: 'target-user-id' });
+	});
+
+	it('throws if not authenticated', async () => {
+		mockCurrentUser = null;
+		const { deleteUserAccount } = await import('./admin');
+		const { httpsCallable } = await import('firebase/functions');
+
+		await expect(deleteUserAccount('target-user-id')).rejects.toThrow('No user authenticated');
+		expect(vi.mocked(httpsCallable)).not.toHaveBeenCalled();
+	});
+
+	it('throws if not super admin', async () => {
+		mockUserProfile = { isAdmin: true, isSuperAdmin: false };
+		const { deleteUserAccount } = await import('./admin');
+		const { httpsCallable } = await import('firebase/functions');
+
+		await expect(deleteUserAccount('target-user-id')).rejects.toThrow(/super admin/i);
+		expect(vi.mocked(httpsCallable)).not.toHaveBeenCalled();
+	});
+
+	it('propagates Cloud Function error so the UI can surface the precise reason', async () => {
+		const { deleteUserAccount } = await import('./admin');
+		const cfError = new Error('failed-precondition: User has tournament history');
+		const innerFn = vi.fn().mockRejectedValue(cfError);
+		const { httpsCallable } = await import('firebase/functions');
+		vi.mocked(httpsCallable).mockReturnValue(innerFn as any);
+
+		await expect(deleteUserAccount('target-user-id')).rejects.toThrow(/tournament history/);
+	});
+});

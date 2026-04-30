@@ -2,6 +2,13 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.18] - 2026-04-30
+- Admin user management: bug fix — disabling a guest user (Firestore-only profile, no Auth account) used to fail silently with `auth/user-not-found` 404 from the Cloud Function. Now `disableUser` tolerates missing Auth records and marks the Firestore document directly
+- Admin user management: new "Borrar definitivamente" button — appears in the disable modal only when the target user has zero history (no tournaments owned/played, no venues, no collaborator role, no merge links). Permanently removes the Firestore profile + Auth record (if any), and the row disappears from the list
+- Admin user management: failures during disable/delete now surface inline in the modal instead of closing silently
+- New Cloud Function `deleteUserAccount` with 7 server-side precondition checks (tournament ownership/collaboration, venues, tournament history, merge links) — defense-in-depth in case a stale UI lets a destructive call slip through
+- Tests: 4 regression tests for `deleteUserAccount` wrapper (auth gating, super-admin gating, error propagation)
+
 ## [2.5.17] - 2026-04-29
 - Timeout modal copy: rewritten in es/ca/en — now tells players to **finish the current round** (throw any discs they have left) before counting 20s and marking the winner. Matches the NCA / tournament convention; previous wording said the opposite ("stop throwing discs")
 

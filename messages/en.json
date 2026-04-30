@@ -1667,5 +1667,10 @@
   "registration_deadlineErrorAfterTournament": "The deadline must be before the day of the tournament.",
   "registration_deadlineErrorTooClose": "The deadline must be at least 24 hours before the tournament.",
   "rules_qualifiersAdvanceCount": "The ** {count} highest ranked teams** from the group stage advance to the final stage.",
-  "rules_qualifiersSplitDivisionsCount": "The ** {count} highest ranked** move to the Gold division and the rest to the Silver division."
+  "rules_qualifiersSplitDivisionsCount": "The ** {count} highest ranked** move to the Gold division and the rest to the Silver division.",
+  "admin_disableUserError": "The user could not be disabled. Check the browser console for more details.",
+  "admin_deleteForever": "Delete permanently",
+  "admin_deleteForeverHint": "This user has no history: you can completely remove them from the database.",
+  "admin_deleteForeverConfirm": "Permanently delete {name} ? This action is irreversible.",
+  "admin_deleteForeverError": "The user could not be deleted."
 }

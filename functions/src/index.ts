@@ -1686,11 +1686,15 @@ export const disableUser = onCall(
 
     try {
       const auth = getAuth();
-      await auth.updateUser(userId, { disabled: true });
-      // Revoke refresh tokens so existing sessions are immediately invalidated
-      await auth.revokeRefreshTokens(userId);
+      // Guest profiles exist only in Firestore — no Auth record to disable.
+      try {
+        await auth.updateUser(userId, { disabled: true });
+        await auth.revokeRefreshTokens(userId);
+      } catch (authError: any) {
+        if (authError?.code !== "auth/user-not-found") throw authError;
+        logger.info(`User ${userId} has no Auth record (guest); marking Firestore only`);
+      }
 
-      // Mark in Firestore
       await db.collection("users").doc(userId).update({
         disabled: true,
         disabledAt: FieldValue.serverTimestamp(),
@@ -1701,9 +1705,6 @@ export const disableUser = onCall(
       return { success: true };
     } catch (error: any) {
       logger.error(`Failed to disable user ${userId}:`, error);
-      if (error?.code === "auth/user-not-found") {
-        throw new HttpsError("not-found", "User not found in Firebase Auth");
-      }
       throw new HttpsError("internal", "Failed to disable user");
     }
   }
@@ -1765,6 +1766,101 @@ export const enableUser = onCall(
         throw new HttpsError("not-found", "User not found in Firebase Auth");
       }
       throw new HttpsError("internal", "Failed to enable user");
+    }
+  }
+);
+
+/**
+ * Permanently delete a user account (super admin only).
+ * Only allowed for users with no tournament history and no merge links —
+ * removes the Firestore profile and the Auth record (if any).
+ */
+export const deleteUserAccount = onCall(
+  { region: "europe-west1" },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Must be signed in");
+    }
+
+    const callerUid = request.auth.uid;
+    const { userId } = request.data as { userId: string };
+
+    if (!userId || typeof userId !== "string") {
+      throw new HttpsError("invalid-argument", "userId is required");
+    }
+
+    if (userId === callerUid) {
+      throw new HttpsError("invalid-argument", "Cannot delete your own account");
+    }
+
+    const db = getDb();
+    const callerDoc = await db.collection("users").doc(callerUid).get();
+    if (!callerDoc.exists || !callerDoc.data()?.isSuperAdmin) {
+      throw new HttpsError("permission-denied", "Super admin access required");
+    }
+
+    await enforceRateLimit(db, callerUid, "deleteUserAccount");
+
+    const targetDoc = await db.collection("users").doc(userId).get();
+    if (!targetDoc.exists) {
+      throw new HttpsError("not-found", "User profile not found");
+    }
+    const targetData = targetDoc.data()!;
+
+    // Defense in depth: refuse if profile has any history that would be orphaned.
+    if (targetData.tournaments?.length) {
+      throw new HttpsError("failed-precondition", "User has tournament history");
+    }
+    if (targetData.mergedFrom?.length) {
+      throw new HttpsError("failed-precondition", "User is target of a merge");
+    }
+    if (targetData.mergedTo) {
+      throw new HttpsError("failed-precondition", "User has been merged out");
+    }
+
+    // Server-side check for tournament ownership/collaboration (front-end already filters,
+    // but a stale UI could let a destructive call slip through).
+    const ownerSnap = await db
+      .collection("tournaments")
+      .where("ownerId", "==", userId)
+      .limit(1)
+      .get();
+    if (!ownerSnap.empty) {
+      throw new HttpsError("failed-precondition", "User owns tournaments");
+    }
+    const collabSnap = await db
+      .collection("tournaments")
+      .where("adminIds", "array-contains", userId)
+      .limit(1)
+      .get();
+    if (!collabSnap.empty) {
+      throw new HttpsError("failed-precondition", "User is tournament collaborator");
+    }
+    const venueSnap = await db
+      .collection("venues")
+      .where("ownerId", "==", userId)
+      .limit(1)
+      .get();
+    if (!venueSnap.empty) {
+      throw new HttpsError("failed-precondition", "User owns venues");
+    }
+
+    try {
+      const auth = getAuth();
+      try {
+        await auth.deleteUser(userId);
+      } catch (authError: any) {
+        if (authError?.code !== "auth/user-not-found") throw authError;
+        logger.info(`User ${userId} has no Auth record (guest); deleting Firestore only`);
+      }
+
+      await db.collection("users").doc(userId).delete();
+
+      logger.info(`User ${userId} permanently deleted by ${callerUid}`);
+      return { success: true };
+    } catch (error: any) {
+      logger.error(`Failed to delete user ${userId}:`, error);
+      throw new HttpsError("internal", "Failed to delete user");
     }
   }
 );

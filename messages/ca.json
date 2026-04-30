@@ -1667,5 +1667,10 @@
   "registration_deadlineErrorAfterTournament": "La data límit ha de ser anterior al dia del torneig.",
   "registration_deadlineErrorTooClose": "La data límit ha de ser com a mínim 24 hores abans del torneig.",
   "rules_qualifiersAdvanceCount": "Els millors classificats {count} de la fase de grups avancen a la fase final.",
-  "rules_qualifiersSplitDivisionsCount": "Els ** {count} millors classificats** passen a la divisió Or i la resta a la divisió Plata."
+  "rules_qualifiersSplitDivisionsCount": "Els ** {count} millors classificats** passen a la divisió Or i la resta a la divisió Plata.",
+  "admin_disableUserError": "No s'ha pogut desactivar l'usuari. Reviseu la consola del navegador per a més detalls.",
+  "admin_deleteForever": "Esborrar definitivament",
+  "admin_deleteForeverHint": "Aquest usuari no té historial: el pots eliminar completament de la base de dades.",
+  "admin_deleteForeverConfirm": "Esborra definitivament a {name} ? Aquesta acció és irreversible.",
+  "admin_deleteForeverError": "No s'ha pogut eliminar l'usuari."
 }

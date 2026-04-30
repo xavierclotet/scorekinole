@@ -292,6 +292,32 @@ export async function enableUser(userId: string): Promise<boolean> {
 }
 
 /**
+ * Permanently delete a user (super admin only). Only succeeds for guest/empty
+ * profiles with no tournament history and no merge links.
+ * Throws on failure so callers can surface the precise error message.
+ */
+export async function deleteUserAccount(userId: string): Promise<void> {
+  if (!browser || !isFirebaseEnabled()) {
+    throw new Error('Firebase disabled');
+  }
+
+  const user = get(currentUser);
+  if (!user) {
+    throw new Error('No user authenticated');
+  }
+
+  const superAdminStatus = await isSuperAdmin();
+  if (!superAdminStatus) {
+    throw new Error('Unauthorized: super admin required');
+  }
+
+  const functions = getFunctions(getApp(), 'europe-west1');
+  const fn = httpsCallable(functions, 'deleteUserAccount');
+  await fn({ userId });
+  console.log('✅ User permanently deleted:', userId);
+}
+
+/**
  * Update user profile (admin only)
  */
 export async function updateUserProfile(
