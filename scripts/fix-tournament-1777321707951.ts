@@ -39,6 +39,7 @@ import type {
   TournamentParticipant,
   TournamentRecord,
 } from '../src/lib/types/tournament';
+import type { MatchHistory, MatchGame, MatchRound } from '../src/lib/types/history';
 
 // === Configuration ===
 const TOURNAMENT_ID = 'tournament-1777321707951-hboxi866q';
@@ -683,6 +684,163 @@ function printUserDiff(
 }
 
 // =====================================================================
+// MatchHistory (/matches/{matchId}) helpers
+// =====================================================================
+
+interface MatchHistoryFlipPlan {
+  /** Index of last game in games[] that we mutated. */
+  lastGameIndex: number;
+  /** Index of the round we flipped within that game's rounds[]. */
+  lastRoundIndex: number;
+  beforeLastRound: MatchRound;
+  afterLastRound: MatchRound;
+  beforeLastGame: MatchGame;
+  afterLastGame: MatchGame;
+  newGames: MatchGame[];
+  /** Match-level team1Score / team2Score (sum across all games of team1Points/team2Points). */
+  newTeam1Score: number;
+  newTeam2Score: number;
+  /** Match-level winner: 1, 2, or null (tie). */
+  newWinner: 1 | 2 | null;
+  /** Number of games each team won AFTER the flip. */
+  team1GamesWon: number;
+  team2GamesWon: number;
+}
+
+/**
+ * Plan a flip of the last round of the last game in a MatchHistory document.
+ * Returns the proposed new state without mutating input.
+ */
+function planMatchHistoryFlip(matchHistory: MatchHistory): MatchHistoryFlipPlan | null {
+  const games = matchHistory.games ?? [];
+  if (games.length === 0) return null;
+  const lastGameIndex = games.length - 1;
+  const lastGame = games[lastGameIndex];
+  if (!lastGame.rounds || lastGame.rounds.length === 0) return null;
+  const lastRoundIndex = lastGame.rounds.length - 1;
+  const lastRound = lastGame.rounds[lastRoundIndex];
+
+  const flippedRound: MatchRound = {
+    ...lastRound,
+    team1Points: lastRound.team2Points,
+    team2Points: lastRound.team1Points,
+    team1Twenty: lastRound.team2Twenty,
+    team2Twenty: lastRound.team1Twenty,
+    // hammerTeam, roundNumber preserved
+  };
+
+  const newRounds: MatchRound[] = [...lastGame.rounds.slice(0, -1), flippedRound];
+
+  // Recompute the LAST game's team1Points / team2Points / winner from its rounds.
+  const newLastGameTeam1Points = newRounds.reduce((s, r) => s + (r.team1Points ?? 0), 0);
+  const newLastGameTeam2Points = newRounds.reduce((s, r) => s + (r.team2Points ?? 0), 0);
+  let newLastGameWinner: 1 | 2 | null;
+  if (newLastGameTeam1Points > newLastGameTeam2Points) newLastGameWinner = 1;
+  else if (newLastGameTeam2Points > newLastGameTeam1Points) newLastGameWinner = 2;
+  else newLastGameWinner = null;
+
+  const newLastGame: MatchGame = {
+    ...lastGame,
+    rounds: newRounds,
+    team1Points: newLastGameTeam1Points,
+    team2Points: newLastGameTeam2Points,
+    winner: newLastGameWinner,
+  };
+
+  const newGames: MatchGame[] = [...games.slice(0, -1), newLastGame];
+
+  // Match-level totals: same rule as buildCompletedMatch in TeamCard.svelte —
+  // sum each team's team1Points/team2Points across all games.
+  const newTeam1Score = newGames.reduce((s, g) => s + (g.team1Points ?? 0), 0);
+  const newTeam2Score = newGames.reduce((s, g) => s + (g.team2Points ?? 0), 0);
+
+  // Match-level winner: count games won (same rule as TeamCard.svelte).
+  const team1GamesWon = newGames.filter(g => g.winner === 1).length;
+  const team2GamesWon = newGames.filter(g => g.winner === 2).length;
+  let newWinner: 1 | 2 | null;
+  if (team1GamesWon > team2GamesWon) newWinner = 1;
+  else if (team2GamesWon > team1GamesWon) newWinner = 2;
+  else newWinner = null;
+
+  return {
+    lastGameIndex,
+    lastRoundIndex,
+    beforeLastRound: lastRound,
+    afterLastRound: flippedRound,
+    beforeLastGame: lastGame,
+    afterLastGame: newLastGame,
+    newGames,
+    newTeam1Score,
+    newTeam2Score,
+    newWinner,
+    team1GamesWon,
+    team2GamesWon,
+  };
+}
+
+function fmtMatchRound(r: MatchRound | undefined): string {
+  if (!r) return '∅';
+  return `r${r.roundNumber} t1Pts=${r.team1Points} t2Pts=${r.team2Points} t1Twenty=${r.team1Twenty} t2Twenty=${r.team2Twenty}${r.hammerTeam !== null && r.hammerTeam !== undefined ? ` hammer=${r.hammerTeam}` : ''}`;
+}
+
+function printMatchHistoryDiff(
+  matchId: string,
+  matchHistory: MatchHistory,
+  plan: MatchHistoryFlipPlan,
+  expectedWinnerTeam: 1 | 2 | null,
+  team1UserLabel: string,
+  team2UserLabel: string
+) {
+  console.log('--- MATCH HISTORY DIFF ---');
+  console.log(`  /matches/${matchId}`);
+  console.log(`  gameType: ${matchHistory.gameType}`);
+  console.log(`  gameMode: ${matchHistory.gameMode} pointsToWin=${matchHistory.pointsToWin ?? '∅'} roundsToPlay=${matchHistory.roundsToPlay ?? '∅'} matchesToWin=${matchHistory.matchesToWin}`);
+  console.log(`  team1: name="${matchHistory.team1Name}" userId=${shortId(matchHistory.players?.team1?.userId)} → ${team1UserLabel}`);
+  console.log(`  team2: name="${matchHistory.team2Name}" userId=${shortId(matchHistory.players?.team2?.userId)} → ${team2UserLabel}`);
+  console.log('');
+
+  const beforeT1Won = (matchHistory.games ?? []).filter(g => g.winner === 1).length;
+  const beforeT2Won = (matchHistory.games ?? []).filter(g => g.winner === 2).length;
+
+  console.log('  CURRENT (top-level):');
+  console.log(`    team1Score=${matchHistory.team1Score} team2Score=${matchHistory.team2Score}`);
+  console.log(`    games won: ${beforeT1Won}-${beforeT2Won}`);
+  console.log(`    winner: ${matchHistory.winner ?? 'null'}  (1=team1, 2=team2)`);
+  console.log('  PROPOSED (top-level):');
+  console.log(`    team1Score=${plan.newTeam1Score} team2Score=${plan.newTeam2Score}`);
+  console.log(`    games won: ${plan.team1GamesWon}-${plan.team2GamesWon}`);
+  console.log(`    winner: ${plan.newWinner ?? 'null'}`);
+  console.log('');
+
+  console.log(`  Affected game: games[${plan.lastGameIndex}] (gameNumber=${plan.beforeLastGame.gameNumber})`);
+  console.log(`    CURRENT: team1Points=${plan.beforeLastGame.team1Points} team2Points=${plan.beforeLastGame.team2Points} winner=${plan.beforeLastGame.winner ?? 'null'}`);
+  console.log(`    PROPOSED: team1Points=${plan.afterLastGame.team1Points} team2Points=${plan.afterLastGame.team2Points} winner=${plan.afterLastGame.winner ?? 'null'}`);
+  console.log('');
+
+  console.log(`  Per-round diff for that game (${plan.beforeLastGame.rounds.length} round(s)):`);
+  for (let i = 0; i < plan.beforeLastGame.rounds.length; i++) {
+    const before = plan.beforeLastGame.rounds[i];
+    const after = plan.afterLastGame.rounds[i];
+    const changed = i === plan.lastRoundIndex;
+    const marker = changed ? '🔁' : '  ';
+    console.log(`    ${marker} [${i}] ${fmtMatchRound(before)}`);
+    if (changed) {
+      console.log(`        →    ${fmtMatchRound(after)}`);
+    }
+  }
+  console.log('');
+
+  if (expectedWinnerTeam === null) {
+    console.log('  ⚠️  Could not determine which team should win (RIGHT_WINNER not in players.team1/team2 by userId).');
+  } else if (plan.newWinner !== expectedWinnerTeam) {
+    console.log(`  ⚠️  WARNING: proposed match winner (team ${plan.newWinner ?? 'null'}) does NOT match expected (team ${expectedWinnerTeam} = right winner).`);
+    console.log('  ⚠️  ABORT before --apply.');
+  } else {
+    console.log(`  ✓ proposed winner = team ${plan.newWinner} which matches the team containing RIGHT_WINNER_USER_ID.`);
+  }
+}
+
+// =====================================================================
 // Main
 // =====================================================================
 
@@ -889,6 +1047,73 @@ async function main() {
   console.log('');
   printUserDiff(`RIGHT (${RIGHT_WINNER_USER_ID})`, rightUser, rightRecord, newRightRecord);
   console.log('');
+
+  // ----- PLAN /matches/{matchId} FIX (MatchHistory doc linked from QF) -----
+  const qfMatchHistoryId = qfMatch.matchId;
+  if (!qfMatchHistoryId) {
+    console.log('--- MATCH HISTORY DIFF ---');
+    console.log(`  ⚠️  QF bracket match ${qfMatchId} has no .matchId field.`);
+    console.log('      The match was likely entered manually by an admin (not via /game).');
+    console.log('      Skipping /matches/{matchId} portion.');
+    console.log('');
+  } else {
+    const matchHistoryRef = db.collection('matches').doc(qfMatchHistoryId);
+    const matchHistorySnap = await matchHistoryRef.get();
+    if (!matchHistorySnap.exists) {
+      console.log('--- MATCH HISTORY DIFF ---');
+      console.log(`  ⚠️  /matches/${qfMatchHistoryId} does NOT exist (referenced by QF .matchId).`);
+      console.log('      Skipping /matches/{matchId} portion.');
+      console.log('');
+    } else {
+      const matchHistory = matchHistorySnap.data() as MatchHistory;
+
+      // Identify which team slot holds Xavi (right winner) and which holds Isis (wrong winner).
+      const team1UserId = matchHistory.players?.team1?.userId ?? null;
+      const team2UserId = matchHistory.players?.team2?.userId ?? null;
+
+      let team1UserLabel = `userId=${shortId(team1UserId)}`;
+      let team2UserLabel = `userId=${shortId(team2UserId)}`;
+      let expectedWinnerTeam: 1 | 2 | null = null;
+
+      const rightInTeam1 = team1UserId === RIGHT_WINNER_USER_ID;
+      const rightInTeam2 = team2UserId === RIGHT_WINNER_USER_ID;
+      const wrongInTeam1 = team1UserId === WRONG_WINNER_USER_ID;
+      const wrongInTeam2 = team2UserId === WRONG_WINNER_USER_ID;
+
+      if (rightInTeam1) {
+        team1UserLabel = `RIGHT_WINNER (Xavi) [${shortId(team1UserId)}]`;
+        expectedWinnerTeam = 1;
+      } else if (wrongInTeam1) {
+        team1UserLabel = `WRONG_WINNER (Isis) [${shortId(team1UserId)}]`;
+      }
+      if (rightInTeam2) {
+        team2UserLabel = `RIGHT_WINNER (Xavi) [${shortId(team2UserId)}]`;
+        expectedWinnerTeam = 2;
+      } else if (wrongInTeam2) {
+        team2UserLabel = `WRONG_WINNER (Isis) [${shortId(team2UserId)}]`;
+      }
+
+      const plan = planMatchHistoryFlip(matchHistory);
+      if (!plan) {
+        console.log('--- MATCH HISTORY DIFF ---');
+        console.log(`  /matches/${qfMatchHistoryId}`);
+        console.log('  ⚠️  Cannot plan flip: games[] or last-game rounds[] are empty.');
+        console.log('');
+      } else {
+        printMatchHistoryDiff(qfMatchHistoryId, matchHistory, plan, expectedWinnerTeam, team1UserLabel, team2UserLabel);
+
+        // Hard sanity check: per the task spec, after the flip the match-level
+        // winner should be the team containing RIGHT_WINNER_USER_ID.
+        if (expectedWinnerTeam !== null && plan.newWinner !== expectedWinnerTeam) {
+          console.error('');
+          console.error(`✗ Sanity check failed: proposed match-level winner is ${plan.newWinner}, expected ${expectedWinnerTeam} (team containing ${RIGHT_WINNER_USER_ID}).`);
+          console.error('  Aborting — assumption about which team is Xavi may be wrong, or the flip math diverges from reality.');
+          process.exit(1);
+        }
+        console.log('');
+      }
+    }
+  }
 
   // ----- DISCOVERY -----
   console.log('--- DISCOVERY: full top-level structure of each user doc ---');
