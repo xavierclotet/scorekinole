@@ -2,6 +2,13 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.22] - 2026-05-03
+- Bracket admin re-edit: **consolation now updates correctly** when admin changes the winner of a knockout match. Previously the new loser stayed out of consolation because `replaceLoserPlaceholder` only matched the original placeholder string (gone after first replacement)
+- New `consolationSourceA/B` metadata on first-round consolation matches stores which main-bracket position feeds each slot, so re-edits can resolve slots even when placeholders have already been replaced with the previous loser's ID
+- `replaceLoserPlaceholder` now matches by either the placeholder string OR the `consolationSourceA/B` field
+- Tests: bracketEditPropagation.test.ts now has 9 tests; new test verifies that after all QFs complete (consolation generated), an admin re-edit of one QF correctly swaps old loser → new loser in consolation
+- 3rd-place match: already worked correctly via `advanceWinner` (unconditional slot assignment); covered by existing test
+
 ## [2.5.21] - 2026-05-03
 - Match result modal: critical fix — `gamesWonA/B` are now recomputed from per-game point totals when admin edits a completed bracket match. Previously they stayed at the value loaded from Firestore so editing rounds to flip the game's winner did NOT change the computed match winner → bracket propagation reported "saved successfully" but never advanced the new winner
 - Bracket admin: `wasCompleted` detection now also triggers on `!!selectedMatch.winner` (defense-in-depth in case status is briefly out of sync with winner)

@@ -706,7 +706,8 @@ export function generateConsolationBracketStructure(
         position: i,
         participantA: BYE_PARTICIPANT,
         participantB: createLoserPlaceholder(sourceRoundName, posB),
-        status: 'PENDING'
+        status: 'PENDING',
+        consolationSourceB: posB
       });
     } else if (isByeB) {
       firstRoundMatches.push({
@@ -714,7 +715,8 @@ export function generateConsolationBracketStructure(
         position: i,
         participantA: createLoserPlaceholder(sourceRoundName, posA),
         participantB: BYE_PARTICIPANT,
-        status: 'PENDING'
+        status: 'PENDING',
+        consolationSourceA: posA
       });
     } else {
       firstRoundMatches.push({
@@ -722,7 +724,9 @@ export function generateConsolationBracketStructure(
         position: i,
         participantA: createLoserPlaceholder(sourceRoundName, posA),
         participantB: createLoserPlaceholder(sourceRoundName, posB),
-        status: 'PENDING'
+        status: 'PENDING',
+        consolationSourceA: posA,
+        consolationSourceB: posB
       });
     }
   }
@@ -895,16 +899,19 @@ export function replaceLoserPlaceholder(
     return updated;
   }
 
-  // Only check first round - that's where placeholders are
+  // Only check first round - that's where placeholders are.
+  // Match either by literal placeholder string (initial generation) OR by the
+  // `consolationSourceA/B` metadata (admin re-edit case where the placeholder
+  // was already replaced with the OLD loser's ID).
   for (const match of updated.rounds[0].matches) {
     let replaced = false;
 
-    if (match.participantA === placeholder) {
+    if (match.participantA === placeholder || match.consolationSourceA === matchPosition) {
       match.participantA = loserId;
       match.seedA = loserSeed;
       replaced = true;
     }
-    if (match.participantB === placeholder) {
+    if (match.participantB === placeholder || match.consolationSourceB === matchPosition) {
       match.participantB = loserId;
       match.seedB = loserSeed;
       replaced = true;

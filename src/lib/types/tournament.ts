@@ -539,6 +539,12 @@ export interface BracketMatch {
 
   // Consolation bracket specific
   isThirdPlace?: boolean;       // True if this is a "loser's match" in consolation (e.g., 7-8, 11-12)
+  // Source position metadata: which position in the source main bracket round
+  // contributes the loser for slot A / slot B. Set on first-round consolation
+  // matches so we can re-resolve slots when an admin re-edits a source match
+  // and the loser changes (placeholder strings are gone after first replacement).
+  consolationSourceA?: number;  // Source main-bracket match position whose loser goes to slot A
+  consolationSourceB?: number;  // Source main-bracket match position whose loser goes to slot B
 
   // Video attachment
   videoUrl?: string;             // Full YouTube URL

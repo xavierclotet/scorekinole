@@ -241,6 +241,65 @@ describe('4-player bracket: edit semifinal', () => {
 // ─── 8-player bracket WITH consolation ───────────────────────────────────
 
 describe('8-player bracket WITH consolation: edit at each round', () => {
+  it('quarterfinal edit AFTER all QFs complete → consolation already exists, slot updates with new loser', async () => {
+    const tournament = createOnePhaseBracketTournament(8, { consolationEnabled: true });
+    (tournament as any).groupStage = undefined;
+    seedTournament(tournament);
+
+    await transitionTournament(tournament.id, 'FINAL_STAGE');
+    let t = readTournament(tournament.id);
+    if (t.finalStage && !(t.finalStage as any).consolationEnabled) {
+      (t.finalStage as any).consolationEnabled = true;
+      mockStore.setDocument(`tournaments/${t.id}`, t as unknown as Record<string, unknown>);
+      t = readTournament(tournament.id);
+    }
+
+    // Complete all QFs (A wins each one) so consolation gets generated and populated
+    const qfRound = t.finalStage!.goldBracket!.rounds[0];
+    const qfMatches = [...qfRound.matches].filter(
+      m => m.participantA && m.participantB && m.participantA !== 'BYE' && m.participantB !== 'BYE'
+    );
+
+    // Snapshot the QF[0]'s players for the edit later
+    const targetQf = qfMatches[0];
+    const playerA = targetQf.participantA!;
+    const playerB = targetQf.participantB!;
+    const targetQfId = targetQf.id;
+
+    for (const qf of qfMatches) {
+      await completeWith(tournament.id, qf.id, qf.participantA!);
+    }
+
+    // Now consolation should exist with playerB (loser of QF0) somewhere
+    t = readTournament(tournament.id);
+    const playerBWasInConso = findInConsolation(t, playerB);
+    expect(playerBWasInConso).toBe(true);
+    expect(findInConsolation(t, playerA)).toBe(false);
+
+    // Admin re-edits QF0: now playerB wins
+    const ok = await completeBracketMatchAndAdvance(
+      tournament.id, targetQfId,
+      {
+        status: 'COMPLETED', winner: playerB,
+        gamesWonA: 0, gamesWonB: 1,
+        totalPointsA: 4, totalPointsB: 8,
+        total20sA: 0, total20sB: 1
+      },
+      true
+    );
+    expect(ok).toBe(true);
+
+    t = readTournament(tournament.id);
+
+    // playerA (new loser) should now be in consolation, playerB should NOT be there
+    expect(findInConsolation(t, playerA)).toBe(true);
+    expect(findInConsolation(t, playerB)).toBe(false);
+
+    // playerB (new winner) should be in semifinal
+    expect(findMatchContaining(t, playerB, 1)).toBeDefined();
+    expect(findMatchContaining(t, playerA, 1)).toBeUndefined();
+  });
+
   it('quarterfinal edit → semifinal slot AND consolation slot update', async () => {
     const tournament = createOnePhaseBracketTournament(8, { consolationEnabled: true });
     (tournament as any).groupStage = undefined;
