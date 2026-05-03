@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { swapBracketParticipants } from './bracketSwap';
-import type { FinalStage, BracketWithConfig } from '$lib/types/tournament';
+import type { FinalStage, BracketWithConfig, ConsolationBracket, NamedBracket } from '$lib/types/tournament';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -141,5 +141,205 @@ describe('swapBracketParticipants', () => {
 
     // The pre-filled final slot should also be updated
     expect(result.goldBracket.rounds[1].matches[0].participantA).toBe('p3');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Helpers shared by the extended-coverage tests
+// ---------------------------------------------------------------------------
+
+/** Minimal bracket with a single completed match: A vs B, A won. */
+function mkMinimalBracket(pA: string, pB: string): BracketWithConfig {
+  return {
+    totalRounds: 1,
+    config: BRACKET_CONFIG,
+    rounds: [
+      {
+        roundNumber: 1,
+        name: 'Final',
+        matches: [
+          {
+            id: 'm1',
+            position: 0,
+            participantA: pA,
+            participantB: pB,
+            status: 'COMPLETED',
+            winner: pA,
+          },
+        ],
+      },
+    ],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Extended coverage
+// ---------------------------------------------------------------------------
+
+describe('swapBracketParticipants — extended coverage', () => {
+  it('swaps inside silverBracket', () => {
+    // Silver bracket: A vs B. Gold bracket needs both ids too — easiest: same
+    // ids appear there so the fixture is valid (both ids present).
+    const fs: FinalStage = {
+      mode: 'SPLIT_DIVISIONS',
+      isComplete: false,
+      goldBracket: mkMinimalBracket('A', 'B'),
+      silverBracket: mkMinimalBracket('A', 'B'),
+    };
+
+    const result = swapBracketParticipants(fs, 'A', 'B');
+
+    // Silver bracket match: participantA was 'A' → now 'B', participantB was 'B' → now 'A'
+    const silverMatch = result.silverBracket!.rounds[0].matches[0];
+    expect(silverMatch.participantA).toBe('B');
+    expect(silverMatch.participantB).toBe('A');
+    expect(silverMatch.winner).toBe('B'); // winner was 'A', now 'B'
+
+    // Gold bracket is also swapped (same ids)
+    const goldMatch = result.goldBracket.rounds[0].matches[0];
+    expect(goldMatch.participantA).toBe('B');
+    expect(goldMatch.participantB).toBe('A');
+  });
+
+  it('swaps inside goldBracket.thirdPlaceMatch', () => {
+    const thirdPlaceMatch = {
+      id: 'tp1',
+      position: 0,
+      participantA: 'A',
+      participantB: 'B',
+      status: 'COMPLETED' as const,
+      winner: 'A',
+    };
+
+    const base = mkMinimalBracket('A', 'B');
+    const fs: FinalStage = {
+      mode: 'SINGLE_BRACKET',
+      isComplete: false,
+      goldBracket: { ...base, thirdPlaceMatch },
+    };
+
+    const result = swapBracketParticipants(fs, 'A', 'B');
+
+    const tp = result.goldBracket.thirdPlaceMatch!;
+    expect(tp.participantA).toBe('B'); // was 'A'
+    expect(tp.participantB).toBe('A'); // was 'B'
+    expect(tp.winner).toBe('B');       // was 'A'
+
+    // Ensure the regular round is also swapped (both ids move symmetrically)
+    const r0 = result.goldBracket.rounds[0].matches[0];
+    expect(r0.participantA).toBe('B');
+    expect(r0.participantB).toBe('A');
+  });
+
+  it('swaps the FinalStage.winner field', () => {
+    const fs: FinalStage = {
+      mode: 'SINGLE_BRACKET',
+      isComplete: true,
+      goldBracket: mkMinimalBracket('A', 'B'),
+      winner: 'A',
+    };
+
+    const result = swapBracketParticipants(fs, 'A', 'B');
+
+    expect(result.winner).toBe('B'); // was 'A'
+    // Sanity: silverWinner not present → stays undefined
+    expect(result.silverWinner).toBeUndefined();
+  });
+
+  it('swaps the FinalStage.silverWinner field', () => {
+    const fs: FinalStage = {
+      mode: 'SPLIT_DIVISIONS',
+      isComplete: true,
+      goldBracket: mkMinimalBracket('A', 'X'),
+      silverBracket: mkMinimalBracket('B', 'Y'),
+      winner: 'A',
+      silverWinner: 'B',
+    };
+
+    const result = swapBracketParticipants(fs, 'A', 'B');
+
+    expect(result.winner).toBe('B');       // was 'A'
+    expect(result.silverWinner).toBe('A'); // was 'B'
+
+    // Gold bracket round had 'A' → now 'B'; silver bracket round had 'B' → now 'A'
+    expect(result.goldBracket.rounds[0].matches[0].participantA).toBe('B');
+    expect(result.silverBracket!.rounds[0].matches[0].participantA).toBe('A');
+  });
+
+  it('swaps NamedBracket.winner in parallelBrackets', () => {
+    const namedBracket: NamedBracket = {
+      id: 'nb-a',
+      name: 'A Finals',
+      label: 'A',
+      bracket: mkMinimalBracket('A', 'B'),
+      sourcePositions: [1, 2],
+      winner: 'A',
+    };
+
+    const fs: FinalStage = {
+      mode: 'PARALLEL_BRACKETS',
+      isComplete: true,
+      goldBracket: mkMinimalBracket('A', 'B'), // satisfies presence requirement
+      parallelBrackets: [namedBracket],
+      winner: 'A',
+    };
+
+    const result = swapBracketParticipants(fs, 'A', 'B');
+
+    const nb = result.parallelBrackets![0];
+    expect(nb.winner).toBe('B'); // was 'A'
+
+    // The bracket inside the NamedBracket is also swapped
+    const nbMatch = nb.bracket.rounds[0].matches[0];
+    expect(nbMatch.participantA).toBe('B');
+    expect(nbMatch.participantB).toBe('A');
+
+    // Structural fields not related to ids are preserved
+    expect(nb.id).toBe('nb-a');
+    expect(nb.label).toBe('A');
+    expect(nb.sourcePositions).toEqual([1, 2]);
+  });
+
+  it('swaps inside goldBracket.consolationBrackets', () => {
+    const consolation: ConsolationBracket = {
+      source: 'QF',
+      totalRounds: 1,
+      startPosition: 5,
+      isComplete: false,
+      rounds: [
+        {
+          roundNumber: 1,
+          name: '5th Place',
+          matches: [
+            {
+              id: 'c-m1',
+              position: 0,
+              participantA: 'A',
+              participantB: 'B',
+              status: 'COMPLETED',
+              winner: 'A',
+            },
+          ],
+        },
+      ],
+    };
+
+    const base = mkMinimalBracket('A', 'B');
+    const fs: FinalStage = {
+      mode: 'SINGLE_BRACKET',
+      isComplete: false,
+      goldBracket: { ...base, consolationBrackets: [consolation] },
+    };
+
+    const result = swapBracketParticipants(fs, 'A', 'B');
+
+    const cm = result.goldBracket.consolationBrackets![0].rounds[0].matches[0];
+    expect(cm.participantA).toBe('B'); // was 'A'
+    expect(cm.participantB).toBe('A'); // was 'B'
+    expect(cm.winner).toBe('B');       // was 'A'
+
+    // Consolation metadata is preserved
+    expect(result.goldBracket.consolationBrackets![0].source).toBe('QF');
+    expect(result.goldBracket.consolationBrackets![0].startPosition).toBe(5);
   });
 });
