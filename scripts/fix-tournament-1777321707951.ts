@@ -25,7 +25,7 @@
  */
 
 import { initializeApp, cert } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { swapBracketParticipants } from '../src/lib/algorithms/bracketSwap';
@@ -50,7 +50,7 @@ const SERVICE_ACCOUNT_PATH = resolve(__dirname, '../.firebase-keys/scorekinole-a
 const SNAPSHOT_PATH = resolve(__dirname, `.fix-${TOURNAMENT_ID}.snapshot.json`);
 
 // === Init firebase-admin ===
-import { readFileSync } from 'fs';
+import { readFileSync, writeFileSync } from 'fs';
 const serviceAccount = JSON.parse(readFileSync(SERVICE_ACCOUNT_PATH, 'utf8'));
 initializeApp({ credential: cert(serviceAccount) });
 const db = getFirestore();
@@ -683,6 +683,194 @@ function printUserDiff(
 }
 
 // =====================================================================
+// Planning (pure — no IO)
+// =====================================================================
+
+interface FixPlan {
+  qfMatch: BracketMatch;
+  qfMatchId: string;
+  qfLoc: QfLocation;
+  cfg: PhaseConfigLite;
+  beforeRounds: RoundEntry[];
+  newRounds: RoundEntry[];
+  beforeAgg: AggregateResult;
+  afterAgg: AggregateResult;
+  newWinnerPid: string | undefined;
+  proposedQf: BracketMatch;
+  finalStageAfter: FinalStage;
+  downstreamDiffs: Array<{ desc: string; matchId: string; changes: string[] }>;
+  topLevelChanges: string[];
+  newParticipants: TournamentParticipant[];
+  wrongParticipant: TournamentParticipant;
+  rightParticipant: TournamentParticipant;
+  wrongPid: string;
+  rightPid: string;
+  wrongTournaments: TournamentRecord[];
+  rightTournaments: TournamentRecord[];
+  wrongRecord: TournamentRecord;
+  rightRecord: TournamentRecord;
+  newWrongRecord: TournamentRecord;
+  newRightRecord: TournamentRecord;
+  newWrongTournaments: TournamentRecord[];
+  newRightTournaments: TournamentRecord[];
+}
+
+type PlanResult =
+  | { ok: true; plan: FixPlan }
+  | { ok: false; error: string };
+
+function planFix(
+  tournament: Tournament,
+  wrongUser: Record<string, unknown>,
+  rightUser: Record<string, unknown>
+): PlanResult {
+  if (!tournament.finalStage) {
+    return { ok: false, error: 'Tournament has no finalStage; cannot locate QF match.' };
+  }
+
+  const wrongParticipant = tournament.participants?.find(
+    p => p.userId === WRONG_WINNER_USER_ID || p.partner?.userId === WRONG_WINNER_USER_ID
+  );
+  const rightParticipant = tournament.participants?.find(
+    p => p.userId === RIGHT_WINNER_USER_ID || p.partner?.userId === RIGHT_WINNER_USER_ID
+  );
+  if (!wrongParticipant || !rightParticipant) {
+    return {
+      ok: false,
+      error: `Could not locate one or both users among tournament.participants[] (wrong=${wrongParticipant ? 'found' : 'NOT FOUND'}, right=${rightParticipant ? 'found' : 'NOT FOUND'}).`,
+    };
+  }
+
+  const wrongPid = wrongParticipant.id;
+  const rightPid = rightParticipant.id;
+
+  const qfHit = findQfMatch(tournament.finalStage, wrongPid, rightPid);
+  if (!qfHit) {
+    return {
+      ok: false,
+      error: `Could not locate any bracket match with both ${wrongPid} and ${rightPid}.`,
+    };
+  }
+
+  const qfMatch = qfHit.match;
+  const qfLoc = qfHit.location;
+  const qfMatchId = qfMatch.id;
+
+  const cfg = getPhaseConfigLite(qfHit.bracketWithConfig, qfHit.roundNumber, qfHit.totalRounds, qfHit.isThirdPlace);
+  const beforeRounds = qfMatch.rounds ?? [];
+  if (beforeRounds.length === 0) {
+    return { ok: false, error: `QF match ${qfMatchId} has no rounds[]; cannot flip last round.` };
+  }
+
+  const newRounds = flipLastRound(beforeRounds);
+  const beforeAgg = recomputeAggregates(beforeRounds, cfg);
+  const afterAgg = recomputeAggregates(newRounds, cfg);
+
+  let newWinnerPid: string | undefined;
+  if (afterAgg.winnerSlot === 'A') newWinnerPid = qfMatch.participantA;
+  else if (afterAgg.winnerSlot === 'B') newWinnerPid = qfMatch.participantB;
+  else newWinnerPid = undefined;
+
+  const proposedQf: BracketMatch = {
+    ...qfMatch,
+    rounds: newRounds,
+    gamesWonA: afterAgg.gamesWonA,
+    gamesWonB: afterAgg.gamesWonB,
+    totalPointsA: afterAgg.totalPointsA,
+    totalPointsB: afterAgg.totalPointsB,
+    total20sA: afterAgg.total20sA,
+    total20sB: afterAgg.total20sB,
+    winner: newWinnerPid,
+  };
+
+  const swappedFinalStage = swapBracketParticipants(tournament.finalStage, wrongPid, rightPid);
+  const finalStageAfter = replaceMatchAt(swappedFinalStage, qfLoc.slot, proposedQf);
+
+  const downstreamDiffs = diffDownstream(tournament.finalStage, finalStageAfter, qfMatchId);
+
+  const fsBefore = tournament.finalStage;
+  const fsAfter = finalStageAfter;
+  const topLevelChanges: string[] = [];
+  if (fsBefore.winner !== fsAfter.winner) {
+    topLevelChanges.push(`finalStage.winner: ${nameFor(tournament.participants ?? [], fsBefore.winner)} → ${nameFor(tournament.participants ?? [], fsAfter.winner)}`);
+  }
+  if (fsBefore.silverWinner !== fsAfter.silverWinner) {
+    topLevelChanges.push(`finalStage.silverWinner: ${nameFor(tournament.participants ?? [], fsBefore.silverWinner)} → ${nameFor(tournament.participants ?? [], fsAfter.silverWinner)}`);
+  }
+
+  const newParticipants = (tournament.participants ?? []).map(p => {
+    if (p.id === wrongPid) return { ...p, finalPosition: rightParticipant.finalPosition };
+    if (p.id === rightPid) return { ...p, finalPosition: wrongParticipant.finalPosition };
+    return p;
+  });
+
+  const wrongTournaments = (wrongUser.tournaments as TournamentRecord[] | undefined) ?? [];
+  const rightTournaments = (rightUser.tournaments as TournamentRecord[] | undefined) ?? [];
+
+  const wrongRecord = wrongTournaments.find(r => r.tournamentId === TOURNAMENT_ID);
+  const rightRecord = rightTournaments.find(r => r.tournamentId === TOURNAMENT_ID);
+
+  if (!wrongRecord) {
+    return { ok: false, error: `Wrong-winner user ${WRONG_WINNER_USER_ID} has no tournamentRecord for ${TOURNAMENT_ID}.` };
+  }
+  if (!rightRecord) {
+    return { ok: false, error: `Right-winner user ${RIGHT_WINNER_USER_ID} has no tournamentRecord for ${TOURNAMENT_ID}.` };
+  }
+
+  const newWrongRecord: TournamentRecord = {
+    ...wrongRecord,
+    finalPosition: rightRecord.finalPosition,
+    rankingDelta: rightRecord.rankingDelta,
+    rankingAfter: (wrongRecord.rankingBefore ?? 0) + (rightRecord.rankingDelta ?? 0),
+  };
+  const newRightRecord: TournamentRecord = {
+    ...rightRecord,
+    finalPosition: wrongRecord.finalPosition,
+    rankingDelta: wrongRecord.rankingDelta,
+    rankingAfter: (rightRecord.rankingBefore ?? 0) + (wrongRecord.rankingDelta ?? 0),
+  };
+
+  const newWrongTournaments = wrongTournaments.map(r =>
+    r.tournamentId === TOURNAMENT_ID ? newWrongRecord : r
+  );
+  const newRightTournaments = rightTournaments.map(r =>
+    r.tournamentId === TOURNAMENT_ID ? newRightRecord : r
+  );
+
+  return {
+    ok: true,
+    plan: {
+      qfMatch,
+      qfMatchId,
+      qfLoc,
+      cfg,
+      beforeRounds,
+      newRounds,
+      beforeAgg,
+      afterAgg,
+      newWinnerPid,
+      proposedQf,
+      finalStageAfter,
+      downstreamDiffs,
+      topLevelChanges,
+      newParticipants,
+      wrongParticipant,
+      rightParticipant,
+      wrongPid,
+      rightPid,
+      wrongTournaments,
+      rightTournaments,
+      wrongRecord,
+      rightRecord,
+      newWrongRecord,
+      newRightRecord,
+      newWrongTournaments,
+      newRightTournaments,
+    },
+  };
+}
+
+// =====================================================================
 // Main
 // =====================================================================
 
@@ -694,11 +882,6 @@ async function main() {
   console.log(`Service account: ${SERVICE_ACCOUNT_PATH}`);
   console.log(`Snapshot path (only used on --apply): ${SNAPSHOT_PATH}`);
   console.log('');
-
-  if (isApply) {
-    console.error('--apply not implemented yet (Task 13). Re-run with --dry-run.');
-    process.exit(1);
-  }
 
   // ----- READ -----
   const tournamentRef = db.collection('tournaments').doc(TOURNAMENT_ID);
@@ -734,160 +917,48 @@ async function main() {
   console.log(`Total participants: ${tournament.participants?.length ?? 0}`);
   console.log('');
 
-  if (!tournament.finalStage) {
-    console.error('Tournament has no finalStage; cannot locate QF match. Aborting.');
+  // ----- PLAN -----
+  const planResult = planFix(tournament, wrongUser, rightUser);
+  if (!planResult.ok) {
+    console.error(planResult.error);
     process.exit(1);
   }
+  const plan = planResult.plan;
 
-  // Match user IDs to participant IDs (participants reference users via .userId or .partner.userId)
-  const wrongParticipant = tournament.participants?.find(
-    p => p.userId === WRONG_WINNER_USER_ID || p.partner?.userId === WRONG_WINNER_USER_ID
+  console.log(`Wrong winner participant: ${plan.wrongParticipant.name} (id=${plan.wrongParticipant.id})`);
+  console.log(`Right winner participant: ${plan.rightParticipant.name} (id=${plan.rightParticipant.id})`);
+  console.log(`  finalPosition: wrong=${plan.wrongParticipant.finalPosition ?? '∅'} right=${plan.rightParticipant.finalPosition ?? '∅'}`);
+  console.log('');
+
+  printQfDiff(
+    plan.qfMatch,
+    plan.qfLoc,
+    tournament.participants ?? [],
+    plan.beforeRounds,
+    plan.newRounds,
+    plan.beforeAgg,
+    plan.afterAgg,
+    plan.newWinnerPid,
+    plan.rightPid,
+    plan.cfg
   );
-  const rightParticipant = tournament.participants?.find(
-    p => p.userId === RIGHT_WINNER_USER_ID || p.partner?.userId === RIGHT_WINNER_USER_ID
-  );
-  if (!wrongParticipant || !rightParticipant) {
-    console.error('Could not locate one or both users among tournament.participants[].');
-    console.error(`  wrong (userId=${WRONG_WINNER_USER_ID}): ${wrongParticipant ? 'found' : 'NOT FOUND'}`);
-    console.error(`  right (userId=${RIGHT_WINNER_USER_ID}): ${rightParticipant ? 'found' : 'NOT FOUND'}`);
-    process.exit(1);
-  }
-
-  console.log(`Wrong winner participant: ${wrongParticipant.name} (id=${wrongParticipant.id})`);
-  console.log(`Right winner participant: ${rightParticipant.name} (id=${rightParticipant.id})`);
-  console.log(`  finalPosition: wrong=${wrongParticipant.finalPosition ?? '∅'} right=${rightParticipant.finalPosition ?? '∅'}`);
   console.log('');
 
-  // For doubles tournaments, the bracket-level participantA/B references the
-  // participant.id, NOT the user UID. The script's WRONG/RIGHT IDs are user
-  // UIDs, so we look the QF up by participant.id pair. For singles the
-  // participant.id may match the user UID or be a generated id; we use
-  // participant.id for the bracket search either way.
-  const wrongPid = wrongParticipant.id;
-  const rightPid = rightParticipant.id;
-
-  // ----- LOCATE QF -----
-  const qfHit = findQfMatch(tournament.finalStage, wrongPid, rightPid);
-  if (!qfHit) {
-    console.error(`Could not locate any bracket match with both ${wrongPid} and ${rightPid}. Aborting.`);
-    process.exit(1);
-  }
-
-  const qfMatch = qfHit.match;
-  const qfLoc = qfHit.location;
-  const qfMatchId = qfMatch.id;
-
-  // ----- PLAN QF FIX -----
-  const cfg = getPhaseConfigLite(qfHit.bracketWithConfig, qfHit.roundNumber, qfHit.totalRounds, qfHit.isThirdPlace);
-  const beforeRounds = qfMatch.rounds ?? [];
-  if (beforeRounds.length === 0) {
-    console.error(`QF match ${qfMatchId} has no rounds[]; cannot flip last round.`);
-    process.exit(1);
-  }
-
-  const newRounds = flipLastRound(beforeRounds);
-
-  const beforeAgg = recomputeAggregates(beforeRounds, cfg);
-  const afterAgg = recomputeAggregates(newRounds, cfg);
-
-  // Map A/B winner-slot back to participant.id
-  let newWinnerPid: string | undefined;
-  if (afterAgg.winnerSlot === 'A') newWinnerPid = qfMatch.participantA;
-  else if (afterAgg.winnerSlot === 'B') newWinnerPid = qfMatch.participantB;
-  else newWinnerPid = undefined;
-
-  printQfDiff(qfMatch, qfLoc, tournament.participants ?? [], beforeRounds, newRounds, beforeAgg, afterAgg, newWinnerPid, rightPid, cfg);
+  printDownstreamDiff(plan.downstreamDiffs, tournament.participants ?? []);
   console.log('');
 
-  // Build the proposed new QF match. We DO NOT touch participantA/participantB
-  // here (they are correct — only the score was attributed wrong). We do
-  // recompute aggregates and the winner.
-  const proposedQf: BracketMatch = {
-    ...qfMatch,
-    rounds: newRounds,
-    gamesWonA: afterAgg.gamesWonA,
-    gamesWonB: afterAgg.gamesWonB,
-    totalPointsA: afterAgg.totalPointsA,
-    totalPointsB: afterAgg.totalPointsB,
-    total20sA: afterAgg.total20sA,
-    total20sB: afterAgg.total20sB,
-    winner: newWinnerPid,
-  };
-
-  // ----- PLAN DOWNSTREAM SWAP -----
-  // First do the symmetric swap on the entire FinalStage (this also swaps
-  // inside the QF, but we'll override the QF immediately afterwards).
-  const swappedFinalStage = swapBracketParticipants(tournament.finalStage, wrongPid, rightPid);
-  // Now overwrite the QF with our carefully constructed match (preserving
-  // its original participantA/participantB ordering).
-  const finalStageAfter = replaceMatchAt(swappedFinalStage, qfLoc.slot, proposedQf);
-
-  const downstreamDiffs = diffDownstream(tournament.finalStage, finalStageAfter, qfMatchId);
-  printDownstreamDiff(downstreamDiffs, tournament.participants ?? []);
-  console.log('');
-
-  // Also report the top-level finalStage.winner / silverWinner change (if any)
-  const fsBefore = tournament.finalStage;
-  const fsAfter = finalStageAfter;
-  const topLevelChanges: string[] = [];
-  if (fsBefore.winner !== fsAfter.winner) {
-    topLevelChanges.push(`finalStage.winner: ${nameFor(tournament.participants ?? [], fsBefore.winner)} → ${nameFor(tournament.participants ?? [], fsAfter.winner)}`);
-  }
-  if (fsBefore.silverWinner !== fsAfter.silverWinner) {
-    topLevelChanges.push(`finalStage.silverWinner: ${nameFor(tournament.participants ?? [], fsBefore.silverWinner)} → ${nameFor(tournament.participants ?? [], fsAfter.silverWinner)}`);
-  }
-  if (topLevelChanges.length > 0) {
+  if (plan.topLevelChanges.length > 0) {
     console.log('--- finalStage TOP-LEVEL WINNER CHANGES ---');
-    topLevelChanges.forEach(c => console.log(`  - ${c}`));
+    plan.topLevelChanges.forEach(c => console.log(`  - ${c}`));
     console.log('');
   }
 
-  // ----- PLAN finalStandings (participant.finalPosition) SWAP -----
-  const newParticipants = (tournament.participants ?? []).map(p => {
-    if (p.id === wrongPid) return { ...p, finalPosition: rightParticipant.finalPosition };
-    if (p.id === rightPid) return { ...p, finalPosition: wrongParticipant.finalPosition };
-    return p;
-  });
-  printFinalStandingsDiff(tournament.participants ?? [], newParticipants);
+  printFinalStandingsDiff(tournament.participants ?? [], plan.newParticipants);
   console.log('');
 
-  // ----- PLAN USER RECORDS SWAP -----
-  const wrongTournaments = (wrongUser.tournaments as TournamentRecord[] | undefined) ?? [];
-  const rightTournaments = (rightUser.tournaments as TournamentRecord[] | undefined) ?? [];
-
-  const wrongRecord = wrongTournaments.find(r => r.tournamentId === TOURNAMENT_ID);
-  const rightRecord = rightTournaments.find(r => r.tournamentId === TOURNAMENT_ID);
-
-  if (!wrongRecord) {
-    console.error(`Wrong-winner user ${WRONG_WINNER_USER_ID} has no tournamentRecord for ${TOURNAMENT_ID}. Aborting.`);
-    process.exit(1);
-  }
-  if (!rightRecord) {
-    console.error(`Right-winner user ${RIGHT_WINNER_USER_ID} has no tournamentRecord for ${TOURNAMENT_ID}. Aborting.`);
-    process.exit(1);
-  }
-
-  // Swap finalPosition + ranking deltas/aftermath. rankingBefore stays
-  // (it's a snapshot of pre-tournament ranking). rankingDelta and
-  // rankingAfter swap, because they were computed from the swapped position.
-  const newWrongRecord: TournamentRecord = {
-    ...wrongRecord,
-    finalPosition: rightRecord.finalPosition,
-    rankingDelta: rightRecord.rankingDelta,
-    // rankingBefore is each user's own pre-tournament snapshot — KEEP it.
-    // rankingAfter = rankingBefore + (new rankingDelta).
-    rankingAfter: (wrongRecord.rankingBefore ?? 0) + (rightRecord.rankingDelta ?? 0),
-  };
-  const newRightRecord: TournamentRecord = {
-    ...rightRecord,
-    finalPosition: wrongRecord.finalPosition,
-    rankingDelta: wrongRecord.rankingDelta,
-    rankingAfter: (rightRecord.rankingBefore ?? 0) + (wrongRecord.rankingDelta ?? 0),
-  };
-
-  printUserDiff(`WRONG (${WRONG_WINNER_USER_ID})`, wrongUser, wrongRecord, newWrongRecord);
+  printUserDiff(`WRONG (${WRONG_WINNER_USER_ID})`, wrongUser, plan.wrongRecord, plan.newWrongRecord);
   console.log('');
-  printUserDiff(`RIGHT (${RIGHT_WINNER_USER_ID})`, rightUser, rightRecord, newRightRecord);
+  printUserDiff(`RIGHT (${RIGHT_WINNER_USER_ID})`, rightUser, plan.rightRecord, plan.newRightRecord);
   console.log('');
 
   // ----- DISCOVERY -----
@@ -911,13 +982,118 @@ async function main() {
 
   // Tournament records: count + show all entries (compact) so we can
   // detect any other aggregate arrays / cached fields.
-  console.log(`  /users/${WRONG_WINNER_USER_ID}.tournaments: ${wrongTournaments.length} record(s)`);
-  wrongTournaments.forEach((r, i) => console.log(`    [${i}] ${r.tournamentId} pos=${r.finalPosition} delta=${r.rankingDelta}`));
-  console.log(`  /users/${RIGHT_WINNER_USER_ID}.tournaments: ${rightTournaments.length} record(s)`);
-  rightTournaments.forEach((r, i) => console.log(`    [${i}] ${r.tournamentId} pos=${r.finalPosition} delta=${r.rankingDelta}`));
+  console.log(`  /users/${WRONG_WINNER_USER_ID}.tournaments: ${plan.wrongTournaments.length} record(s)`);
+  plan.wrongTournaments.forEach((r, i) => console.log(`    [${i}] ${r.tournamentId} pos=${r.finalPosition} delta=${r.rankingDelta}`));
+  console.log(`  /users/${RIGHT_WINNER_USER_ID}.tournaments: ${plan.rightTournaments.length} record(s)`);
+  plan.rightTournaments.forEach((r, i) => console.log(`    [${i}] ${r.tournamentId} pos=${r.finalPosition} delta=${r.rankingDelta}`));
   console.log('');
 
-  console.log('Dry run complete. Re-run with --apply to commit.');
+  if (!isApply) {
+    console.log('Dry run complete. Re-run with --apply to commit.');
+    return;
+  }
+
+  // ===================================================================
+  // APPLY
+  // ===================================================================
+
+  // ----- SNAPSHOT (before any write) -----
+  const snapshotPayload = {
+    takenAt: new Date().toISOString(),
+    tournament: tSnap.data() ?? null,
+    wrongUser: wSnap.data() ?? null,
+    rightUser: rSnap.data() ?? null,
+  };
+  writeFileSync(SNAPSHOT_PATH, JSON.stringify(snapshotPayload, null, 2), 'utf8');
+  console.log(`Snapshot saved: ${SNAPSHOT_PATH}`);
+  console.log('');
+
+  // ----- TRANSACTION -----
+  try {
+    await db.runTransaction(async (txn) => {
+      const [txnTSnap, txnWSnap, txnRSnap] = await Promise.all([
+        txn.get(tournamentRef),
+        txn.get(wrongUserRef),
+        txn.get(rightUserRef),
+      ]);
+
+      if (!txnTSnap.exists) {
+        throw new Error(`Tournament /tournaments/${TOURNAMENT_ID} disappeared between read and apply.`);
+      }
+      if (!txnWSnap.exists) {
+        throw new Error(`User /users/${WRONG_WINNER_USER_ID} (wrong) disappeared between read and apply.`);
+      }
+      if (!txnRSnap.exists) {
+        throw new Error(`User /users/${RIGHT_WINNER_USER_ID} (right) disappeared between read and apply.`);
+      }
+
+      const txnTournament = txnTSnap.data() as unknown as Tournament;
+      const txnWrongUser = txnWSnap.data() as Record<string, unknown>;
+      const txnRightUser = txnRSnap.data() as Record<string, unknown>;
+
+      // Recompute the plan from fresh data inside the transaction.
+      const txnPlanResult = planFix(txnTournament, txnWrongUser, txnRightUser);
+      if (!txnPlanResult.ok) {
+        throw new Error(`Re-plan inside transaction failed: ${txnPlanResult.error}`);
+      }
+      const txnPlan = txnPlanResult.plan;
+
+      // ----- SANITY ASSERTIONS -----
+      // 1) The QF's current winner must still be the wrong-winner participant id
+      //    (which corresponds to WRONG_WINNER_USER_ID).
+      if (txnPlan.qfMatch.winner !== txnPlan.wrongPid) {
+        throw new Error(
+          `Sanity check failed: QF match.winner is "${txnPlan.qfMatch.winner ?? '∅'}", expected wrong-winner participant.id "${txnPlan.wrongPid}". Data may have already been modified — aborting.`
+        );
+      }
+      // 2) The proposed new winner must be the right-winner participant id
+      //    (which corresponds to RIGHT_WINNER_USER_ID).
+      if (txnPlan.newWinnerPid !== txnPlan.rightPid) {
+        throw new Error(
+          `Sanity check failed: proposed new winner is "${txnPlan.newWinnerPid ?? '∅'}", expected right-winner participant.id "${txnPlan.rightPid}". Aborting.`
+        );
+      }
+      // 3) Both user docs must still have a tournaments[] entry for this tournament.
+      const txnWrongTournaments = (txnWrongUser.tournaments as TournamentRecord[] | undefined) ?? [];
+      const txnRightTournaments = (txnRightUser.tournaments as TournamentRecord[] | undefined) ?? [];
+      if (!txnWrongTournaments.some(r => r.tournamentId === TOURNAMENT_ID)) {
+        throw new Error(`Sanity check failed: wrong-winner user ${WRONG_WINNER_USER_ID} no longer has a tournaments[] entry for ${TOURNAMENT_ID}. Aborting.`);
+      }
+      if (!txnRightTournaments.some(r => r.tournamentId === TOURNAMENT_ID)) {
+        throw new Error(`Sanity check failed: right-winner user ${RIGHT_WINNER_USER_ID} no longer has a tournaments[] entry for ${TOURNAMENT_ID}. Aborting.`);
+      }
+
+      // ----- WRITES -----
+      txn.update(tournamentRef, {
+        finalStage: txnPlan.finalStageAfter,
+        participants: txnPlan.newParticipants,
+      });
+
+      txn.update(wrongUserRef, {
+        tournaments: txnPlan.newWrongTournaments,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      txn.update(rightUserRef, {
+        tournaments: txnPlan.newRightTournaments,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    });
+
+    console.log('Transaction committed.');
+    console.log('Done.');
+    console.log('Remember to delete the script and snapshot:');
+    console.log(`  rm scripts/fix-tournament-1777321707951.ts`);
+    console.log(`  rm '${SNAPSHOT_PATH}'`);
+  } catch (err) {
+    console.error('');
+    console.error('Apply failed — transaction did NOT commit.');
+    console.error(err);
+    console.error('');
+    console.error(`Snapshot is preserved at: ${SNAPSHOT_PATH}`);
+    console.error('Review the snapshot and re-run --dry-run before re-attempting --apply.');
+    process.exit(1);
+  }
 }
 
 main().catch((err) => {
