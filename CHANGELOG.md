@@ -2,6 +2,12 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.21] - 2026-05-03
+- Match result modal: critical fix — `gamesWonA/B` are now recomputed from per-game point totals when admin edits a completed bracket match. Previously they stayed at the value loaded from Firestore so editing rounds to flip the game's winner did NOT change the computed match winner → bracket propagation reported "saved successfully" but never advanced the new winner
+- Bracket admin: `wasCompleted` detection now also triggers on `!!selectedMatch.winner` (defense-in-depth in case status is briefly out of sync with winner)
+- Removed temporary diagnostic console.logs added in v2.5.20
+- Tests: bracketEditPropagation.test.ts expanded from 4 → 8 tests covering 4-player semi edit, 8-player QF/semi/final/3rd-place edits, with and without consolation, plus idempotency + same-winner safety guards
+
 ## [2.5.20] - 2026-05-03
 - Bracket admin: editing a completed knockout match (cuartos / semis / final / 3rd place) **now re-propagates** the new winner into the next round's slot and the new loser into the consolation slot
 - Removed UI blocker in `bracket/+page.svelte` (`bracket_cannotChangeWinner`) — admin is no longer rejected on winner-change edits

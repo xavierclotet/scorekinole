@@ -768,7 +768,6 @@
       || selectedMatch.status === 'WALKOVER'
       || !!selectedMatch.winner;
     const previousWinner = selectedMatch.winner;
-    console.log('[bracket-edit] wasCompleted:', wasCompleted, 'previousWinner:', previousWinner, 'status:', selectedMatch.status);
 
     showMatchDialog = false;
 

@@ -322,8 +322,24 @@
   // Games won calculation depends on mode
   $effect(() => {
     if (isBracket && !isRoundsMode) {
-      // Points mode bracket: gamesWonA/B are managed by startNextGame()
-      // Don't recalculate here
+      // Points mode bracket: gamesWonA/B are normally managed by startNextGame()
+      // (incremented as rounds complete). BUT in admin edit mode, the user may
+      // change round scores so the per-game outcome flips — recompute from
+      // round totals so the winner reflects the edited results.
+      if (isMatchCompleted && isAdmin && rounds.length > 0) {
+        const pointsToWin = gameConfig.pointsToWin || 7;
+        const gameNumbers = Array.from(new Set(rounds.map(r => r.gameNumber ?? 1)));
+        let gA = 0, gB = 0;
+        for (const gn of gameNumbers) {
+          const gr = rounds.filter(r => (r.gameNumber ?? 1) === gn);
+          const ptsA = gr.reduce((s, r) => s + (r.pointsA ?? 0), 0);
+          const ptsB = gr.reduce((s, r) => s + (r.pointsB ?? 0), 0);
+          if (ptsA >= pointsToWin && ptsA - ptsB >= 2) gA++;
+          else if (ptsB >= pointsToWin && ptsB - ptsA >= 2) gB++;
+        }
+        gamesWonA = gA;
+        gamesWonB = gB;
+      }
     } else {
       // Rounds mode: count rounds where player scored more
       gamesWonA = rounds.filter(r => r.pointsA !== null && r.pointsB !== null && r.pointsA > r.pointsB).length;
@@ -1455,7 +1471,7 @@
               <circle cx="12" cy="12" r="10"/>
               <path d="M12 8v4M12 16h.01"/>
             </svg>
-            <span>{m.bracket_cannotChangeWinner()}</span>
+            <span>{m.bracket_winnerChangeInfo()}</span>
           </div>
         {/if}
         <div class="dialog-footer">
