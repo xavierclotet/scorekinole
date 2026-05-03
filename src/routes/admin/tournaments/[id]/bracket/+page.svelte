@@ -23,7 +23,8 @@
     advanceConsolationWinner,
     forceRegenerateConsolationBrackets,
     completeFinalStage,
-    completeBracketMatchAndAdvance
+    completeBracketMatchAndAdvance,
+    revertBracketMatch
   } from '$lib/firebase/tournamentBracket';
   import { disqualifyParticipant, fixDisqualifiedMatches } from '$lib/firebase/tournamentParticipants';
   import type { Tournament, BracketMatch, GroupMatch, TournamentParticipant, PhaseConfig } from '$lib/types/tournament';
@@ -65,6 +66,8 @@
   // No-show (walkover) confirmation
   let showNoShowConfirm = $state(false);
   let noShowTarget = $state<{ id: string; name: string } | null>(null);
+  let showRevertConfirm = $state(false);
+  let isRevertingMatch = $state(false);
   let isProcessingNoShow = $state(false);
 
   // Disqualify confirmation
@@ -769,6 +772,58 @@
       || !!selectedMatch.winner;
     const previousWinner = selectedMatch.winner;
 
+    // SAFETY: if the winner is changing AND a downstream match (winner's next
+    // OR loser's next) is already played, block the edit. Admin must first
+    // revert/reset the downstream match. Prevents inconsistent bracket state
+    // (e.g. the same participant ending up in two slots).
+    if (wasCompleted) {
+      const computedWinner =
+        result.gamesWonA > result.gamesWonB
+          ? selectedMatch.participantA
+          : result.gamesWonB > result.gamesWonA
+          ? selectedMatch.participantB
+          : (result.totalPointsA || 0) > (result.totalPointsB || 0)
+          ? selectedMatch.participantA
+          : selectedMatch.participantB;
+
+      if (computedWinner !== previousWinner) {
+        const findBracketMatchById = (id: string | undefined) => {
+          if (!id || !tournament?.finalStage) return null;
+          const brackets = [tournament.finalStage.goldBracket, tournament.finalStage.silverBracket];
+          for (const bk of brackets) {
+            if (!bk) continue;
+            for (const r of bk.rounds) {
+              const m = r.matches.find(mm => mm.id === id);
+              if (m) return m;
+            }
+            if (bk.thirdPlaceMatch?.id === id) return bk.thirdPlaceMatch;
+            if (bk.consolationBrackets) {
+              for (const c of bk.consolationBrackets) {
+                for (const r of c.rounds) {
+                  const m = r.matches.find(mm => mm.id === id);
+                  if (m) return m;
+                }
+              }
+            }
+          }
+          return null;
+        };
+
+        const downstream = [
+          findBracketMatchById(selectedMatch.nextMatchId),
+          findBracketMatchById(selectedMatch.nextMatchIdForLoser)
+        ].filter(Boolean) as Array<{ status: string }>;
+
+        const blocked = downstream.find(m => m.status === 'COMPLETED' || m.status === 'WALKOVER');
+        if (blocked) {
+          toastMessage = m.bracket_downstreamAlreadyPlayed();
+          toastType = 'error';
+          showToast = true;
+          return; // Keep dialog open so admin sees their changes
+        }
+      }
+    }
+
     showMatchDialog = false;
 
     // Check if this is a consolation match
@@ -977,6 +1032,44 @@
       showToast = true;
     } finally {
       isProcessingNoShow = false;
+    }
+  }
+
+  function handleRevertMatch() {
+    if (!selectedMatch || !tournamentId) return;
+    showRevertConfirm = true;
+  }
+
+  function closeRevertModal() {
+    showRevertConfirm = false;
+  }
+
+  async function confirmRevertMatch() {
+    if (!selectedMatch || !tournamentId) return;
+    isRevertingMatch = true;
+    try {
+      const result = await revertBracketMatch(tournamentId, selectedMatch.id);
+      if (result.ok) {
+        toastMessage = m.bracket_revertSuccess();
+        toastType = 'success';
+        showRevertConfirm = false;
+        showMatchDialog = false;
+        selectedMatch = null;
+      } else if (result.reason === 'downstream_played') {
+        toastMessage = m.bracket_revertBlockedDownstream();
+        toastType = 'error';
+      } else {
+        toastMessage = m.bracket_revertError();
+        toastType = 'error';
+      }
+      showToast = true;
+    } catch (err) {
+      console.error('Error reverting match:', err);
+      toastMessage = m.bracket_revertError();
+      toastType = 'error';
+      showToast = true;
+    } finally {
+      isRevertingMatch = false;
     }
   }
 
@@ -2552,6 +2645,7 @@
     onsave={handleSaveMatch}
     onnoshow={handleNoShow}
     ondisqualify={handleDisqualify}
+    onrevert={handleRevertMatch}
   />
 {/if}
 
@@ -2633,6 +2727,45 @@
             ...
           {:else}
             {m.admin_noShowConfirmButton()}
+          {/if}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Revert Match Confirmation Modal -->
+{#if showRevertConfirm && selectedMatch}
+  <div
+    class="modal-backdrop"
+    style="z-index: 1100;"
+    data-theme={$adminTheme}
+    onclick={closeRevertModal}
+    onkeydown={(e) => e.key === 'Escape' && closeRevertModal()}
+    role="presentation"
+  >
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <div class="confirm-modal noshow-modal" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && closeRevertModal()} role="dialog" aria-modal="true" tabindex="-1">
+      <div class="modal-header warning">
+        <div class="header-icon warning">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+            <path d="M3 3v5h5"/>
+          </svg>
+        </div>
+        <h2>{m.bracket_revertConfirmTitle()}</h2>
+        <button class="close-btn" onclick={closeRevertModal} aria-label="Close">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="info-text">{m.bracket_revertConfirmDesc()}</p>
+      </div>
+      <div class="confirm-actions">
+        <button class="cancel-btn" onclick={closeRevertModal}>{m.common_cancel()}</button>
+        <button class="confirm-btn warning" onclick={confirmRevertMatch} disabled={isRevertingMatch}>
+          {#if isRevertingMatch}
+            ...
+          {:else}
+            {m.bracket_revertMatch()}
           {/if}
         </button>
       </div>

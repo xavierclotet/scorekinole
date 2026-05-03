@@ -14,9 +14,11 @@ import {
   replaceLoserPlaceholder,
   advanceConsolationWinner as advanceConsolationWinnerAlgorithm,
   getAvailableConsolationSources,
+  getBracketSeeding,
   nextPowerOfTwo,
   isBye,
-  cascadeByeWins
+  cascadeByeWins,
+  BYE_PARTICIPANT
 } from '$lib/algorithms/bracket';
 import type { ConsolationSource } from '$lib/algorithms/bracket';
 import { calculateFinalPositionsForTournament } from './tournamentRanking';
@@ -1629,6 +1631,54 @@ function countRealParticipants(bracket: BracketWithConfig): number {
 }
 
 /**
+ * Backfill `consolationSourceA/B` fields on first-round consolation matches
+ * for tournaments created before v2.5.22. Recomputes the seeding mapping the
+ * same way `generateConsolationBracketStructure` does at generation time so
+ * we can resolve which source bracket position feeds each consolation slot —
+ * needed for admin re-edits where the placeholder string was already
+ * replaced by the previous loser's participant ID.
+ */
+function backfillConsolationSourcePositions(
+  consolation: { source: ConsolationSource; rounds: Array<{ matches: BracketMatch[] }> },
+  sourceBracket: { totalRounds: number; rounds: Array<{ matches: BracketMatch[] }> }
+): void {
+  const firstRound = consolation.rounds[0];
+  if (!firstRound) return;
+
+  // Map source round name → offset from totalRounds (mirrors getLosersWithPositions)
+  const roundOffsets: Record<ConsolationSource, number> = { 'QF': 3, 'R16': 4, 'R32': 5, 'R64': 6 };
+  const offset = roundOffsets[consolation.source];
+  if (offset === undefined) return;
+  const targetRoundIndex = sourceBracket.totalRounds - offset;
+  if (targetRoundIndex < 0 || targetRoundIndex >= sourceBracket.rounds.length) return;
+
+  const sourceRound = sourceBracket.rounds[targetRoundIndex];
+  const sourceMatchCount = sourceRound.matches.length;
+
+  // Find which source positions had real losers vs BYEs (mirrors generation)
+  const allPositions = Array.from({ length: sourceMatchCount }, (_, i) => i);
+  const byePositions = allPositions.filter(p => {
+    const m = sourceRound.matches[p];
+    return m.participantA === BYE_PARTICIPANT || m.participantB === BYE_PARTICIPANT;
+  });
+  const realLoserPositions = allPositions.filter(p => !byePositions.includes(p));
+  const numRealLosers = realLoserPositions.length;
+  if (numRealLosers < 2) return;
+
+  const bracketSize = nextPowerOfTwo(numRealLosers);
+  const seeding = getBracketSeeding(bracketSize);
+
+  for (let i = 0; i < firstRound.matches.length && i < seeding.length; i++) {
+    const [seedA, seedB] = seeding[i];
+    const posA = seedA <= numRealLosers ? realLoserPositions[seedA - 1] : -1;
+    const posB = seedB <= numRealLosers ? realLoserPositions[seedB - 1] : -1;
+    const match = firstRound.matches[i];
+    if (match.consolationSourceA === undefined && posA !== -1) match.consolationSourceA = posA;
+    if (match.consolationSourceB === undefined && posB !== -1) match.consolationSourceB = posB;
+  }
+}
+
+/**
  * Check and generate consolation brackets if needed
  * Also updates existing consolation brackets with losers from completed matches
  * Called after a match is completed in the main bracket
@@ -1684,8 +1734,12 @@ async function checkAndGenerateConsolation(
 
   // Update placeholders in existing consolation brackets
   for (const consolation of updatedBracket.consolationBrackets) {
+    // Backfill consolationSourceA/B for tournaments created before v2.5.22.
+    // Without these fields, replaceLoserPlaceholder cannot find slots whose
+    // placeholder was already replaced by the previous loser's ID.
+    backfillConsolationSourcePositions(consolation, bracket);
+
     const losers = getLosersWithPositions(consolation.source);
-    losers.forEach(l => console.log(`   Position ${l.matchPosition}: ${l.loserId?.substring(0, 12)}...`));
 
     for (const { loserId, matchPosition, seed } of losers) {
       // Replace placeholder with actual loser (and their seed)
@@ -2461,5 +2515,211 @@ export async function completeBracketMatchAndAdvance(
   } catch (error) {
     console.error(`❌ Error completing bracket match [${callId}]:`, error);
     return false;
+  }
+}
+
+/**
+ * Revert a bracket match back to PENDING. Clears its result + clears the
+ * winner/loser slots that were populated downstream.
+ *
+ * SAFETY: only allowed when both downstream slots (winner's next match and
+ * loser's next match — typically a consolation match or 3rd-place match)
+ * are still PENDING. If either downstream is COMPLETED/WALKOVER, the function
+ * returns `{ ok: false, reason: 'downstream_played' }` so the admin must
+ * revert that match first (cascade-safe order).
+ *
+ * Returns `{ ok: true }` on success or `{ ok: false, reason }` on failure.
+ */
+export async function revertBracketMatch(
+  tournamentId: string,
+  matchId: string
+): Promise<{ ok: boolean; reason?: 'not_found' | 'not_completed' | 'downstream_played' | 'tournament_missing' }> {
+  if (!db) return { ok: false, reason: 'tournament_missing' };
+
+  try {
+    const tournamentRef = doc(db, 'tournaments', tournamentId);
+
+    let resultReason: 'not_found' | 'not_completed' | 'downstream_played' | undefined;
+    let resultOk = false;
+
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(tournamentRef);
+      if (!snapshot.exists()) throw new Error('Tournament not found');
+      const tournament = parseTournamentData(snapshot.data());
+      if (!tournament.finalStage) throw new Error('Final stage not found');
+
+      // Locate the match across all brackets (gold/silver, main/3rd-place/consolation)
+      type Loc = {
+        match: BracketMatch;
+        container: 'main' | 'thirdPlace' | 'consolation';
+        bracket: BracketWithConfig;
+        consolationIdx?: number;
+      };
+      const findMatch = (): Loc | null => {
+        for (const bracketKey of ['goldBracket', 'silverBracket'] as const) {
+          const bk = tournament.finalStage![bracketKey] as BracketWithConfig | undefined;
+          if (!bk) continue;
+          if (bk.thirdPlaceMatch?.id === matchId) {
+            return { match: bk.thirdPlaceMatch, container: 'thirdPlace', bracket: bk };
+          }
+          for (const r of bk.rounds) {
+            const m = r.matches.find(mm => mm.id === matchId);
+            if (m) return { match: m, container: 'main', bracket: bk };
+          }
+          if (bk.consolationBrackets) {
+            for (let i = 0; i < bk.consolationBrackets.length; i++) {
+              for (const r of bk.consolationBrackets[i].rounds) {
+                const m = r.matches.find(mm => mm.id === matchId);
+                if (m) return { match: m, container: 'consolation', bracket: bk, consolationIdx: i };
+              }
+            }
+          }
+        }
+        return null;
+      };
+
+      const loc = findMatch();
+      if (!loc) { resultReason = 'not_found'; return; }
+      if (loc.match.status !== 'COMPLETED' && loc.match.status !== 'WALKOVER') {
+        resultReason = 'not_completed';
+        return;
+      }
+
+      // Find downstream matches by id and verify they are still PENDING
+      const findById = (id: string | undefined): BracketMatch | null => {
+        if (!id) return null;
+        for (const bracketKey of ['goldBracket', 'silverBracket'] as const) {
+          const bk = tournament.finalStage![bracketKey] as BracketWithConfig | undefined;
+          if (!bk) continue;
+          if (bk.thirdPlaceMatch?.id === id) return bk.thirdPlaceMatch;
+          for (const r of bk.rounds) {
+            const m = r.matches.find(mm => mm.id === id);
+            if (m) return m;
+          }
+          if (bk.consolationBrackets) {
+            for (const c of bk.consolationBrackets) {
+              for (const r of c.rounds) {
+                const m = r.matches.find(mm => mm.id === id);
+                if (m) return m;
+              }
+            }
+          }
+        }
+        return null;
+      };
+
+      const winnerNext = findById(loc.match.nextMatchId);
+      const loserNext = findById(loc.match.nextMatchIdForLoser);
+      const downstreamBlocked = [winnerNext, loserNext].some(
+        m => m && (m.status === 'COMPLETED' || m.status === 'WALKOVER')
+      );
+      if (downstreamBlocked) { resultReason = 'downstream_played'; return; }
+
+      const oldWinner = loc.match.winner;
+      const oldLoser = oldWinner
+        ? (loc.match.participantA === oldWinner ? loc.match.participantB : loc.match.participantA)
+        : undefined;
+
+      // Reset the match itself
+      delete (loc.match as any).winner;
+      delete (loc.match as any).gamesWonA;
+      delete (loc.match as any).gamesWonB;
+      delete (loc.match as any).totalPointsA;
+      delete (loc.match as any).totalPointsB;
+      delete (loc.match as any).total20sA;
+      delete (loc.match as any).total20sB;
+      delete (loc.match as any).rounds;
+      delete (loc.match as any).completedAt;
+      delete (loc.match as any).duration;
+      delete (loc.match as any).playedOnTable;
+      delete (loc.match as any).walkedOverAt;
+      delete (loc.match as any).noShowParticipant;
+      loc.match.status = 'PENDING';
+
+      // Clear winner slot in next-winner match
+      if (winnerNext && oldWinner) {
+        if (winnerNext.participantA === oldWinner) {
+          delete (winnerNext as any).participantA;
+          delete (winnerNext as any).seedA;
+        }
+        if (winnerNext.participantB === oldWinner) {
+          delete (winnerNext as any).participantB;
+          delete (winnerNext as any).seedB;
+        }
+      }
+
+      // Clear loser slot in next-loser match (consolation or 3rd-place)
+      if (loserNext && oldLoser) {
+        if (loserNext.participantA === oldLoser) {
+          delete (loserNext as any).participantA;
+          delete (loserNext as any).seedA;
+        }
+        if (loserNext.participantB === oldLoser) {
+          delete (loserNext as any).participantB;
+          delete (loserNext as any).seedB;
+        }
+      }
+
+      // Also: if this was a semifinal in the main bracket, the loser was placed
+      // into the bracket's `thirdPlaceMatch`. advanceWinner does this directly
+      // (no nextMatchIdForLoser link), so handle it here.
+      if (loc.container === 'main' && oldLoser) {
+        const tpm = loc.bracket.thirdPlaceMatch;
+        if (tpm) {
+          if (tpm.participantA === oldLoser) {
+            delete (tpm as any).participantA;
+            delete (tpm as any).seedA;
+          }
+          if (tpm.participantB === oldLoser) {
+            delete (tpm as any).participantB;
+            delete (tpm as any).seedB;
+          }
+        }
+      }
+
+      // For main-bracket matches, the loser may have been placed in a
+      // consolation bracket via the seeding mapping (no `nextMatchIdForLoser`
+      // link on the source match). Find consolation first-round match by its
+      // `consolationSourceA/B` metadata and clear the slot — backfill if the
+      // metadata was missing (legacy data).
+      if (loc.container === 'main' && oldLoser && loc.bracket.consolationBrackets) {
+        // Find the source round position of the reverted match
+        let sourcePosition = -1;
+        for (const r of loc.bracket.rounds) {
+          const idx = r.matches.findIndex(mm => mm.id === matchId);
+          if (idx !== -1) { sourcePosition = idx; break; }
+        }
+        if (sourcePosition !== -1) {
+          for (const c of loc.bracket.consolationBrackets) {
+            backfillConsolationSourcePositions(c, loc.bracket);
+            const fr = c.rounds[0];
+            if (!fr) continue;
+            for (const cm of fr.matches) {
+              if (cm.consolationSourceA === sourcePosition && cm.participantA === oldLoser) {
+                delete (cm as any).participantA;
+                delete (cm as any).seedA;
+              }
+              if (cm.consolationSourceB === sourcePosition && cm.participantB === oldLoser) {
+                delete (cm as any).participantB;
+                delete (cm as any).seedB;
+              }
+            }
+          }
+        }
+      }
+
+      const cleanedTournament = cleanUndefined(tournament);
+      transaction.update(tournamentRef, {
+        finalStage: cleanedTournament.finalStage,
+        updatedAt: serverTimestamp()
+      });
+      resultOk = true;
+    });
+
+    if (resultOk) return { ok: true };
+    return { ok: false, reason: resultReason };
+  } catch (error) {
+    console.error('❌ Error reverting bracket match:', error);
+    return { ok: false, reason: 'tournament_missing' };
   }
 }

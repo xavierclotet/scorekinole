@@ -1672,5 +1672,9 @@
   "admin_deleteForever": "Esborrar definitivament",
   "admin_deleteForeverHint": "Aquest usuari no té historial: el pots eliminar completament de la base de dades.",
   "admin_deleteForeverConfirm": "Esborra definitivament a {name} ? Aquesta acció és irreversible.",
-  "admin_deleteForeverError": "No s'ha pogut eliminar l'usuari."
+  "admin_deleteForeverError": "No s'ha pogut eliminar l'usuari.",
+  "bracket_winnerChangedAndRepropagated": "Guanyador actualitzat. El nou participant ja apareix a la següent fase.",
+  "bracket_winnerChangeInfo": "Canviaràs el guanyador del partit. En desar, s'actualitzarà el següent bràquet amb el nou guanyador.",
+  "tournament_removeRound": "Eliminar ronda",
+  "bracket_downstreamAlreadyPlayed": "No es pot canviar el guanyador: el partit següent (o el de consolació) ja està jugat. Primer cal revertir-ho."
 }

@@ -38,6 +38,7 @@
     }) => void;
     onnoshow?: (participantId: string) => void;
     ondisqualify?: (participantId: string, participantName: string) => void;
+    onrevert?: () => void;
   }
 
   let {
@@ -54,7 +55,8 @@
     onclose,
     onsave,
     onnoshow,
-    ondisqualify
+    ondisqualify,
+    onrevert
   }: Props = $props();
 
   // Participant info
@@ -156,7 +158,6 @@
 
       if (hasSavedRounds && match.rounds) {
         // Load saved rounds (for any match type)
-        console.log('🔍 Loading saved rounds:', match.rounds);
         rounds = match.rounds.map(r => ({
           gameNumber: r.gameNumber,
           roundInGame: r.roundInGame,
@@ -170,7 +171,6 @@
         // For rounds mode: check if there were extra rounds (tiebreaker)
         if (isRoundsMode && rounds.length > baseNumRounds) {
           extraRoundsCount = rounds.length - baseNumRounds;
-          console.log('📊 Restored extra rounds count:', extraRoundsCount);
         } else if (isRoundsMode && rounds.length < baseNumRounds) {
           // Pad with empty rounds if needed
           const missingRounds = baseNumRounds - rounds.length;
@@ -184,7 +184,6 @@
               twentiesB: 0
             });
           }
-          console.log('📊 Padded rounds to match baseNumRounds:', baseNumRounds);
         }
 
         // For bracket points mode, restore game tracking state
@@ -211,14 +210,7 @@
 
           // Mark games won as properly initialized to prevent reactive double-counting
           gamesWonInitialized = true;
-
-          console.log('📊 Restored bracket points mode state:', {
-            gamesWonA, gamesWonB, currentGameNumber, currentGameComplete,
-            currentPtsA, currentPtsB, pointsToWin
-          });
         }
-
-        console.log('✅ Loaded rounds:', rounds);
       } else {
         // No saved rounds - initialize based on mode
         if (isBracket && !isRoundsMode) {
@@ -247,7 +239,6 @@
             twentiesB: 0
           }));
         }
-        console.log('⚠️ No saved rounds - initialized new rounds');
       }
 
       // Load video URL if exists
@@ -598,6 +589,36 @@
 
     // Trigger reactivity
     rounds = rounds;
+
+    // Auto-add next round (points mode bracket only) — when the user fills
+    // the LAST round and the current game/match isn't over yet, immediately
+    // append a fresh empty round so the admin can keep entering scores
+    // without clicking "+ Add round" between each one.
+    if (isBracket && !isRoundsMode) {
+      const isLastRound = roundIndex === rounds.length - 1;
+      if (isLastRound) {
+        const pointsToWin = gameConfig.pointsToWin || 7;
+        const currentGameRoundsList = rounds.filter(r => r.gameNumber === currentGameNumber);
+        const ptsA = currentGameRoundsList.reduce((s, r) => s + (r.pointsA ?? 0), 0);
+        const ptsB = currentGameRoundsList.reduce((s, r) => s + (r.pointsB ?? 0), 0);
+        const gameOver =
+          (ptsA >= pointsToWin && ptsA - ptsB >= 2)
+          || (ptsB >= pointsToWin && ptsB - ptsA >= 2);
+        const requiredWins = gameConfig.matchesToWin;
+        const matchOver = gamesWonA >= requiredWins || gamesWonB >= requiredWins;
+
+        if (!gameOver && !matchOver) {
+          rounds = [...rounds, {
+            gameNumber: currentGameNumber,
+            roundInGame: currentGameRoundsList.length + 1,
+            pointsA: null,
+            pointsB: null,
+            twentiesA: 0,
+            twentiesB: 0
+          }];
+        }
+      }
+    }
   }
 
   /**
@@ -1478,6 +1499,15 @@
           <button class="btn btn-secondary" onclick={handleClose}>
             {m.common_cancel()}
           </button>
+          {#if isAdmin && isMatchCompleted && isBracket && onrevert}
+            <button class="btn btn-danger" onclick={() => onrevert?.()} title={m.bracket_revertMatchTooltip()}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                <path d="M3 3v5h5"/>
+              </svg>
+              {m.bracket_revertMatch()}
+            </button>
+          {/if}
           {#if !isBye}
             {#if canForceFinish && !wouldChangeWinner}
               <button class="btn btn-warning" onclick={handleSave} title={m.tournament_forceFinishTooltip()}>
@@ -1720,14 +1750,16 @@
   }
 
   .rounds-table {
-    width: 100%;
-    min-width: max-content;
+    width: max-content;
+    min-width: 100%;
     border-collapse: collapse;
     background: white;
   }
 
-  /* Spacer column absorbs extra space so round columns stay fixed
-     and total stays pinned to the right edge */
+  /* Spacer column absorbs leftover horizontal space when there are few
+     rounds, so the total column stays pinned to the right edge of the
+     visible table. When rounds overflow, the spacer collapses to 0 and
+     scroll kicks in. */
   .rounds-table th.spacer-col,
   .rounds-table td.spacer-cell {
     width: 100%;
@@ -2625,6 +2657,36 @@
   .btn-warning svg {
     width: 14px;
     height: 14px;
+  }
+
+  .btn-danger {
+    background: #fff;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+  }
+
+  .btn-danger:hover {
+    background: #fef2f2;
+    border-color: #ef4444;
+    color: #b91c1c;
+    transform: translateY(-1px);
+  }
+
+  .btn-danger svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .btn-danger {
+    background: rgba(220, 38, 38, 0.12);
+    color: #fca5a5;
+    border-color: rgba(248, 113, 113, 0.3);
+  }
+
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .btn-danger:hover {
+    background: rgba(220, 38, 38, 0.2);
+    border-color: rgba(248, 113, 113, 0.5);
+    color: #fecaca;
   }
 
   /* ══════════════════════════════════════════════

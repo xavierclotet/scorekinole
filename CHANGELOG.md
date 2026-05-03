@@ -2,6 +2,13 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.23] - 2026-05-03
+- Bracket admin: new "Revertir resultado" button on completed knockout matches — resets the match to PENDING and clears the winner/loser slots that had been propagated downstream (next round + consolation + 3rd-place). Blocked if the next match is already played (admin must revert downstream first; cascade-safe order)
+- Bracket admin: safety check before saving a winner-change edit — if the next match (winner side) or the consolation match (loser side) has already been played, the save is blocked with an explicit toast "first revert it"
+- Match result modal: auto-add next round when admin enters 2/1/0 in the LAST round and the current game/match isn't over yet — saves a click between rounds
+- Match result modal: removed 5 leftover diagnostic console.logs that produced Svelte `console_log_state` warnings on every dialog open
+- Tests: bracketEditPropagation.test.ts now has 29 cases (1 documented as known limitation). Coverage includes 4-player and 8-player edits at every round, 16-player R16 edit, with/without consolation, 3rd-place revert, double-edit cycles, cascade reverts, WALKOVER status, legacy data without `consolationSourceA/B` fields, and the no-duplicate-participants invariant after every operation
+
 ## [2.5.22] - 2026-05-03
 - Bracket admin re-edit: **consolation now updates correctly** when admin changes the winner of a knockout match. Previously the new loser stayed out of consolation because `replaceLoserPlaceholder` only matched the original placeholder string (gone after first replacement)
 - New `consolationSourceA/B` metadata on first-round consolation matches stores which main-bracket position feeds each slot, so re-edits can resolve slots even when placeholders have already been replaced with the previous loser's ID

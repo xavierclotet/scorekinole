@@ -1672,5 +1672,9 @@
   "admin_deleteForever": "Delete permanently",
   "admin_deleteForeverHint": "This user has no history: you can completely remove them from the database.",
   "admin_deleteForeverConfirm": "Permanently delete {name} ? This action is irreversible.",
-  "admin_deleteForeverError": "The user could not be deleted."
+  "admin_deleteForeverError": "The user could not be deleted.",
+  "bracket_winnerChangedAndRepropagated": "Winner updated. The new participant now appears in the next phase.",
+  "bracket_winnerChangeInfo": "You will change the winner of the match. When you save, the bracket will be updated with the new winner.",
+  "tournament_removeRound": "Remove round",
+  "bracket_downstreamAlreadyPlayed": "The winner cannot be changed: the next match (or the consolation match) has already been played. First, the result must be reversed."
 }
