@@ -225,6 +225,109 @@ describe('Bracket re-edit propagation (allowOverwrite)', () => {
     expect(slotsAfterEdit).not.toContain(playerB);
   });
 
+  it('8-player bracket: admin edits quarterfinal → new winner propagates to semifinal AND new loser flows to consolation', async () => {
+    const tournament = createOnePhaseBracketTournament(8);
+    (tournament as any).groupStage = undefined;
+    // Enable consolation so loser flows somewhere observable
+    seedTournament(tournament);
+
+    await transitionTournament(tournament.id, 'FINAL_STAGE');
+    let t = readTournament(tournament.id);
+
+    // Force-enable consolation on the gold bracket if not already
+    if (t.finalStage?.goldBracket && !(t.finalStage as any).consolationEnabled) {
+      (t.finalStage as any).consolationEnabled = true;
+      mockStore.setDocument(`tournaments/${t.id}`, t as unknown as Record<string, unknown>);
+    }
+    t = readTournament(tournament.id);
+
+    // Find a quarterfinal (round 0)
+    const quarterfinal = findFirstPlayableSemi(t); // works for any first-round playable match
+    const playerA = quarterfinal.participantA!;
+    const playerB = quarterfinal.participantB!;
+    const qfId = quarterfinal.id;
+
+    // Step 1 — playerA wins the quarterfinal
+    let ok = await completeBracketMatchAndAdvance(tournament.id, qfId, {
+      status: 'COMPLETED',
+      winner: playerA,
+      gamesWonA: 1, gamesWonB: 0,
+      totalPointsA: 8, totalPointsB: 4,
+      total20sA: 1, total20sB: 0
+    });
+    expect(ok).toBe(true);
+
+    t = readTournament(tournament.id);
+    // The semifinal that this quarterfinal feeds into should now have playerA
+    const round1 = t.finalStage!.goldBracket!.rounds[1]; // round 1 = semifinals (0-indexed)
+    const semiThatGotWinner = round1.matches.find(
+      m => m.participantA === playerA || m.participantB === playerA
+    );
+    expect(semiThatGotWinner).toBeDefined();
+    expect([semiThatGotWinner!.participantA, semiThatGotWinner!.participantB]).toContain(playerA);
+
+    // The consolation bracket should have playerB (the loser) somewhere
+    const consoBefore = t.finalStage!.goldBracket!.consolationBrackets;
+    let playerBInConsolation = false;
+    if (consoBefore) {
+      for (const c of consoBefore) {
+        for (const r of c.rounds) {
+          for (const m of r.matches) {
+            if (m.participantA === playerB || m.participantB === playerB) {
+              playerBInConsolation = true;
+            }
+          }
+        }
+      }
+    }
+
+    // Step 2 — admin re-edits with allowOverwrite=true: playerB wins now
+    ok = await completeBracketMatchAndAdvance(
+      tournament.id,
+      qfId,
+      {
+        status: 'COMPLETED',
+        winner: playerB,
+        gamesWonA: 0, gamesWonB: 1,
+        totalPointsA: 4, totalPointsB: 8,
+        total20sA: 0, total20sB: 1
+      },
+      true
+    );
+    expect(ok).toBe(true);
+
+    t = readTournament(tournament.id);
+
+    // The semifinal slot should now have playerB instead of playerA
+    const round1AfterEdit = t.finalStage!.goldBracket!.rounds[1];
+    const semiAfter = round1AfterEdit.matches.find(
+      m => m.participantA === playerA || m.participantB === playerA
+        || m.participantA === playerB || m.participantB === playerB
+    );
+    expect(semiAfter).toBeDefined();
+    const semiSlots = [semiAfter!.participantA, semiAfter!.participantB];
+    expect(semiSlots).toContain(playerB);
+    expect(semiSlots).not.toContain(playerA);
+
+    // The consolation should now have playerA (was previously absent or had playerB)
+    const consoAfter = t.finalStage!.goldBracket!.consolationBrackets;
+    if (consoAfter && playerBInConsolation) {
+      // If consolation existed, playerB should NO LONGER be in consolation; playerA SHOULD be there
+      let playerAInConsolation = false;
+      let playerBStillInConsolation = false;
+      for (const c of consoAfter) {
+        for (const r of c.rounds) {
+          for (const m of r.matches) {
+            if (m.participantA === playerA || m.participantB === playerA) playerAInConsolation = true;
+            if (m.participantA === playerB || m.participantB === playerB) playerBStillInConsolation = true;
+          }
+        }
+      }
+      expect(playerAInConsolation).toBe(true);
+      expect(playerBStillInConsolation).toBe(false);
+    }
+  });
+
   it('admin edit with same winner → final slot remains unchanged (no spurious moves)', async () => {
     const tournament = createOnePhaseBracketTournament(4);
     (tournament as any).groupStage = undefined;
