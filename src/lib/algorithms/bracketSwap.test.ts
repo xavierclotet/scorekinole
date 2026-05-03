@@ -106,19 +106,14 @@ describe('swapBracketParticipants', () => {
     expect(stage).toEqual(original);
   });
 
-  it('is a no-op when neither id appears in the bracket', () => {
+  it('throws when neither id appears in the bracket', () => {
     const stage = mkFinalStage();
-    const result = swapBracketParticipants(stage, 'x99', 'x100');
-
-    expect(result).toEqual(stage);
+    expect(() => swapBracketParticipants(stage, 'x99', 'x100')).toThrow();
   });
 
-  it('is a no-op when only one id appears (nothing to swap with)', () => {
+  it('throws when only one id appears in the bracket', () => {
     const stage = mkFinalStage();
-    const result = swapBracketParticipants(stage, 'p1', 'x99');
-
-    // p1 must remain in its original slot
-    expect(result.goldBracket.rounds[0].matches[0].participantA).toBe('p1');
+    expect(() => swapBracketParticipants(stage, 'p1', 'x99')).toThrow();
   });
 
   it('throws when both ids are the same', () => {

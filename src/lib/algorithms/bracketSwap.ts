@@ -1,9 +1,9 @@
 import type { BracketMatch, BracketRound, BracketWithConfig, ConsolationBracket, FinalStage } from '$lib/types/tournament';
 
-function swapId(value: string | undefined | null, a: string, b: string): string | undefined {
+function swapId(value: string | undefined | null, a: string, b: string): string | undefined | null {
   if (value === a) return b;
   if (value === b) return a;
-  return value ?? undefined;
+  return value;
 }
 
 function collectIds(finalStage: FinalStage): Set<string> {
@@ -97,8 +97,20 @@ export function swapBracketParticipants(
   const b = participantId2;
 
   const present = collectIds(finalStage);
-  if (!present.has(a) || !present.has(b)) {
-    return finalStage;
+  if (!present.has(a) && !present.has(b)) {
+    throw new Error(
+      `swapBracketParticipants: neither "${a}" nor "${b}" appears in the FinalStage`
+    );
+  }
+  if (!present.has(a)) {
+    throw new Error(
+      `swapBracketParticipants: participant "${a}" does not appear in the FinalStage`
+    );
+  }
+  if (!present.has(b)) {
+    throw new Error(
+      `swapBracketParticipants: participant "${b}" does not appear in the FinalStage`
+    );
   }
 
   return {
@@ -110,6 +122,7 @@ export function swapBracketParticipants(
     parallelBrackets: finalStage.parallelBrackets?.map(p => ({
       ...p,
       bracket: swapBracketWithConfig(p.bracket, a, b),
+      winner: swapId(p.winner, a, b) ?? undefined,
     })),
     winner: swapId(finalStage.winner, a, b),
     silverWinner: swapId(finalStage.silverWinner, a, b),
