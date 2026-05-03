@@ -2,6 +2,9 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.24] - 2026-05-03
+- chore: `.gitignore` now blocks Firebase Admin service-account key files (`.firebase-keys/`, `*-firebase-adminsdk-*.json`, `serviceAccountKey*.json`) to prevent accidental credential commits
+
 ## [2.5.23] - 2026-05-03
 - Bracket admin: new "Revertir resultado" button on completed knockout matches — resets the match to PENDING and clears the winner/loser slots that had been propagated downstream (next round + consolation + 3rd-place). Blocked if the next match is already played (admin must revert downstream first; cascade-safe order)
 - Bracket admin: safety check before saving a winner-change edit — if the next match (winner side) or the consolation match (loser side) has already been played, the save is blocked with an explicit toast "first revert it"
