@@ -2226,6 +2226,7 @@ export async function completeBracketMatchAndAdvance(
       // --- Phase 1.5: Check if match is already completed (prevents duplicate processing from stale cache) ---
       // When `allowOverwrite` is true (admin editing a completed match), skip this guard
       // so winner-change edits re-run Phase 3 propagation to next match slots.
+      console.log('[completeBracketMatchAndAdvance] allowOverwrite:', allowOverwrite, 'matchId:', matchId, 'incoming winner:', result.winner);
       if (!allowOverwrite) {
         let existingMatch: BracketMatch | undefined;
         const gb = tournament.finalStage.goldBracket;

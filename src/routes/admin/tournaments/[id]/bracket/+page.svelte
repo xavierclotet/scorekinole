@@ -762,8 +762,13 @@
     // the backend will re-propagate the new winner/loser into subsequent bracket slots
     // (`allowOverwrite=true` skips the Phase 1.5 idempotency guard in
     // completeBracketMatchAndAdvance so Phase 3 can re-run).
-    const wasCompleted = selectedMatch.status === 'COMPLETED' || selectedMatch.status === 'WALKOVER';
+    // Robust detection: status flag OR a prior winner means it was completed.
+    const wasCompleted =
+      selectedMatch.status === 'COMPLETED'
+      || selectedMatch.status === 'WALKOVER'
+      || !!selectedMatch.winner;
     const previousWinner = selectedMatch.winner;
+    console.log('[bracket-edit] wasCompleted:', wasCompleted, 'previousWinner:', previousWinner, 'status:', selectedMatch.status);
 
     showMatchDialog = false;
 
