@@ -2,7 +2,16 @@
 
 All notable changes to Scorekinole are documented in this file.
 
-## [2.5.18] - 2026-04-30
+## [2.5.19] - 2026-05-03
+- Match result modal (`MatchResultDialog`): rewritten rounds table for editing — supports many rounds (final-stage matches with 10+ rounds) without overlapping cells
+- Round columns now have **fixed width** (no longer redistribute when adding rounds); a flex spacer absorbs leftover space so the Total column stays pinned to the right
+- Horizontal scroll with always-visible thin scrollbar + fade gradient on edges + sticky player-name column when overflow kicks in
+- Points 2/1/0 buttons stacked vertically (compact); 20s field replaced with **custom +/− stepper** (consistent across browsers, big tap targets — native arrows hidden)
+- Stepper buttons styled narrower than 2/1/0 to differentiate P (points) vs 20s columns
+- Visual round grouping: vertical separator between rounds + accent under round number + stronger border before Total column (light + dark themes)
+- New **delete-round** button (×) next to each R1, R2... in editable header — admin can remove a wrong round and remaining rounds are renumbered automatically
+- BO1 fix: trophy banner with redundant "1-0" no longer appears after the only game in a best-of-1 match — `game-complete-notice` already conveys the result
+- Modal max-width: 1100 → 1400 px (more breathing room on desktop)
 - Admin user management: bug fix — disabling a guest user (Firestore-only profile, no Auth account) used to fail silently with `auth/user-not-found` 404 from the Cloud Function. Now `disableUser` tolerates missing Auth records and marks the Firestore document directly
 - Admin user management: new "Borrar definitivamente" button — appears in the disable modal only when the target user has zero history (no tournaments owned/played, no venues, no collaborator role, no merge links). Permanently removes the Firestore profile + Auth record (if any), and the row disappears from the list
 - Admin user management: failures during disable/delete now surface inline in the modal instead of closing silently

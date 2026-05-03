@@ -436,6 +436,23 @@
   }
 
   /**
+   * Remove a round (admin / pending edit). Renumbers rounds in the affected game.
+   */
+  function removeRound(roundIndex: number) {
+    if (roundIndex < 0 || roundIndex >= rounds.length) return;
+    const removedGame = rounds[roundIndex].gameNumber;
+    const filtered = rounds.filter((_, i) => i !== roundIndex);
+    let counter = 0;
+    rounds = filtered.map((r) => {
+      if (r.gameNumber === removedGame) {
+        counter++;
+        return { ...r, roundInGame: counter };
+      }
+      return r;
+    });
+  }
+
+  /**
    * Add extra round for tiebreaker (rounds mode brackets only)
    * Used when match ends in a tie and needs extra rounds until someone wins
    */
@@ -828,9 +845,21 @@
                 <thead>
                   <tr class="header-main">
                     <th class="player-col" rowspan="2">{m.tournament_playerColumn()}</th>
-                    {#each currentGameRounds as _, i}
-                      <th class="round-col" colspan={tournament.show20s ? 2 : 1}>R{i + 1}</th>
+                    {#each currentGameRounds as round, i}
+                      <th class="round-col" colspan={tournament.show20s ? 2 : 1}>
+                        <span class="round-label">R{i + 1}</span>
+                        <button
+                          type="button"
+                          class="remove-round-btn"
+                          onclick={() => removeRound(rounds.findIndex(r => r === round))}
+                          aria-label={m.tournament_removeRound()}
+                          title={m.tournament_removeRound()}
+                        >
+                          ×
+                        </button>
+                      </th>
                     {/each}
+                    <th class="spacer-col" rowspan="2" aria-hidden="true"></th>
                     <th class="total-col" colspan={tournament.show20s ? 2 : 1}>{m.time_total()}</th>
                   </tr>
                   {#if tournament.show20s}
@@ -878,18 +907,36 @@
                         </div>
                       </td>
                       {#if tournament.show20s}
+                        {@const max20s = tournament.gameType === 'singles' ? 8 : 12}
                         <td class="round-cell twenties-cell">
-                          <input
-                            type="number"
-                            min="0"
-                            max={tournament.gameType === 'singles' ? 8 : 12}
-                            value={round.twentiesA}
-                            oninput={(e) => handleTwentiesChange(roundIndex, 'A', parseInt(e.currentTarget.value) || 0)}
-                            class="twenties-input"
-                          />
+                          <div class="twenties-stepper">
+                            <button
+                              type="button"
+                              class="step-btn step-up"
+                              onclick={() => handleTwentiesChange(roundIndex, 'A', round.twentiesA + 1)}
+                              disabled={round.twentiesA >= max20s}
+                              aria-label="+1"
+                            >+</button>
+                            <input
+                              type="number"
+                              min="0"
+                              max={max20s}
+                              value={round.twentiesA}
+                              oninput={(e) => handleTwentiesChange(roundIndex, 'A', parseInt(e.currentTarget.value) || 0)}
+                              class="twenties-input"
+                            />
+                            <button
+                              type="button"
+                              class="step-btn step-down"
+                              onclick={() => handleTwentiesChange(roundIndex, 'A', round.twentiesA - 1)}
+                              disabled={round.twentiesA <= 0}
+                              aria-label="−1"
+                            >−</button>
+                          </div>
                         </td>
                       {/if}
                     {/each}
+                    <td class="spacer-cell" aria-hidden="true"></td>
                     <td class="total-cell points-cell">
                       <span class="total-value">{currentPointsA}</span>
                     </td>
@@ -932,18 +979,36 @@
                         </div>
                       </td>
                       {#if tournament.show20s}
+                        {@const max20sB = tournament.gameType === 'singles' ? 8 : 12}
                         <td class="round-cell twenties-cell">
-                          <input
-                            type="number"
-                            min="0"
-                            max={tournament.gameType === 'singles' ? 8 : 12}
-                            value={round.twentiesB}
-                            oninput={(e) => handleTwentiesChange(roundIndex, 'B', parseInt(e.currentTarget.value) || 0)}
-                            class="twenties-input"
-                          />
+                          <div class="twenties-stepper">
+                            <button
+                              type="button"
+                              class="step-btn step-up"
+                              onclick={() => handleTwentiesChange(roundIndex, 'B', round.twentiesB + 1)}
+                              disabled={round.twentiesB >= max20sB}
+                              aria-label="+1"
+                            >+</button>
+                            <input
+                              type="number"
+                              min="0"
+                              max={max20sB}
+                              value={round.twentiesB}
+                              oninput={(e) => handleTwentiesChange(roundIndex, 'B', parseInt(e.currentTarget.value) || 0)}
+                              class="twenties-input"
+                            />
+                            <button
+                              type="button"
+                              class="step-btn step-down"
+                              onclick={() => handleTwentiesChange(roundIndex, 'B', round.twentiesB - 1)}
+                              disabled={round.twentiesB <= 0}
+                              aria-label="−1"
+                            >−</button>
+                          </div>
                         </td>
                       {/if}
                     {/each}
+                    <td class="spacer-cell" aria-hidden="true"></td>
                     <td class="total-cell points-cell">
                       <span class="total-value">{currentPointsB}</span>
                     </td>
@@ -978,7 +1043,7 @@
                   <button class="next-game-btn" onclick={startNextGame} type="button">
                     {m.tournament_startGameN({ n: String(currentGameNumber + 1) })}
                   </button>
-                {:else}
+                {:else if requiredWins > 1}
                   <div class="match-complete-banner">
                     <span class="banner-icon">🏆</span>
                     <span class="banner-text">{m.tournament_matchCompleteWinner({ name: gamesWonA > gamesWonB ? nameA || '' : nameB || '' })}</span>
@@ -1439,7 +1504,7 @@
   .dialog {
     background: #fff;
     border-radius: 20px;
-    max-width: 1100px;
+    max-width: 1400px;
     width: 100%;
     max-height: 90vh;
     display: flex;
@@ -1604,16 +1669,54 @@
   /* ── Rounds Table ───────────────────────────── */
   .rounds-table-container {
     overflow-x: auto;
+    overflow-y: hidden;
     margin-bottom: 1.25rem;
     border-radius: 14px;
-    overflow: hidden;
     border: 1px solid #e2e8f0;
+    -webkit-overflow-scrolling: touch;
+    background:
+      linear-gradient(to right, white 30%, rgba(255, 255, 255, 0)),
+      linear-gradient(to right, rgba(255, 255, 255, 0), white 70%) 100% 0,
+      radial-gradient(farthest-side at 0 50%, rgba(15, 23, 42, 0.12), rgba(0, 0, 0, 0)),
+      radial-gradient(farthest-side at 100% 50%, rgba(15, 23, 42, 0.12), rgba(0, 0, 0, 0)) 100% 0;
+    background-repeat: no-repeat;
+    background-size: 32px 100%, 32px 100%, 12px 100%, 12px 100%;
+    background-attachment: local, local, scroll, scroll;
+    scrollbar-width: thin;
+    scrollbar-color: #94a3b8 transparent;
+  }
+
+  .rounds-table-container::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  .rounds-table-container::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .rounds-table-container::-webkit-scrollbar-thumb {
+    background: #94a3b8;
+    border-radius: 4px;
+  }
+
+  .rounds-table-container::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
   }
 
   .rounds-table {
     width: 100%;
+    min-width: max-content;
     border-collapse: collapse;
     background: white;
+  }
+
+  /* Spacer column absorbs extra space so round columns stay fixed
+     and total stays pinned to the right edge */
+  .rounds-table th.spacer-col,
+  .rounds-table td.spacer-cell {
+    width: 100%;
+    padding: 0;
+    border: none;
   }
 
   .rounds-table th {
@@ -1633,10 +1736,64 @@
     min-width: 120px;
     text-transform: none;
     letter-spacing: normal;
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    box-shadow: 4px 0 8px -4px rgba(15, 23, 42, 0.25);
   }
 
   .rounds-table th.round-col {
-    min-width: 70px;
+    min-width: 64px;
+    border-right: 1px solid rgba(148, 163, 184, 0.4);
+    position: relative;
+  }
+
+  .rounds-table th.round-col::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 25%;
+    right: 25%;
+    height: 2px;
+    background: rgba(148, 163, 184, 0.5);
+    border-radius: 2px;
+  }
+
+  .rounds-table th.round-col:last-of-type {
+    border-right: none;
+  }
+
+  .round-label {
+    vertical-align: middle;
+  }
+
+  .remove-round-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 4px;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    background: rgba(255, 255, 255, 0.14);
+    border: none;
+    border-radius: 50%;
+    color: rgba(255, 255, 255, 0.78);
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    vertical-align: middle;
+  }
+
+  .remove-round-btn:hover {
+    background: #ef4444;
+    color: white;
+  }
+
+  .remove-round-btn:active {
+    transform: scale(0.92);
   }
 
   .rounds-table th.sub-col {
@@ -1646,17 +1803,24 @@
   }
 
   .rounds-table th.sub-col.points-col {
-    min-width: 45px;
+    min-width: 60px;
   }
 
   .rounds-table th.sub-col.twenties-col {
-    min-width: 40px;
+    min-width: 56px;
     background: #44403c;
+    border-right: 1px solid rgba(148, 163, 184, 0.4);
+  }
+
+  /* When 20s hidden: separator after points sub-col instead */
+  .rounds-table th.sub-col.points-col:not(:has(+ .twenties-col)) {
+    border-right: 1px solid rgba(148, 163, 184, 0.4);
   }
 
   .rounds-table th.total-col {
     background: #059669;
-    min-width: 100px;
+    min-width: 90px;
+    border-left: 2px solid #047857;
   }
 
   .rounds-table td {
@@ -1681,22 +1845,37 @@
     color: #0f172a;
     padding-left: 1rem !important;
     font-size: 0.875rem;
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    box-shadow: 4px 0 8px -4px rgba(15, 23, 42, 0.1);
   }
 
   .round-cell {
     text-align: center;
-    padding: 0.3125rem !important;
+    padding: 0.5rem 0.4rem !important;
   }
 
   .round-cell.points-cell {
-    min-width: 55px;
+    min-width: 64px;
     max-width: 80px;
   }
 
   .round-cell.twenties-cell {
-    min-width: 40px;
-    max-width: 50px;
+    min-width: 60px;
+    max-width: 72px;
     background: #fffbeb !important;
+    border-right: 1px solid #e2e8f0;
+  }
+
+  /* Round group divider when 20s hidden (points-cell is last in group) */
+  .round-cell.points-cell:not(:has(+ .twenties-cell)) {
+    border-right: 1px solid #e2e8f0;
+  }
+
+  /* Total cell sits to the right of last round group with stronger border */
+  .total-cell.points-cell {
+    border-left: 2px solid #d1fae5;
   }
 
   /* Compact rounds: score + twenties stacked in one cell */
@@ -1760,20 +1939,22 @@
 
   .points-selector {
     display: flex;
-    gap: 4px;
+    flex-direction: column;
+    gap: 3px;
     justify-content: center;
-    align-items: center;
+    align-items: stretch;
+    width: 100%;
   }
 
   .point-btn {
-    flex: 1;
-    min-width: 34px;
-    height: 34px;
+    width: 100%;
+    min-width: 42px;
+    height: 32px;
     padding: 0;
     background: white;
     border: 2px solid #e2e8f0;
-    border-radius: 8px;
-    font-size: 0.875rem;
+    border-radius: 7px;
+    font-size: 0.95rem;
     font-weight: 800;
     color: #94a3b8;
     cursor: pointer;
@@ -1797,18 +1978,71 @@
     box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 35%, transparent);
   }
 
+  .twenties-stepper {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    align-items: stretch;
+    width: 100%;
+    max-width: 40px;
+    margin: 0 auto;
+  }
+
+  .step-btn {
+    width: 100%;
+    min-width: 36px;
+    height: 32px;
+    padding: 0;
+    background: white;
+    border: 2px solid #fde68a;
+    border-radius: 7px;
+    font-size: 1rem;
+    font-weight: 800;
+    color: #d97706;
+    cursor: pointer;
+    transition: all 0.12s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+
+  .step-btn:hover:not(:disabled) {
+    background: #fef3c7;
+    border-color: #fbbf24;
+    color: #b45309;
+  }
+
+  .step-btn:active:not(:disabled) {
+    transform: scale(0.94);
+  }
+
+  .step-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
   .twenties-input {
     width: 100%;
-    max-width: 36px;
-    padding: 0.3125rem 0.125rem;
-    border: 2px solid #e5e7eb;
-    border-radius: 8px;
-    font-size: 0.8125rem;
-    font-weight: 700;
+    height: 32px;
+    padding: 0;
+    border: 2px solid #fde68a;
+    border-radius: 7px;
+    font-size: 0.95rem;
+    font-weight: 800;
     text-align: center;
     color: #0f172a;
     background: white;
     transition: all 0.15s ease;
+    appearance: textfield;
+    -moz-appearance: textfield;
+    -webkit-appearance: textfield;
+  }
+
+  .twenties-input::-webkit-outer-spin-button,
+  .twenties-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
   }
 
   .twenties-input:focus {
@@ -2429,6 +2663,23 @@
 
   .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .rounds-table-container {
     border-color: #334155;
+    background:
+      linear-gradient(to right, #1e293b 30%, rgba(30, 41, 59, 0)),
+      linear-gradient(to right, rgba(30, 41, 59, 0), #1e293b 70%) 100% 0,
+      radial-gradient(farthest-side at 0 50%, rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0)),
+      radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0)) 100% 0;
+    background-repeat: no-repeat;
+    background-size: 32px 100%, 32px 100%, 12px 100%, 12px 100%;
+    background-attachment: local, local, scroll, scroll;
+    scrollbar-color: #475569 transparent;
+  }
+
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .rounds-table-container::-webkit-scrollbar-thumb {
+    background: #475569;
+  }
+
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .rounds-table-container::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
   }
 
   .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .rounds-table {
@@ -2449,6 +2700,32 @@
 
   .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .rounds-table td {
     border-color: #1e293b;
+  }
+
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .round-cell.twenties-cell,
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .round-cell.points-cell:not(:has(+ .twenties-cell)) {
+    border-right-color: #334155;
+  }
+
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .total-cell.points-cell {
+    border-left-color: rgba(5, 150, 105, 0.4);
+  }
+
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .rounds-table th.round-col {
+    border-right-color: rgba(71, 85, 105, 0.6);
+  }
+
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .rounds-table th.round-col::after {
+    background: rgba(71, 85, 105, 0.7);
+  }
+
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .rounds-table th.sub-col.twenties-col,
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .rounds-table th.sub-col.points-col:not(:has(+ .twenties-col)) {
+    border-right-color: rgba(71, 85, 105, 0.6);
+  }
+
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .rounds-table th.total-col {
+    border-left-color: #047857;
   }
 
   .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .player-row td {
@@ -2742,26 +3019,54 @@
       padding-left: 0.5rem !important;
     }
 
+    .rounds-table th.round-col {
+      min-width: 56px;
+    }
+
+    .rounds-table th.sub-col.points-col {
+      min-width: 52px;
+    }
+
+    .rounds-table th.sub-col.twenties-col {
+      min-width: 48px;
+    }
+
+    .rounds-table th.total-col {
+      min-width: 76px;
+    }
+
     .round-cell.points-cell {
-      min-width: 35px;
-      max-width: 45px;
+      min-width: 54px;
+      max-width: 68px;
     }
 
     .round-cell.twenties-cell {
-      min-width: 30px;
-      max-width: 40px;
+      min-width: 50px;
+      max-width: 62px;
     }
 
     .point-btn {
-      height: 26px;
-      font-size: 0.75rem;
+      min-width: 36px;
+      height: 28px;
+      font-size: 0.85rem;
       border-radius: 6px;
     }
 
+    .step-btn {
+      min-width: 32px;
+      height: 28px;
+      font-size: 0.9rem;
+      border-radius: 6px;
+    }
+
+    .twenties-stepper {
+      max-width: 36px;
+    }
+
     .twenties-input {
-      max-width: 30px;
-      font-size: 0.75rem;
-      padding: 0.25rem 0.1rem;
+      height: 28px;
+      font-size: 0.85rem;
+      border-radius: 6px;
     }
 
     .total-value {

@@ -1172,6 +1172,7 @@
   "tournament_abandonMatchDesc": "Se perderá el progreso y otro podrá jugarlo",
   "tournament_addExtraRound": "Añadir ronda extra",
   "tournament_addRound": "Añadir ronda",
+  "tournament_removeRound": "Eliminar ronda",
   "tournament_adminEditing": "Editando como Admin",
   "tournament_all": "Todos",
   "tournament_bestOf": "1º a {games}",
