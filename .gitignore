@@ -62,6 +62,11 @@ firebase-debug.log
 firebase-debug.*.log
 ui-debug.log
 
+# Firebase Admin service account keys (never commit)
+.firebase-keys/
+*-firebase-adminsdk-*.json
+serviceAccountKey*.json
+
 # Firebase Functions build output
 functions/lib/
 functions/node_modules/
