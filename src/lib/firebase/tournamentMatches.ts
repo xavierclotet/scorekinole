@@ -2727,7 +2727,7 @@ export async function completeTournamentMatch(
         rounds: result.rounds,
         videoUrl: result.videoUrl,
         videoId: result.videoId
-      });
+      }, allowOverwrite);
     }
   } catch (error) {
     console.error('❌ Error completing tournament match:', error);

@@ -758,27 +758,12 @@
   }) {
     if (!selectedMatch || !tournamentId || !tournament) return;
 
-
-    // Safety: if editing a completed match, block if winner would change
-    if (selectedMatch.status === 'COMPLETED' || selectedMatch.status === 'WALKOVER') {
-      let newWinner: string;
-      if (result.gamesWonA > result.gamesWonB) {
-        newWinner = selectedMatch.participantA!;
-      } else if (result.gamesWonB > result.gamesWonA) {
-        newWinner = selectedMatch.participantB!;
-      } else {
-        newWinner = (result.totalPointsA || 0) > (result.totalPointsB || 0)
-          ? selectedMatch.participantA!
-          : selectedMatch.participantB!;
-      }
-
-      if (newWinner !== selectedMatch.winner) {
-        toastMessage = m.bracket_cannotChangeWinner();
-        toastType = 'error';
-        showToast = true;
-        return;
-      }
-    }
+    // Detect admin re-edit of an already-completed match. When the winner changes,
+    // the backend will re-propagate the new winner/loser into subsequent bracket slots
+    // (`allowOverwrite=true` skips the Phase 1.5 idempotency guard in
+    // completeBracketMatchAndAdvance so Phase 3 can re-run).
+    const wasCompleted = selectedMatch.status === 'COMPLETED' || selectedMatch.status === 'WALKOVER';
+    const previousWinner = selectedMatch.winner;
 
     showMatchDialog = false;
 
@@ -896,6 +881,9 @@
       }
 
       // Use centralized sync service (handles both gold and silver brackets)
+      // `wasCompleted` → admin is editing an already-finished match. Pass
+      // allowOverwrite so the backend re-runs winner/loser propagation when the
+      // winner changes, replacing slots in subsequent matches.
       const success = await completeMatch(
         tournamentId,
         selectedMatch.id,
@@ -910,11 +898,16 @@
           totalPointsB: result.totalPointsB || 0,
           total20sA: result.total20sA || 0,
           total20sB: result.total20sB || 0
-        }
+        },
+        wasCompleted
       );
 
       if (success) {
-        toastMessage = m.admin_resultSavedSuccessfully();
+        if (wasCompleted && previousWinner && previousWinner !== winner) {
+          toastMessage = m.bracket_winnerChangedAndRepropagated();
+        } else {
+          toastMessage = m.admin_resultSavedSuccessfully();
+        }
         toastType = 'success';
         selectedMatch = null;
         setSyncStatus('success');

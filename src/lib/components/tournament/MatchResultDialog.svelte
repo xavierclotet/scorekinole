@@ -1472,8 +1472,8 @@
                 {m.tournament_forceFinish()}
               </button>
             {/if}
-            <button class="btn btn-primary" onclick={handleSave} disabled={!canSave || wouldChangeWinner}>
-              {#if canSave && !wouldChangeWinner}
+            <button class="btn btn-primary" onclick={handleSave} disabled={!canSave}>
+              {#if canSave}
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M20 6L9 17l-5-5"/>
                 </svg>

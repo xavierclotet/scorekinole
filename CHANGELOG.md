@@ -2,6 +2,15 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.20] - 2026-05-03
+- Bracket admin: editing a completed knockout match (cuartos / semis / final / 3rd place) **now re-propagates** the new winner into the next round's slot and the new loser into the consolation slot
+- Removed UI blocker in `bracket/+page.svelte` (`bracket_cannotChangeWinner`) — admin is no longer rejected on winner-change edits
+- `completeBracketMatchAndAdvance` now accepts `allowOverwrite` flag that bypasses the Phase 1.5 idempotency guard so Phase 3 (winner advancement) re-runs on edits
+- Plumbed `allowOverwrite` through `completeMatch` → `completeTournamentMatch` → `completeBracketMatchAndAdvance`
+- Match modal: removed the `wouldChangeWinner` save-button disable. Admin can now save winner-changing edits (delete a round, swap result, etc.) and the change actually persists
+- New toast message when admin edits a completed match and the winner changes: "Ganador actualizado. El nuevo participante ya aparece en la siguiente fase."
+- Tests: 3 regression tests in `bracketEditPropagation.test.ts` covering admin re-edit (winner changes propagates), idempotency without `allowOverwrite` (no-op), and same-winner edit (no spurious slot moves)
+
 ## [2.5.19] - 2026-05-03
 - Match result modal (`MatchResultDialog`): rewritten rounds table for editing — supports many rounds (final-stage matches with 10+ rounds) without overlapping cells
 - Round columns now have **fixed width** (no longer redistribute when adding rounds); a flex spacer absorbs leftover space so the Total column stays pinned to the right

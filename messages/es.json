@@ -606,6 +606,7 @@
   "bracket_tables": "Mesas",
   "bracket_tablesAssigned": "{count} partidos con mesa asignada",
   "bracket_winners": "Cuadro de Ganadores",
+  "bracket_winnerChangedAndRepropagated": "Ganador actualizado. El nuevo participante ya aparece en la siguiente fase.",
   "common_actions": "Acciones",
   "country_AR": "Argentina",
   "country_AU": "Australia",
