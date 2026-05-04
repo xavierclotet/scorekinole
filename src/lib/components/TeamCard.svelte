@@ -22,6 +22,8 @@
 		onroundComplete?: (data: { winningTeam: 0 | 1 | 2; team1Points: number; team2Points: number }) => void;
 		onextraRound?: (data: { roundNumber: number }) => void;
 		ontournamentMatchComplete?: () => void;
+		/** Called after the user undoes the last completed round via swipe-down at the boundary */
+		onroundUndo?: () => void;
 		/** Called when user wants to assign themselves to this team */
 		onassignUser?: () => void;
 		/** Called when user wants to unassign from this team */
@@ -46,6 +48,7 @@
 		onroundComplete,
 		onextraRound,
 		ontournamentMatchComplete,
+		onroundUndo,
 		onassignUser,
 		onunassignUser,
 		onassignPartner,
@@ -373,11 +376,10 @@
 		const previousT2 = get(lastRoundPoints).team2;
 
 		// Boundary crossing: scores match the last completed round, so the only
-		// way "down" is to undo that round entirely. Tournament mode is gated
-		// until Phase 2 wires up the Firestore-side revert.
+		// way "down" is to undo that round entirely. Local revert runs in both
+		// modes; the parent decides whether to also push the revert to Firestore
+		// via the onroundUndo callback (used in tournament mode).
 		if (t1.points === previousT1 && t2.points === previousT2) {
-			if (inTournamentMode) return;
-
 			const rounds = get(currentGameRounds);
 			if (rounds.length === 0) return; // already at game start, nothing to undo
 
@@ -409,6 +411,7 @@
 			}
 
 			vibrate(15);
+			onroundUndo?.();
 			return;
 		}
 

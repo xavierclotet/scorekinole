@@ -360,6 +360,23 @@
 		}
 	}
 
+	// Handler for round-undo from TeamCard (swipe-down at boundary).
+	// TeamCard already reverted local state via undoLastRound(). Here we
+	// re-derive the tournament progress bundle from the now-truncated stores
+	// and push it to Firestore so admin / public view / other devices see the
+	// revert in real time. No-op in friendly mode.
+	async function handleRoundUndo() {
+		if (!inTournamentMode) return;
+		const savedData = saveTournamentProgressToLocalStorage();
+		if (!savedData) return;
+		await syncTournamentRounds(
+			savedData.allRounds,
+			savedData.gamesWonA,
+			savedData.gamesWonB,
+			savedData.currentHammer
+		);
+	}
+
 	// React to URL key parameter (from push notification deep-link or direct link)
 	$effect(() => {
 		const urlKey = page.url.searchParams.get('key');
@@ -2795,6 +2812,7 @@
 			onroundComplete={handleRoundComplete}
 			ontournamentMatchComplete={handleTournamentMatchCompleteFromEvent}
 			onextraRound={handleExtraRound}
+			onroundUndo={handleRoundUndo}
 			onassignUser={() => handleAssignUser(1)}
 			onunassignUser={() => handleUnassignUser(1)}
 			onassignPartner={() => handleAssignPartner(1)}
@@ -2830,6 +2848,7 @@
 			onroundComplete={handleRoundComplete}
 			ontournamentMatchComplete={handleTournamentMatchCompleteFromEvent}
 			onextraRound={handleExtraRound}
+			onroundUndo={handleRoundUndo}
 			onassignUser={() => handleAssignUser(2)}
 			onunassignUser={() => handleUnassignUser(2)}
 			onassignPartner={() => handleAssignPartner(2)}
