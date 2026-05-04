@@ -1629,13 +1629,16 @@
 
 	async function handleMatchPreviewPlay(options: { hammerTeam?: 1 | 2 | null; team1Color: string; team2Color: string }) {
 		if (isStartingMatch) return;
-		showMatchPreview = false;
 		matchPreviewOptions = options;
-		if (matchPreviewTournament && matchPreviewInfo) {
-			await autoStartMatch(matchPreviewTournament, matchPreviewInfo);
+		try {
+			if (matchPreviewTournament && matchPreviewInfo) {
+				await autoStartMatch(matchPreviewTournament, matchPreviewInfo);
+			}
+		} finally {
+			showMatchPreview = false;
+			matchPreviewInfo = null;
+			matchPreviewTournament = null;
 		}
-		matchPreviewInfo = null;
-		matchPreviewTournament = null;
 	}
 
 	function handleMatchPreviewCancel() {
@@ -2871,53 +2874,56 @@
 	<!-- Tournament Exit Confirmation Modal -->
 	{#if showTournamentExitConfirm}
 		{@const hasProgress = $roundsPlayed > 0 || $currentGameRounds.length > 0 || $currentMatchGames.length > 0}
-		<!-- svelte-ignore a11y_click_events_have_key_events -->
-		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div class="exit-overlay" onclick={cancelTournamentExit}>
-			<!-- svelte-ignore a11y_click_events_have_key_events -->
-			<!-- svelte-ignore a11y_no_static_element_interactions -->
-			<div class="exit-dialog" onclick={(e) => e.stopPropagation()}>
-				<p class="exit-title">{m.tournament_exitMessage() || '¿Qué quieres hacer con este partido?'}</p>
-
-				{#if hasProgress}
-					<div class="exit-actions">
-						<!-- svelte-ignore a11y_click_events_have_key_events -->
-						<!-- svelte-ignore a11y_no_static_element_interactions -->
-						<div class={["exit-action pause", isExitingTournament && "disabled"]} onclick={pauseTournamentMatch}>
-							<div class="action-icon">
-								<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-							</div>
-							<div class="action-content">
-								<span class="action-label">{m.tournament_pauseMatch() || 'Pausar partido'}</span>
-								<span class="action-hint">{m.tournament_pauseMatchDesc() || 'Guarda el progreso. Tú u otro jugador podréis continuar.'}</span>
-							</div>
-						</div>
-						<!-- svelte-ignore a11y_click_events_have_key_events -->
-						<!-- svelte-ignore a11y_no_static_element_interactions -->
-						<div class={["exit-action abandon", isExitingTournament && "disabled"]} onclick={confirmTournamentExit}>
-							<div class="action-icon">
-								<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-							</div>
-							<div class="action-content">
-								<span class="action-label">{m.tournament_abandonMatch() || 'Abandonar partido'}</span>
-								<span class="action-hint">{m.tournament_abandonMatchDesc() || 'Se perderá el progreso y otro podrá jugarlo desde cero.'}</span>
-							</div>
-						</div>
+		<div class="exit-overlay">
+			<div class="exit-dialog">
+				{#if isExitingTournament}
+					<div class="exit-loading" role="status" aria-live="polite">
+						<LoaderCircle class="spin" size={28} />
+						<span>{m.tournament_exiting()}</span>
 					</div>
 				{:else}
-					<p class="exit-info">{m.scoring_noProgressWarning() || 'El partido no tiene progreso. ¿Quieres salir?'}</p>
-				{/if}
+					<p class="exit-title">{m.tournament_exitMessage() || '¿Qué quieres hacer con este partido?'}</p>
 
-				<div class="exit-footer">
-					<button class="exit-btn cancel" onclick={cancelTournamentExit}>
-						{m.common_cancel()}
-					</button>
-					{#if !hasProgress}
-						<button class="exit-btn confirm" onclick={confirmTournamentExit} disabled={isExitingTournament}>
-							{m.scoring_exit() || 'Salir'}
-						</button>
+					{#if hasProgress}
+						<div class="exit-actions">
+							<!-- svelte-ignore a11y_click_events_have_key_events -->
+							<!-- svelte-ignore a11y_no_static_element_interactions -->
+							<div class="exit-action pause" onclick={pauseTournamentMatch}>
+								<div class="action-icon">
+									<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+								</div>
+								<div class="action-content">
+									<span class="action-label">{m.tournament_pauseMatch() || 'Pausar partido'}</span>
+									<span class="action-hint">{m.tournament_pauseMatchDesc() || 'Guarda el progreso. Tú u otro jugador podréis continuar.'}</span>
+								</div>
+							</div>
+							<!-- svelte-ignore a11y_click_events_have_key_events -->
+							<!-- svelte-ignore a11y_no_static_element_interactions -->
+							<div class="exit-action abandon" onclick={confirmTournamentExit}>
+								<div class="action-icon">
+									<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+								</div>
+								<div class="action-content">
+									<span class="action-label">{m.tournament_abandonMatch() || 'Abandonar partido'}</span>
+									<span class="action-hint">{m.tournament_abandonMatchDesc() || 'Se perderá el progreso y otro podrá jugarlo desde cero.'}</span>
+								</div>
+							</div>
+						</div>
+					{:else}
+						<p class="exit-info">{m.scoring_noProgressWarning() || 'El partido no tiene progreso. ¿Quieres salir?'}</p>
 					{/if}
-				</div>
+
+					<div class="exit-footer">
+						<button class="exit-btn cancel" onclick={cancelTournamentExit}>
+							{m.common_cancel()}
+						</button>
+						{#if !hasProgress}
+							<button class="exit-btn confirm" onclick={confirmTournamentExit}>
+								{m.scoring_exit() || 'Salir'}
+							</button>
+						{/if}
+					</div>
+				{/if}
 			</div>
 		</div>
 	{/if}
@@ -3631,6 +3637,28 @@
 		border-radius: 12px;
 		padding: 1.5rem;
 		width: min(420px, 90vw);
+	}
+
+	.exit-loading {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 0.75rem;
+		padding: 1.75rem 1rem;
+		font-family: 'Lexend', sans-serif;
+		font-size: 1rem;
+		font-weight: 500;
+		color: rgba(255, 255, 255, 0.85);
+	}
+
+	.exit-loading :global(svg.spin) {
+		animation: exit-spin 1s linear infinite;
+	}
+
+	@keyframes exit-spin {
+		from { transform: rotate(0deg); }
+		to { transform: rotate(360deg); }
 	}
 
 	.exit-title {

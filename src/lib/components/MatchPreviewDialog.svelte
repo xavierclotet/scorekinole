@@ -6,7 +6,7 @@
 	import { getContrastColor } from '$lib/utils/colors';
 	import { getHammerFromStarter } from '$lib/utils/matchStartOptions';
 	import { getInitials, getPartnerInitials, getScorerWarningName } from '$lib/utils/matchPreviewHelpers';
-	import { Dices } from '@lucide/svelte';
+	import { Dices, LoaderCircle } from '@lucide/svelte';
 
 	const presetColors: string[] = [
 		'#E6BD80', '#1B100E', '#DADADA', '#BB484D', '#D06249',
@@ -191,7 +191,7 @@
 </script>
 
 <Dialog.Root open={isOpen && !!matchInfo} onOpenChange={(open) => !open && handleClose()}>
-	<Dialog.Content class="match-preview-modal">
+	<Dialog.Content class="match-preview-modal" interactOutsideBehavior="ignore">
 		{#if matchInfo}
 			<!-- Header -->
 			<Dialog.Header>
@@ -304,47 +304,54 @@
 				<p class="scoring-by-warning">{m.tournament_scoringByConfirm({ name: scorerName })}</p>
 			{/if}
 
-			<!-- Hammer selection (only for fresh matches with showHammer, not auto-alternate) -->
-			{#if showHammer && !isResuming && !isAutoAlternate}
-				<div class="hammer-section">
-					<span class="hammer-label">{m.wizard_whoStarts()}</span>
-					<div class="hammer-buttons">
-						<button
-							class="hammer-btn"
-							class:selected={selectedHammer === 1}
-							style="background-color: {selectedTeam1Color}; color: {getContrastColor(selectedTeam1Color)}"
-							disabled={!hasTable || isLoading}
-							onclick={() => handleHammerSelect(1)}
-						>
-							{matchInfo.participantAName.split(' / ')[0]}
-						</button>
-						<button
-							class="hammer-btn random-btn"
-							disabled={!hasTable || isLoading}
-							onclick={handleRandomHammer}
-						>
-							<Dices size={20} />
-						</button>
-						<button
-							class="hammer-btn"
-							class:selected={selectedHammer === 2}
-							style="background-color: {selectedTeam2Color}; color: {getContrastColor(selectedTeam2Color)}"
-							disabled={!hasTable || isLoading}
-							onclick={() => handleHammerSelect(2)}
-						>
-							{matchInfo.participantBName.split(' / ')[0]}
-						</button>
-					</div>
+			{#if isLoading}
+				<div class="loading-action" role="status" aria-live="polite">
+					<LoaderCircle class="spin" size={20} />
+					<span>{m.tournament_starting()}</span>
 				</div>
-			{/if}
+			{:else}
+				<!-- Hammer selection (only for fresh matches with showHammer, not auto-alternate) -->
+				{#if showHammer && !isResuming && !isAutoAlternate}
+					<div class="hammer-section">
+						<span class="hammer-label">{m.wizard_whoStarts()}</span>
+						<div class="hammer-buttons">
+							<button
+								class="hammer-btn"
+								class:selected={selectedHammer === 1}
+								style="background-color: {selectedTeam1Color}; color: {getContrastColor(selectedTeam1Color)}"
+								disabled={!hasTable || isLoading}
+								onclick={() => handleHammerSelect(1)}
+							>
+								{matchInfo.participantAName.split(' / ')[0]}
+							</button>
+							<button
+								class="hammer-btn random-btn"
+								disabled={!hasTable || isLoading}
+								onclick={handleRandomHammer}
+							>
+								<Dices size={20} />
+							</button>
+							<button
+								class="hammer-btn"
+								class:selected={selectedHammer === 2}
+								style="background-color: {selectedTeam2Color}; color: {getContrastColor(selectedTeam2Color)}"
+								disabled={!hasTable || isLoading}
+								onclick={() => handleHammerSelect(2)}
+							>
+								{matchInfo.participantBName.split(' / ')[0]}
+							</button>
+						</div>
+					</div>
+				{/if}
 
-			<!-- Play button (only when hammer is not required) -->
-			{#if !showHammer || isResuming || isAutoAlternate}
-				<Dialog.Footer>
-					<button class="btn-play" disabled={!hasTable || isLoading} onclick={handlePlay}>
-						{isResuming ? m.tournament_resumeMatch() : m.scoring_startMatch()}
-					</button>
-				</Dialog.Footer>
+				<!-- Play button (only when hammer is not required) -->
+				{#if !showHammer || isResuming || isAutoAlternate}
+					<Dialog.Footer>
+						<button class="btn-play" disabled={!hasTable || isLoading} onclick={handlePlay}>
+							{isResuming ? m.tournament_resumeMatch() : m.scoring_startMatch()}
+						</button>
+					</Dialog.Footer>
+				{/if}
 			{/if}
 		{/if}
 	</Dialog.Content>
@@ -742,5 +749,25 @@
 			font-size: 0.82rem;
 			padding: 0.65rem 0.35rem;
 		}
+	}
+
+	.loading-action {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.6rem;
+		padding: 1.4rem 1rem;
+		font-size: 1rem;
+		font-weight: 600;
+		color: var(--muted-foreground);
+	}
+
+	.loading-action :global(svg.spin) {
+		animation: spin 1s linear infinite;
+	}
+
+	@keyframes spin {
+		from { transform: rotate(0deg); }
+		to { transform: rotate(360deg); }
 	}
 </style>

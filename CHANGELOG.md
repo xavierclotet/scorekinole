@@ -2,6 +2,13 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.28] - 2026-05-04
+- UX: tournament `MatchPreviewDialog` no longer closes on outside click (`interactOutsideBehavior="ignore"`). Escape and the X close button still work
+- UX: while `autoStartMatch` is in flight, the preview dialog stays open and the action area is replaced by a centered spinner + "Iniciando…" (`role="status"`). The dialog closes only after the Firebase round-trip resolves, on success or error. Closes the dead-air gap users reported between clicking "Empezar / Reanudar / [hammer]" and the tournament data appearing in `/game`
+- UX: tournament exit dialog (red X in tournament mode) no longer closes on outside click — the overlay click handler was removed so only Cancel / Pause / Abandon dismiss it
+- UX: while pausing or abandoning a tournament match, the exit dialog content is replaced by a centered spinner + "Saliendo…". The dialog stays open until the Firebase write resolves, then closes
+- i18n: new key `tournament_exiting` (es: "Saliendo…", en: "Leaving…", ca: "Sortint…")
+
 ## [2.5.27] - 2026-05-04
 - Fix: tap on the big score in `TeamCard` now registers reliably on Safari iOS and Brave. The custom tap detector was rejecting valid taps because the movement threshold (10px) and time window (300ms) were too tight for typical mobile jitter. Threshold relaxed to 20px (still well below the 30px swipe threshold) and the redundant inner time check is gone — the outer `SWIPE_TIMEOUT` (500ms) now governs both branches
 - Fix: `e.preventDefault()` is now called on detected tap to suppress the synthetic `click` Safari iOS fires ~300ms after `touchend`, preventing phantom score increments behind the 20s dialog
