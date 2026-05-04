@@ -133,6 +133,132 @@ export async function syncParticipantRankings(tournamentId: string): Promise<boo
  * @param tournament Tournament object
  * @returns Updated participants array with finalPosition set
  */
+/**
+ * Map a bracket round index to its `ConsolationSource` name.
+ * Mirrors the offsets used by `getLosersWithPositions` /
+ * `generateConsolationBracketStructure` (QF=3, R16=4, R32=5, R64=6 from the
+ * end). Returns `null` for the final / semifinal / unsupported sizes.
+ */
+function getConsolationSourceForRound(roundIdx: number, totalRounds: number): 'QF' | 'R16' | 'R32' | 'R64' | null {
+  const offset = totalRounds - roundIdx;
+  if (offset === 3) return 'QF';
+  if (offset === 4) return 'R16';
+  if (offset === 5) return 'R32';
+  if (offset === 6) return 'R64';
+  return null;
+}
+
+/**
+ * Sum total points scored by a participant across the WHOLE tournament:
+ * group-stage matches + bracket main rounds + 3rd-place + consolation.
+ * Used to break ties WITHIN a tied display range so the better-performing
+ * player still earns more ranking points.
+ */
+function getTotalTournamentPoints(tournament: any, participantId: string): number {
+  let total = 0;
+  const addFromMatch = (m: any) => {
+    if (!m) return;
+    if (m.participantA === participantId) total += m.totalPointsA ?? 0;
+    if (m.participantB === participantId) total += m.totalPointsB ?? 0;
+  };
+  if (tournament.groupStage?.groups) {
+    for (const g of tournament.groupStage.groups) {
+      const rounds = g.schedule || g.pairings || [];
+      for (const r of rounds) for (const m of r.matches || []) addFromMatch(m);
+    }
+  }
+  for (const bracket of [tournament.finalStage?.goldBracket, tournament.finalStage?.silverBracket, tournament.finalStage?.bracket]) {
+    if (!bracket) continue;
+    for (const r of bracket.rounds || []) for (const m of r.matches || []) addFromMatch(m);
+    addFromMatch(bracket.thirdPlaceMatch);
+    if (bracket.consolationBrackets) {
+      for (const c of bracket.consolationBrackets) {
+        for (const r of c.rounds || []) for (const m of r.matches || []) addFromMatch(m);
+      }
+    }
+  }
+  return total;
+}
+
+/**
+ * Mark groups of round losers that DIDN'T get concrete positions from a
+ * complete consolation bracket as a tied DISPLAY range:
+ *   - QF losers without QF-consolation     → display "5–8"
+ *   - R16 losers without R16-consolation   → display "9–16"
+ *   - Semifinal losers without 3rd-place   → display "3–4"
+ *
+ * Within each tied group, `finalPosition` is REORDERED DESC by total
+ * tournament points so the best-performing tied loser keeps the lowest
+ * (best) numeric position internally — ranking-points calculation
+ * differentiates performance even though the display shows a tied range.
+ */
+function markTiedRoundLosers(
+  bracket: any,
+  updatedParticipants: any[],
+  tournament: any,
+  isActiveParticipant: (p: any) => boolean
+): void {
+  if (!bracket?.rounds || bracket.rounds.length < 2) return;
+  const totalRounds = bracket.rounds.length;
+
+  const coveredSources = new Set<string>(
+    (bracket.consolationBrackets || [])
+      .filter((c: any) => c.isComplete)
+      .map((c: any) => c.source)
+  );
+  const has3rdPlaceMatch =
+    bracket.thirdPlaceMatch?.winner != null
+    && bracket.thirdPlaceMatch.participantA
+    && bracket.thirdPlaceMatch.participantB;
+
+  for (let roundIdx = totalRounds - 2; roundIdx >= 0; roundIdx--) {
+    const round = bracket.rounds[roundIdx];
+    if (!round?.matches) continue;
+
+    const isSemi = roundIdx === totalRounds - 2;
+    if (isSemi && has3rdPlaceMatch) continue;
+    if (!isSemi) {
+      const source = getConsolationSourceForRound(roundIdx, totalRounds);
+      if (source && coveredSources.has(source)) continue;
+    }
+
+    const loserIds: string[] = [];
+    for (const m of round.matches) {
+      if (m.winner && m.participantA && m.participantB
+          && m.participantA !== 'BYE' && m.participantB !== 'BYE') {
+        const loserId = m.winner === m.participantA ? m.participantB : m.participantA;
+        loserIds.push(loserId);
+      }
+    }
+    if (loserIds.length < 2) continue;
+
+    const groupParticipants = loserIds
+      .map(id => updatedParticipants.find(p => p.id === id))
+      .filter(p => p && p.finalPosition !== undefined && isActiveParticipant(p));
+    if (groupParticipants.length < 2) continue;
+
+    const positions = groupParticipants
+      .map(p => p!.finalPosition!)
+      .sort((a, b) => a - b);
+    const minPos = positions[0];
+    const maxPos = positions[positions.length - 1];
+    if (minPos === maxPos) continue;
+
+    // Sort group DESC by total tournament points so the best-performing
+    // tied loser gets the lowest (best) numeric position internally and
+    // therefore the most ranking points. All tied participants still
+    // share the same Start/End so the display label reads identically.
+    groupParticipants.sort(
+      (a, b) => getTotalTournamentPoints(tournament, b!.id) - getTotalTournamentPoints(tournament, a!.id)
+    );
+    groupParticipants.forEach((p, idx) => {
+      p!.finalPosition = minPos + idx;
+      p!.finalPositionStart = minPos;
+      p!.finalPositionEnd = maxPos;
+    });
+  }
+}
+
 export function calculateFinalPositionsForTournament(tournament: any): any[] {
   // Ensure all participants have status field (legacy data migration)
   const updatedParticipants = tournament.participants.map((p: any) => ({
@@ -171,27 +297,24 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
 
     const clearBracketParticipantPositions = (bracket: any) => {
       if (!bracket || !bracket.rounds) return;
+      const clear = (id: string | undefined) => {
+        if (!id) return;
+        const p = updatedParticipants.find(x => x.id === id);
+        if (p) {
+          p.finalPosition = undefined;
+          p.finalPositionStart = undefined;
+          p.finalPositionEnd = undefined;
+        }
+      };
       bracket.rounds.forEach((round: any) => {
         round.matches.forEach((match: any) => {
-          if (match.participantA) {
-            const p = updatedParticipants.find(x => x.id === match.participantA);
-            if (p) p.finalPosition = undefined;
-          }
-          if (match.participantB) {
-            const p = updatedParticipants.find(x => x.id === match.participantB);
-            if (p) p.finalPosition = undefined;
-          }
+          clear(match.participantA);
+          clear(match.participantB);
         });
       });
       if (bracket.thirdPlaceMatch) {
-        if (bracket.thirdPlaceMatch.participantA) {
-          const p = updatedParticipants.find(x => x.id === bracket.thirdPlaceMatch.participantA);
-          if (p) p.finalPosition = undefined;
-        }
-        if (bracket.thirdPlaceMatch.participantB) {
-          const p = updatedParticipants.find(x => x.id === bracket.thirdPlaceMatch.participantB);
-          if (p) p.finalPosition = undefined;
-        }
+        clear(bracket.thirdPlaceMatch.participantA);
+        clear(bracket.thirdPlaceMatch.participantB);
       }
     };
 
@@ -356,6 +479,18 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
       const silverFirstSeed = silverBkt?.rounds?.[0]?.matches?.[0]?.seedA || silverBkt?.rounds?.[0]?.matches?.[0]?.seedB || 0;
       const silverConsoOffset = silverFirstSeed > 1 ? 0 : goldPositionsAssigned;
       processConsolationBrackets(silverBkt, silverConsoOffset);
+    }
+
+    // ── Tied-position display ───────────────────────────────────────────
+    // After main + consolation processing, mark groups of round losers that
+    // didn't get concrete positioning (i.e. no consolation covers them and
+    // no 3rd-place match for semis) as tied ranges, e.g. "5–8" for the 4 QF
+    // losers of an 8-player bracket without consolation. Internal
+    // `finalPosition` is REORDERED within the range by total tournament
+    // points so ranking-points still differentiate performance.
+    markTiedRoundLosers(goldBracket, updatedParticipants, tournament, isActiveParticipant);
+    if (isSplitDivisions && tournament.finalStage.silverBracket) {
+      markTiedRoundLosers(tournament.finalStage.silverBracket, updatedParticipants, tournament, isActiveParticipant);
     }
   }
 

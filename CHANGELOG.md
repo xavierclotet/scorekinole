@@ -2,6 +2,13 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.26] - 2026-05-04
+- Tournament classification: when a tournament has **no consolation** for a given round (and no 3rd-place match for the semifinal), the round losers now display as a **tied range** — `"5–8º"` for QF losers, `"9–16º"` for R16 losers, `"3–4º"` for semifinalists. Previously the display showed individual sequential positions decided by bracket index, which felt arbitrary
+- Within each tied range, internal `finalPosition` is **reordered DESC by total tournament points** (group stage + bracket + consolation + 3rd-place) so the best-performing tied loser still earns the most ranking points. Display label stays identical for all tied participants
+- New `finalPositionStart` field on participants — paired with existing `finalPositionEnd` so every tied row reads the same range (`"5–8º"`, not `"5–8º" / "6–8º" / "7–8º" / "8º"`)
+- Display updated in `CompletedTournamentView.svelte` (`getPositionDisplay`) and the public tournament page (`tournaments/[id]/+page.svelte`)
+- Tests: 7 cases in `tournamentRanking.tied.test.ts` covering 8-player and 16-player brackets with/without consolation, with/without 3rd-place match, group-stage points contribution to the tied-group reorder, and the same-Start/End invariant for every tied participant
+
 ## [2.5.25] - 2026-05-04
 - Tournament admin: superadmins can now correct the **20s of any round** in matches of an already COMPLETED tournament (group stage and bracket — gold, silver, parallel, third-place and consolation). 20s editing is **inline** inside the existing match detail dialog: each round shows compact `−` / `[n]` / `+` steppers when the conditions are met, and a "Guardar 20s" button enables only when there are unsaved changes
 - New backend function `editCompletedMatch20s` in `tournamentMatches.ts` — transactional, gated by `isSuperAdmin()` + tournament `status === 'COMPLETED'` + match `status === 'COMPLETED'`. Recomputes `total20sA/B` automatically and re-runs `calculateStandings()` for group matches so positions and tiebreakers stay consistent. Does NOT touch winner / points / games won

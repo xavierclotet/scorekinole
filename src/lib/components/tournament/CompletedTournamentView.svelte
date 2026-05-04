@@ -227,10 +227,15 @@
   }
 
   // Get position medal/emoji
-  function getPositionDisplay(position: number): string {
+  function getPositionDisplay(position: number, positionStart?: number, positionEnd?: number): string {
     if (position === 1) return '🥇';
     if (position === 2) return '🥈';
     if (position === 3) return '🥉';
+    // Tied range (e.g. "5–8" for QF losers without consolation). All tied
+    // participants share the same Start/End so every row reads identically.
+    if (positionStart && positionEnd && positionEnd > positionStart) {
+      return `${positionStart}–${positionEnd}º`;
+    }
     return `${position}º`;
   }
 
@@ -515,7 +520,7 @@
           {@const pointsEarned = getRankingDelta(participant)}
           {@const pos = participant.finalPosition || 0}
           <div class="standing-row" class:top-4={pos <= 4} class:first={pos === 1} class:second={pos === 2} class:third={pos === 3} class:fourth={pos === 4} class:zebra-odd={pos > 4 && pos % 2 === 1} class:zebra-even={pos > 4 && pos % 2 === 0}>
-            <span class="pos">{getPositionDisplay(pos)}</span>
+            <span class="pos">{getPositionDisplay(pos, participant.finalPositionStart, participant.finalPositionEnd)}</span>
             <span class="name">{@render participantNameWithBadge(participant)}</span>
             {#if tournament.rankingConfig?.enabled}
               <span class="pts">{pointsEarned > 0 ? `+${pointsEarned}` : pointsEarned}</span>
@@ -529,7 +534,7 @@
           {@const pointsEarned = getRankingDelta(participant)}
           {@const pos = participant.finalPosition || 0}
           <div class="standing-row" class:top-4={pos <= 4} class:first={pos === 1} class:second={pos === 2} class:third={pos === 3} class:fourth={pos === 4} class:zebra-odd={pos > 4 && pos % 2 === 1} class:zebra-even={pos > 4 && pos % 2 === 0}>
-            <span class="pos">{getPositionDisplay(pos)}</span>
+            <span class="pos">{getPositionDisplay(pos, participant.finalPositionStart, participant.finalPositionEnd)}</span>
             <span class="name">{@render participantNameWithBadge(participant)}</span>
             {#if tournament.rankingConfig?.enabled}
               <span class="pts">{pointsEarned > 0 ? `+${pointsEarned}` : pointsEarned}</span>

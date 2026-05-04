@@ -1431,6 +1431,8 @@
 													🥈
 												{:else if participant.finalPosition === 3}
 													🥉
+												{:else if participant.finalPositionStart && participant.finalPositionEnd && participant.finalPositionEnd > participant.finalPositionStart}
+													{participant.finalPositionStart}–{participant.finalPositionEnd}º
 												{:else}
 													{participant.finalPosition}º
 												{/if}

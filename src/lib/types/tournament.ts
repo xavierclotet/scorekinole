@@ -232,6 +232,11 @@ export interface TournamentParticipant {
   // Ranking tracking
   rankingSnapshot: number;     // Ranking at tournament start (used for seeding)
   finalPosition?: number;      // Final position in tournament (used to calculate points earned)
+  finalPositionStart?: number; // Display: start of the tied range (e.g. 5 for "5–8")
+  finalPositionEnd?: number;   // Display: end of the tied range (e.g. 8 for "5–8").
+                               //   When set, ALL tied participants share the same Start/End.
+                               //   `finalPosition` stays unique within the range and is used for
+                               //   ranking-points calculation (unchanged).
 
   // Status
   status: ParticipantStatus;
