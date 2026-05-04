@@ -2,6 +2,9 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.31] - 2026-05-04
+- Release: bundles v2.5.26–v2.5.30 for Firebase Hosting deploy. No new code in this version — see entries below for actual changes since the last tagged release (v2.5.25)
+
 ## [2.5.30] - 2026-05-04
 - Fix: tournament exit dialog actions ("Pausar partido" / "Abandonar partido") were `<div onclick>` — converted to real `<button>` elements. Synthetic-click double-fires on iOS Safari/Brave/in-app WebViews now eliminated; keyboard navigation (Enter/Space) and screen-reader semantics also improved
 - Defensive: added `touch-action: manipulation` to every critical button in the tournament-play flow that has `cursor: pointer` and lives inside a parent with `touch-action: pan-y pinch-zoom`. Prevents the spurious `touchcancel` events that iOS Safari and Chromium-based mobile browsers (Brave, Samsung Internet, Edge) fire when they suspect a scroll. Buttons covered:
