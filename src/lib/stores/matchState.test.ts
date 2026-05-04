@@ -6,13 +6,15 @@ vi.mock('$app/environment', () => ({
 }));
 
 // Mock history module — use vi.hoisted so fns are available when vi.mock factory runs
-const { mockAddRoundToCurrentMatch, mockResetCurrentMatch } = vi.hoisted(() => ({
+const { mockAddRoundToCurrentMatch, mockResetCurrentMatch, mockRemoveLastRoundFromCurrentMatch } = vi.hoisted(() => ({
 	mockAddRoundToCurrentMatch: vi.fn(),
-	mockResetCurrentMatch: vi.fn()
+	mockResetCurrentMatch: vi.fn(),
+	mockRemoveLastRoundFromCurrentMatch: vi.fn()
 }));
 vi.mock('./history', () => ({
 	resetCurrentMatch: mockResetCurrentMatch,
-	addRoundToCurrentMatch: mockAddRoundToCurrentMatch
+	addRoundToCurrentMatch: mockAddRoundToCurrentMatch,
+	removeLastRoundFromCurrentMatch: mockRemoveLastRoundFromCurrentMatch
 }));
 
 // Mock localStorage
@@ -52,7 +54,8 @@ import {
 	addGame,
 	addRound,
 	startMatch,
-	completeRound
+	completeRound,
+	undoLastRound
 } from './matchState';
 import type { GameData, RoundData } from '$lib/types/team';
 
@@ -663,6 +666,112 @@ describe('matchState', () => {
 			expect(state.currentGameRounds).toEqual([]);
 			expect(state.roundsPlayed).toBe(0);
 			expect(state.matchStartedBy).toBeNull();
+		});
+	});
+
+	describe('undoLastRound', () => {
+		it('returns null when there are no rounds to undo', () => {
+			const result = undoLastRound();
+			expect(result).toBeNull();
+			expect(get(roundsPlayed)).toBe(0);
+			expect(get(currentGameRounds)).toEqual([]);
+			expect(get(lastRoundPoints)).toEqual({ team1: 0, team2: 0 });
+		});
+
+		it('pops the last round and returns it', () => {
+			completeRound(2, 0, 1, 0, 1);
+			completeRound(0, 2, 0, 1, 2);
+
+			expect(get(roundsPlayed)).toBe(2);
+			expect(get(currentGameRounds)).toHaveLength(2);
+
+			const popped = undoLastRound();
+
+			expect(popped).not.toBeNull();
+			expect(popped!.team1Points).toBe(0);
+			expect(popped!.team2Points).toBe(2);
+			expect(popped!.roundNumber).toBe(2);
+			expect(get(roundsPlayed)).toBe(1);
+			expect(get(currentGameRounds)).toHaveLength(1);
+			expect(get(currentMatchRounds)).toHaveLength(1);
+		});
+
+		it('subtracts the popped round points from lastRoundPoints', () => {
+			completeRound(2, 0, 0, 0, 1); // 2-0
+			completeRound(1, 1, 0, 0, 2); // 3-1
+
+			expect(get(lastRoundPoints)).toEqual({ team1: 3, team2: 1 });
+
+			undoLastRound();
+
+			expect(get(lastRoundPoints)).toEqual({ team1: 2, team2: 0 });
+		});
+
+		it('floors lastRoundPoints at 0 (defensive against bad data)', () => {
+			// Manually set lastRoundPoints lower than the round about to be popped
+			completeRound(2, 0, 0, 0, 1);
+			lastRoundPoints.set({ team1: 1, team2: 0 });
+
+			undoLastRound();
+
+			expect(get(lastRoundPoints)).toEqual({ team1: 0, team2: 0 });
+		});
+
+		it('updates matchState.currentGameRounds and roundsPlayed atomically', () => {
+			completeRound(2, 0, 0, 0, 1);
+			completeRound(0, 2, 0, 0, 2);
+
+			undoLastRound();
+
+			const state = get(matchState);
+			expect(state.roundsPlayed).toBe(1);
+			expect(state.currentGameRounds).toHaveLength(1);
+			expect(state.currentMatchRounds).toHaveLength(1);
+		});
+
+		it('calls removeLastRoundFromCurrentMatch to keep the history store in sync', () => {
+			completeRound(2, 0, 0, 0, 1);
+			vi.clearAllMocks(); // ignore the addRoundToCurrentMatch from completeRound
+
+			undoLastRound();
+
+			expect(mockRemoveLastRoundFromCurrentMatch).toHaveBeenCalledOnce();
+		});
+
+		it('persists the revert to localStorage', () => {
+			completeRound(2, 0, 0, 0, 1);
+			completeRound(0, 2, 0, 0, 2);
+
+			undoLastRound();
+
+			const stored = JSON.parse(localStorageMock.store['crokinoleMatchState']);
+			expect(stored.roundsPlayed).toBe(1);
+			expect(stored.currentGameRounds).toHaveLength(1);
+		});
+
+		it('can be called repeatedly to unwind multiple rounds back to game start', () => {
+			completeRound(2, 0, 0, 0, 1);
+			completeRound(1, 1, 0, 0, 2);
+			completeRound(0, 2, 0, 0, 1);
+
+			expect(get(roundsPlayed)).toBe(3);
+			expect(get(lastRoundPoints)).toEqual({ team1: 3, team2: 3 });
+
+			undoLastRound();
+			undoLastRound();
+			undoLastRound();
+
+			expect(get(roundsPlayed)).toBe(0);
+			expect(get(currentGameRounds)).toHaveLength(0);
+			expect(get(currentMatchRounds)).toHaveLength(0);
+			expect(get(lastRoundPoints)).toEqual({ team1: 0, team2: 0 });
+		});
+
+		it('returns null on the call after the last round is undone', () => {
+			completeRound(2, 0, 0, 0, 1);
+
+			expect(undoLastRound()).not.toBeNull();
+			expect(undoLastRound()).toBeNull();
 		});
 	});
 });

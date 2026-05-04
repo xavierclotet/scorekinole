@@ -1,7 +1,7 @@
 import { writable, get } from 'svelte/store';
 import type { MatchState, GameData, RoundData } from '$lib/types/team';
 import { browser } from '$app/environment';
-import { resetCurrentMatch, addRoundToCurrentMatch } from './history';
+import { resetCurrentMatch, addRoundToCurrentMatch, removeLastRoundFromCurrentMatch } from './history';
 import type { MatchRound } from '$lib/types/history';
 
 const defaultMatchState: MatchState = {
@@ -227,6 +227,50 @@ export function completeRound(team1Points: number, team2Points: number, team1Twe
 
     // Also update currentMatch rounds for the history modal
     updateCurrentMatchRounds(team1Points, team2Points, team1Twenty, team2Twenty, hammerTeam, currentRoundNumber);
+}
+
+/**
+ * Undo the last completed round of the current game.
+ *
+ * Atomic local revert: pops the last round from currentGameRounds /
+ * currentMatchRounds / matchState / currentMatch.rounds, decrements
+ * roundsPlayed, and subtracts that round's points from lastRoundPoints.
+ *
+ * Returns the popped round so the caller can revert team-level state
+ * (accumulated points, rounds-won counter, hammer rotation). Returns
+ * null when there is no round to undo.
+ *
+ * NOTE: this only handles local store state. Tournament-mode callers must
+ * additionally sync the revert to Firestore via runTransaction.
+ */
+export function undoLastRound(): RoundData | null {
+    const rounds = get(currentGameRounds);
+    if (rounds.length === 0) return null;
+
+    const popped = rounds[rounds.length - 1];
+
+    currentGameRounds.update(r => r.slice(0, -1));
+    currentMatchRounds.update(r => r.slice(0, -1));
+
+    roundsPlayed.update(n => Math.max(0, n - 1));
+    const newCount = get(roundsPlayed);
+
+    matchState.update(state => ({
+        ...state,
+        currentGameRounds: state.currentGameRounds.slice(0, -1),
+        currentMatchRounds: state.currentMatchRounds.slice(0, -1),
+        roundsPlayed: newCount
+    }));
+
+    lastRoundPoints.update(p => ({
+        team1: Math.max(0, p.team1 - popped.team1Points),
+        team2: Math.max(0, p.team2 - popped.team2Points)
+    }));
+
+    removeLastRoundFromCurrentMatch();
+
+    saveMatchState();
+    return popped;
 }
 
 // Update currentMatch with new round data

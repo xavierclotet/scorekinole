@@ -6,7 +6,7 @@
 	import * as m from '$lib/paraglide/messages.js';
 	import { buildCompletedMatch, currentMatch, addGameToCurrentMatch } from '$lib/stores/history';
 	import { saveFriendlyMatchToFirestore, savePendingFriendlyMatch, removePendingFriendlyMatch } from '$lib/firebase/firestore';
-	import { lastRoundPoints, completeRound, roundsPlayed, resetGameOnly, currentMatchGames, currentMatchRounds, currentGameStartHammer, setCurrentGameStartHammer } from '$lib/stores/matchState';
+	import { lastRoundPoints, completeRound, roundsPlayed, resetGameOnly, currentMatchGames, currentMatchRounds, currentGameRounds, currentGameStartHammer, setCurrentGameStartHammer, undoLastRound } from '$lib/stores/matchState';
 	import { gameTournamentContext } from '$lib/stores/tournamentContext';
 	import { currentUser } from '$lib/firebase/auth';
 	import { get } from 'svelte/store';
@@ -112,28 +112,32 @@
 		return (parts[0]?.[0] ?? '?').toUpperCase();
 	}
 
-	// Derive individual player names and initials for avatar fallback
-	let playerName = $derived((() => {
+	// Full team name for display.
+	// In tournament mode, derive from context (single source of truth for player
+	// identity) instead of `team.name` from the store. This keeps the visible
+	// name in sync with `currentUserSide` even if `switchSides()` is not called
+	// — preventing the asymmetry bug where avatars (context) flipped but the
+	// name (store) did not.
+	let displayName = $derived((() => {
 		if (!inTournamentMode || !$gameTournamentContext) return team.name;
 		const ctx = $gameTournamentContext;
 		const isUserSideA = ctx.currentUserSide === 'A';
-		const fullName = teamNumber === 1
+		return teamNumber === 1
 			? (isUserSideA ? ctx.participantAName : ctx.participantBName)
 			: (isUserSideA ? ctx.participantBName : ctx.participantAName);
-		// For doubles with " / " separator, get first player
-		if (fullName.includes(' / ')) return fullName.split(' / ')[0];
-		return fullName;
+	})());
+
+	// First player's name (for avatar initials fallback in doubles).
+	let playerName = $derived((() => {
+		if (!inTournamentMode) return team.name;
+		if (displayName.includes(' / ')) return displayName.split(' / ')[0];
+		return displayName;
 	})());
 
 	let partnerName = $derived((() => {
 		if (!inTournamentMode || !$gameTournamentContext) return undefined;
 		if ($gameSettings.gameType !== 'doubles') return undefined;
-		const ctx = $gameTournamentContext;
-		const isUserSideA = ctx.currentUserSide === 'A';
-		const fullName = teamNumber === 1
-			? (isUserSideA ? ctx.participantAName : ctx.participantBName)
-			: (isUserSideA ? ctx.participantBName : ctx.participantAName);
-		if (fullName.includes(' / ')) return fullName.split(' / ')[1];
+		if (displayName.includes(' / ')) return displayName.split(' / ')[1];
 		return undefined;
 	})());
 
@@ -368,10 +372,44 @@
 		const previousT1 = get(lastRoundPoints).team1;
 		const previousT2 = get(lastRoundPoints).team2;
 
-		// Prevent decrementing if we're at the last completed round score
-		// This means no "partial" points have been added yet in the current round
+		// Boundary crossing: scores match the last completed round, so the only
+		// way "down" is to undo that round entirely. Tournament mode is gated
+		// until Phase 2 wires up the Firestore-side revert.
 		if (t1.points === previousT1 && t2.points === previousT2) {
-			return; // Don't allow decrementing a completed round score
+			if (inTournamentMode) return;
+
+			const rounds = get(currentGameRounds);
+			if (rounds.length === 0) return; // already at game start, nothing to undo
+
+			const popped = undoLastRound();
+			if (!popped) return;
+
+			isProcessingScoreChange = true;
+			queueMicrotask(() => { isProcessingScoreChange = false; });
+
+			// Revert accumulated points
+			updateTeam(1, { points: Math.max(0, t1.points - popped.team1Points) });
+			updateTeam(2, { points: Math.max(0, t2.points - popped.team2Points) });
+
+			// Revert rounds-won counter for whoever won that round
+			if (popped.team1Points > popped.team2Points) {
+				updateTeam(1, { rounds: Math.max(0, t1.rounds - 1) });
+			} else if (popped.team2Points > popped.team1Points) {
+				updateTeam(2, { rounds: Math.max(0, t2.rounds - 1) });
+			}
+
+			// Revert hammer rotation: restore hammer to whoever held it during
+			// that round (finalizeRound rotated it after completing the round).
+			if (popped.hammerTeam === 1) {
+				updateTeam(1, { hasHammer: true });
+				updateTeam(2, { hasHammer: false });
+			} else if (popped.hammerTeam === 2) {
+				updateTeam(1, { hasHammer: false });
+				updateTeam(2, { hasHammer: true });
+			}
+
+			vibrate(15);
+			return;
 		}
 
 		isProcessingScoreChange = true;
@@ -807,7 +845,7 @@
 							<span class="player-avatar initials">{partnerInitials}</span>
 						{/if}
 					</div>
-					<span class="player-name-badge has-avatar">{team.name}</span>
+					<span class="player-name-badge has-avatar">{displayName}</span>
 					{#if effectiveShowHammer && team.hasHammer}
 						<span class={["hammer-floating", getContrastColor(team.color) === '#ffffff' && "light-img"]} title={m.scoring_hammer()}><img src="/4150-rblxbanhammer.png" alt="Hammer" width="32" height="32" /></span>
 					{/if}
@@ -923,7 +961,7 @@
 			onmouseup={handleMouseUp}
 			role="button"
 			tabindex="0"
-			aria-label="{team.name} score: {team.points}"
+			aria-label="{displayName} score: {team.points}"
 		>{team.points}</div>
 	</div>
 
@@ -1237,10 +1275,13 @@
 		cursor: pointer;
 		width: 100%;
 		text-align: center;
-		/* manipulation lets us tap fast without the 300ms zoom delay, but
-		   avoids the touchcancel issues that touch-action:none triggers in
-		   Safari iOS / Brave when the parent has touch-action:pan-y. */
-		touch-action: manipulation;
+		/* pan-y is a strict subset of the body's pan-y pinch-zoom, so it does
+		   NOT trigger the spurious touchcancel that touch-action:none caused on
+		   Safari iOS / Brave (the bug fixed in v2.5.27). At the same time it
+		   removes pinch-zoom from the allowed gestures on this element, so the
+		   browser does not claim 2-finger touches — they reach our pinchZoom
+		   action and resize the score font instead of zooming the viewport. */
+		touch-action: pan-y;
 	}
 
 	/* Name size variants - base (desktop) */

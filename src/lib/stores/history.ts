@@ -57,6 +57,17 @@ export function addRoundToCurrentMatch(round: MatchRound) {
     });
 }
 
+// Remove the last round from current match (used by undo-last-round flow)
+export function removeLastRoundFromCurrentMatch() {
+    currentMatch.update(match => {
+        if (!match || match.rounds.length === 0) return match;
+        return {
+            ...match,
+            rounds: match.rounds.slice(0, -1)
+        };
+    });
+}
+
 // Clear rounds from current match (when starting a new game)
 export function clearCurrentMatchRounds() {
     currentMatch.update(match => {
