@@ -2,6 +2,9 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.36] - 2026-05-04
+- Release: bundles v2.5.32–v2.5.35 for Firebase Hosting deploy. No new code in this version — see entries below for actual changes since the last tagged release (v2.5.31)
+
 ## [2.5.35] - 2026-05-04
 - Feat (tournament mode, Phase 2): swipe-down at the round boundary now also works in tournament matches and propagates the revert to Firestore. `TeamCard` exposes a new `onroundUndo?: () => void` prop and the `if (inTournamentMode) return` gate from Phase 1 is removed — local revert (points, rounds-won, hammer rotation) runs in both modes
 - `/game +page.svelte` wires `handleRoundUndo()` to both `<TeamCard>` instances. When fired in tournament mode, it rebuilds the progress bundle from the now-truncated stores via the existing `saveTournamentProgressToLocalStorage()` helper and pushes it through `syncTournamentRounds()` → `syncMatchProgress()` → `updateTournamentMatchRounds()` (atomic `runTransaction`). Listeners (admin, public view, other devices) see the revert in real time via their existing `subscribeTournament` / `subscribeToMatchStatus` subscriptions
