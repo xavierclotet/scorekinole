@@ -2,6 +2,10 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.33] - 2026-05-04
+- Fix (light theme): tournament exit confirmation dialog (`game/+page.svelte`) was hardcoded dark — `#1a1d24` background, white text, white-alpha borders. Now reads `data-theme={$theme}` on `.exit-overlay` and applies a full white-themed override set for both `light` and `violet-light`: white dialog with slate borders, dark title (`#1a202c`), pause/abandon cards re-tinted with darker accent text (`#0e7aaa`, `#b81f1f`) for contrast on white, cancel/confirm footer buttons matched to the rest of the app's light surfaces
+- Fix (light theme): admin countdown timer (`AdminCountdownTimer.svelte`) shown from `/admin/tournaments/[id]/groups` had the same problem — black floating panel even in light mode. Component now imports the `theme` store, sets `data-theme={$theme}` on `.countdown-overlay`, and ships parallel light overrides covering background, header text, header buttons, display digits, edit-time inputs, control buttons, warning/critical/timeout state colors (re-tinted to `#d97706` / `#dc2626` so they stay legible on white), and the resize handle
+
 ## [2.5.32] - 2026-05-04
 - UX: redesigned `GameCustomizePanel` color picker. Modal width 300→380px; each team now lives in its own card with the team name + a dot showing the currently selected color in the header. Color swatches enlarged from 22→48px, in a flex-wrap with 8px gap, so picking a specific color is no longer cramped on touch
 - UX: selected swatch shows a white check (✓) overlay, primary-color ring, and slight scale (1.05) for a clear "this is the active color" affordance

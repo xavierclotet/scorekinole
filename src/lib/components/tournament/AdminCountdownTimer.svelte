@@ -5,6 +5,7 @@
   import { Play, Pause, RotateCcw, GripVertical, Maximize, Minimize, X, Pencil } from '@lucide/svelte';
   import * as m from '$lib/paraglide/messages.js';
   import { updateTournament } from '$lib/firebase/tournaments';
+  import { theme } from '$lib/stores/theme';
   import type { TournamentTimer } from '$lib/types/tournament';
 
   interface Props {
@@ -446,6 +447,7 @@
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div
     class={['countdown-overlay', isDragging && 'dragging', isResizing && 'resizing', isFullscreen && 'fullscreen']}
+    data-theme={$theme}
     style={isFullscreen ? '' : `left: ${posX}px; top: ${posY}px; width: ${width}px; height: ${height}px;`}
     onmousedown={handleDragStart}
     ontouchstart={handleDragStart}
@@ -883,5 +885,144 @@
 
   .resize-handle:hover::after {
     border-color: rgba(255, 255, 255, 0.4);
+  }
+
+  /* ─── Light theme overrides ────────────────────────────────────── */
+  .countdown-overlay[data-theme='light'],
+  .countdown-overlay[data-theme='violet-light'] {
+    background: rgba(255, 255, 255, 0.96);
+    border-color: rgba(15, 23, 42, 0.12);
+    box-shadow: 0 8px 32px rgba(15, 23, 42, 0.12), 0 2px 8px rgba(15, 23, 42, 0.06);
+  }
+
+  .countdown-overlay[data-theme='light'].fullscreen,
+  .countdown-overlay[data-theme='violet-light'].fullscreen {
+    background: rgba(248, 250, 252, 0.98);
+  }
+
+  .countdown-overlay[data-theme='light'] .countdown-header,
+  .countdown-overlay[data-theme='violet-light'] .countdown-header {
+    color: rgba(15, 23, 42, 0.55);
+    border-bottom-color: rgba(15, 23, 42, 0.08);
+  }
+
+  .countdown-overlay[data-theme='light'] .header-btn,
+  .countdown-overlay[data-theme='violet-light'] .header-btn {
+    color: rgba(15, 23, 42, 0.45);
+  }
+
+  .countdown-overlay[data-theme='light'] .header-btn:hover,
+  .countdown-overlay[data-theme='violet-light'] .header-btn:hover {
+    background: rgba(15, 23, 42, 0.08);
+    color: rgba(15, 23, 42, 0.85);
+  }
+
+  .countdown-overlay[data-theme='light'] .header-btn.close:hover,
+  .countdown-overlay[data-theme='violet-light'] .header-btn.close:hover {
+    background: rgba(220, 38, 38, 0.15);
+    color: #b91c1c;
+  }
+
+  .countdown-overlay[data-theme='light'] .countdown-display,
+  .countdown-overlay[data-theme='violet-light'] .countdown-display {
+    color: #0f172a;
+  }
+
+  .countdown-overlay[data-theme='light'] .time-input,
+  .countdown-overlay[data-theme='violet-light'] .time-input {
+    color: #0f172a;
+    background: rgba(15, 23, 42, 0.05);
+    border-color: rgba(15, 23, 42, 0.18);
+  }
+
+  .countdown-overlay[data-theme='light'] .time-input:focus,
+  .countdown-overlay[data-theme='violet-light'] .time-input:focus {
+    border-color: rgba(102, 126, 234, 0.7);
+    background: rgba(102, 126, 234, 0.08);
+  }
+
+  .countdown-overlay[data-theme='light'] .time-separator,
+  .countdown-overlay[data-theme='violet-light'] .time-separator {
+    color: rgba(15, 23, 42, 0.55);
+  }
+
+  .countdown-overlay[data-theme='light'] .edit-confirm,
+  .countdown-overlay[data-theme='violet-light'] .edit-confirm {
+    background: rgba(34, 197, 94, 0.18);
+    border-color: rgba(34, 197, 94, 0.4);
+    color: #15803d;
+  }
+
+  .countdown-overlay[data-theme='light'] .edit-confirm:hover,
+  .countdown-overlay[data-theme='violet-light'] .edit-confirm:hover {
+    background: rgba(34, 197, 94, 0.3);
+    color: #166534;
+  }
+
+  /* Warning/critical/timeout states keep their accent colors but adjust shadow for light bg */
+  .countdown-overlay[data-theme='light'] .countdown-display.warning,
+  .countdown-overlay[data-theme='violet-light'] .countdown-display.warning {
+    color: #d97706;
+    text-shadow: 0 0 6px rgba(217, 119, 6, 0.25);
+  }
+
+  .countdown-overlay[data-theme='light'] .countdown-display.critical,
+  .countdown-overlay[data-theme='violet-light'] .countdown-display.critical {
+    color: #dc2626;
+    text-shadow: 0 0 8px rgba(220, 38, 38, 0.3);
+  }
+
+  .countdown-overlay[data-theme='light'] .countdown-display.timeout,
+  .countdown-overlay[data-theme='violet-light'] .countdown-display.timeout {
+    color: #dc2626;
+  }
+
+  .countdown-overlay[data-theme='light'] .timeout-text,
+  .countdown-overlay[data-theme='violet-light'] .timeout-text {
+    text-shadow: 0 0 20px rgba(220, 38, 38, 0.45), 0 0 40px rgba(220, 38, 38, 0.2);
+  }
+
+  .countdown-overlay[data-theme='light'] .countdown-controls,
+  .countdown-overlay[data-theme='violet-light'] .countdown-controls {
+    border-top-color: rgba(15, 23, 42, 0.08);
+  }
+
+  .countdown-overlay[data-theme='light'] .control-btn,
+  .countdown-overlay[data-theme='violet-light'] .control-btn {
+    background: rgba(15, 23, 42, 0.06);
+    border-color: rgba(15, 23, 42, 0.12);
+    color: rgba(15, 23, 42, 0.7);
+  }
+
+  .countdown-overlay[data-theme='light'] .control-btn:hover,
+  .countdown-overlay[data-theme='violet-light'] .control-btn:hover {
+    background: rgba(15, 23, 42, 0.1);
+    color: #0f172a;
+    border-color: rgba(15, 23, 42, 0.2);
+  }
+
+  .countdown-overlay[data-theme='light'] .control-btn.play-pause,
+  .countdown-overlay[data-theme='violet-light'] .control-btn.play-pause {
+    background: rgba(102, 126, 234, 0.15);
+    border-color: rgba(102, 126, 234, 0.4);
+    color: #4f46e5;
+  }
+
+  .countdown-overlay[data-theme='light'] .control-btn.play-pause:hover,
+  .countdown-overlay[data-theme='violet-light'] .control-btn.play-pause:hover {
+    background: rgba(102, 126, 234, 0.22);
+    color: #4338ca;
+  }
+
+  .countdown-overlay[data-theme='light'] .resize-handle::after,
+  .countdown-overlay[data-theme='violet-light'] .resize-handle::after {
+    border-right-color: rgba(15, 23, 42, 0.25);
+    border-bottom-color: rgba(15, 23, 42, 0.25);
+  }
+
+  .countdown-overlay[data-theme='light'] .resize-handle:hover::after,
+  .countdown-overlay[data-theme='violet-light'] .resize-handle:hover::after {
+    border-right-color: rgba(15, 23, 42, 0.5);
+    border-bottom-color: rgba(15, 23, 42, 0.5);
   }
 </style>

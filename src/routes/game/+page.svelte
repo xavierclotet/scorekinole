@@ -2874,7 +2874,7 @@
 	<!-- Tournament Exit Confirmation Modal -->
 	{#if showTournamentExitConfirm}
 		{@const hasProgress = $roundsPlayed > 0 || $currentGameRounds.length > 0 || $currentMatchGames.length > 0}
-		<div class="exit-overlay">
+		<div class="exit-overlay" data-theme={$theme}>
 			<div class="exit-dialog">
 				{#if isExitingTournament}
 					<div class="exit-loading" role="status" aria-live="polite">
@@ -3827,7 +3827,110 @@
 		transform: scale(0.98);
 	}
 
+	/* ─── Light theme overrides ────────────────────────────────────── */
+	.exit-overlay[data-theme='light'],
+	.exit-overlay[data-theme='violet-light'] {
+		background: rgba(15, 23, 42, 0.45);
+	}
 
+	.exit-overlay[data-theme='light'] .exit-dialog,
+	.exit-overlay[data-theme='violet-light'] .exit-dialog {
+		background: #ffffff;
+		border-color: #e2e8f0;
+		box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18);
+	}
+
+	.exit-overlay[data-theme='light'] .exit-loading,
+	.exit-overlay[data-theme='violet-light'] .exit-loading {
+		color: #1a202c;
+	}
+
+	.exit-overlay[data-theme='light'] .exit-title,
+	.exit-overlay[data-theme='violet-light'] .exit-title {
+		color: #1a202c;
+	}
+
+	.exit-overlay[data-theme='light'] .exit-info,
+	.exit-overlay[data-theme='violet-light'] .exit-info {
+		color: #64748b;
+	}
+
+	.exit-overlay[data-theme='light'] .exit-action.pause,
+	.exit-overlay[data-theme='violet-light'] .exit-action.pause {
+		background: rgba(56, 165, 217, 0.08);
+		border-color: rgba(56, 165, 217, 0.28);
+	}
+
+	.exit-overlay[data-theme='light'] .exit-action.pause:hover,
+	.exit-overlay[data-theme='violet-light'] .exit-action.pause:hover {
+		background: rgba(56, 165, 217, 0.14);
+		border-color: rgba(56, 165, 217, 0.45);
+	}
+
+	.exit-overlay[data-theme='light'] .exit-action.pause .action-icon,
+	.exit-overlay[data-theme='violet-light'] .exit-action.pause .action-icon {
+		background: rgba(56, 165, 217, 0.18);
+		color: #0e7aaa;
+	}
+
+	.exit-overlay[data-theme='light'] .exit-action.pause .action-label,
+	.exit-overlay[data-theme='violet-light'] .exit-action.pause .action-label {
+		color: #0e7aaa;
+	}
+
+	.exit-overlay[data-theme='light'] .exit-action.abandon,
+	.exit-overlay[data-theme='violet-light'] .exit-action.abandon {
+		background: rgba(204, 51, 51, 0.06);
+		border-color: rgba(204, 51, 51, 0.28);
+	}
+
+	.exit-overlay[data-theme='light'] .exit-action.abandon:hover,
+	.exit-overlay[data-theme='violet-light'] .exit-action.abandon:hover {
+		background: rgba(204, 51, 51, 0.12);
+		border-color: rgba(204, 51, 51, 0.45);
+	}
+
+	.exit-overlay[data-theme='light'] .exit-action.abandon .action-icon,
+	.exit-overlay[data-theme='violet-light'] .exit-action.abandon .action-icon {
+		background: rgba(204, 51, 51, 0.15);
+		color: #b81f1f;
+	}
+
+	.exit-overlay[data-theme='light'] .exit-action.abandon .action-label,
+	.exit-overlay[data-theme='violet-light'] .exit-action.abandon .action-label {
+		color: #b81f1f;
+	}
+
+	.exit-overlay[data-theme='light'] .exit-action .action-hint,
+	.exit-overlay[data-theme='violet-light'] .exit-action .action-hint {
+		color: #64748b;
+	}
+
+	.exit-overlay[data-theme='light'] .exit-btn.cancel,
+	.exit-overlay[data-theme='violet-light'] .exit-btn.cancel {
+		background: rgba(15, 23, 42, 0.05);
+		border-color: rgba(15, 23, 42, 0.15);
+		color: #475569;
+	}
+
+	.exit-overlay[data-theme='light'] .exit-btn.cancel:hover,
+	.exit-overlay[data-theme='violet-light'] .exit-btn.cancel:hover {
+		background: rgba(15, 23, 42, 0.09);
+		color: #1a202c;
+	}
+
+	.exit-overlay[data-theme='light'] .exit-btn.confirm,
+	.exit-overlay[data-theme='violet-light'] .exit-btn.confirm {
+		background: rgba(204, 51, 51, 0.12);
+		border-color: rgba(204, 51, 51, 0.35);
+		color: #b81f1f;
+	}
+
+	.exit-overlay[data-theme='light'] .exit-btn.confirm:hover,
+	.exit-overlay[data-theme='violet-light'] .exit-btn.confirm:hover {
+		background: rgba(204, 51, 51, 0.2);
+		border-color: rgba(204, 51, 51, 0.5);
+	}
 
 	@media (orientation: landscape) {
 		.exit-dialog {
