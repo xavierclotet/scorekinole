@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Settings, ArrowLeftRight, RefreshCw } from '@lucide/svelte';
+	import { Settings, ArrowLeftRight, RefreshCw, Check } from '@lucide/svelte';
 	import Modal from './Modal.svelte';
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { team1, team2, switchSides, switchColors } from '$lib/stores/teams';
@@ -24,8 +24,11 @@
 	}
 
 	function handleSwitchSides() {
-		switchSides();
-		if (onSwitchSides) onSwitchSides();
+		if (onSwitchSides) {
+			onSwitchSides();
+		} else {
+			switchSides();
+		}
 	}
 
 	function handleSwitchColors() {
@@ -58,7 +61,7 @@
 </button>
 
 <!-- Customize Panel Modal -->
-<Modal isOpen={isOpen} title={m.scoring_customize()} onClose={close} maxWidth="300px">
+<Modal isOpen={isOpen} title={m.scoring_customize()} onClose={close} maxWidth="380px">
 	<div class="panel-content">
 
 		<!-- Quick Actions -->
@@ -90,11 +93,14 @@
 		</div>
 
 		<!-- Team Colors -->
-		<div class="colors-row">
+		<div class="colors-section">
 			<!-- Team 1 -->
-			<div class="team-colors">
-				<div class="team-colors-label">{$team1.name}</div>
-				<div class="color-swatches">
+			<div class="team-card">
+				<div class="team-card-header">
+					<span class="team-color-dot" style="background-color: {$team1.color}"></span>
+					<span class="team-name">{$team1.name}</span>
+				</div>
+				<div class="color-grid">
 					{#each PRESET_COLORS as color (color)}
 						<button
 							class="swatch"
@@ -102,14 +108,22 @@
 							style="background-color: {color}"
 							onclick={() => setTeamColor(1, color)}
 							aria-label="Color {color}"
-						></button>
+						>
+							{#if color === $team1.color}
+								<Check size={20} strokeWidth={3} class="check-icon" />
+							{/if}
+						</button>
 					{/each}
 				</div>
 			</div>
+
 			<!-- Team 2 -->
-			<div class="team-colors">
-				<div class="team-colors-label">{$team2.name}</div>
-				<div class="color-swatches">
+			<div class="team-card">
+				<div class="team-card-header">
+					<span class="team-color-dot" style="background-color: {$team2.color}"></span>
+					<span class="team-name">{$team2.name}</span>
+				</div>
+				<div class="color-grid">
 					{#each PRESET_COLORS as color (color)}
 						<button
 							class="swatch"
@@ -117,7 +131,11 @@
 							style="background-color: {color}"
 							onclick={() => setTeamColor(2, color)}
 							aria-label="Color {color}"
-						></button>
+						>
+							{#if color === $team2.color}
+								<Check size={20} strokeWidth={3} class="check-icon" />
+							{/if}
+						</button>
 					{/each}
 				</div>
 			</div>
@@ -154,7 +172,6 @@
 		background: rgba(0, 0, 0, 0.7);
 	}
 
-	/* On mobile portrait (stacked cards), center between the two cards */
 	@media (max-width: 600px) {
 		.customize-btn {
 			bottom: auto;
@@ -167,11 +184,11 @@
 		}
 	}
 
-	/* Panel content */
+	/* Panel layout */
 	.panel-content {
 		display: flex;
 		flex-direction: column;
-		gap: 0.75rem;
+		gap: 0.875rem;
 	}
 
 	/* Quick action buttons */
@@ -203,6 +220,7 @@
 		background: color-mix(in srgb, var(--primary) 20%, transparent);
 	}
 
+	/* Name size row */
 	.size-row {
 		display: flex;
 		align-items: center;
@@ -248,53 +266,82 @@
 		background: color-mix(in srgb, var(--muted) 80%, transparent);
 	}
 
-	/* Team colors */
-	.colors-row {
+	/* Team color cards */
+	.colors-section {
+		display: flex;
+		flex-direction: column;
+		gap: 0.625rem;
+	}
+
+	.team-card {
 		display: flex;
 		flex-direction: column;
 		gap: 0.5rem;
+		padding: 0.625rem 0.75rem 0.75rem;
+		border-radius: 10px;
+		background: color-mix(in srgb, var(--muted) 25%, transparent);
+		border: 1px solid var(--border);
 	}
 
-	.team-colors {
+	.team-card-header {
 		display: flex;
 		align-items: center;
-		gap: 0.4rem;
+		gap: 0.5rem;
 	}
 
-	.team-colors-label {
-		font-size: 0.72rem;
-		color: var(--muted-foreground);
-		font-weight: 500;
+	.team-color-dot {
+		width: 14px;
+		height: 14px;
+		border-radius: 50%;
+		flex-shrink: 0;
+		border: 1px solid color-mix(in srgb, var(--foreground) 15%, transparent);
+		box-shadow: 0 0 0 1px var(--background) inset;
+	}
+
+	.team-name {
+		font-size: 0.82rem;
+		font-weight: 600;
+		color: var(--foreground);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
-		width: 4rem;
-		flex-shrink: 0;
 	}
 
-	.color-swatches {
+	.color-grid {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 4px;
+		gap: 8px;
 	}
 
 	.swatch {
-		width: 22px;
-		height: 22px;
+		position: relative;
+		width: 48px;
+		height: 48px;
 		border-radius: 50%;
-		border: 2px solid transparent;
+		border: 1.5px solid color-mix(in srgb, var(--foreground) 12%, transparent);
 		cursor: pointer;
-		transition: all 0.15s ease;
+		transition: transform 0.12s ease, box-shadow 0.15s ease;
 		padding: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
 		-webkit-tap-highlight-color: transparent;
 	}
 
 	.swatch:active {
-		transform: scale(1.15);
+		transform: scale(0.92);
 	}
 
 	.swatch.selected {
-		border-color: var(--primary);
-		box-shadow: 0 0 0 1px var(--background), 0 0 0 3px var(--primary);
+		border-color: var(--background);
+		box-shadow: 0 0 0 2px var(--primary), 0 2px 8px rgba(0, 0, 0, 0.25);
+		transform: scale(1.05);
+	}
+
+	.swatch :global(.check-icon) {
+		color: white;
+		filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+		pointer-events: none;
 	}
 </style>

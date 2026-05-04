@@ -2,6 +2,11 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.32] - 2026-05-04
+- UX: redesigned `GameCustomizePanel` color picker. Modal width 300→380px; each team now lives in its own card with the team name + a dot showing the currently selected color in the header. Color swatches enlarged from 22→48px, in a flex-wrap with 8px gap, so picking a specific color is no longer cramped on touch
+- UX: selected swatch shows a white check (✓) overlay, primary-color ring, and slight scale (1.05) for a clear "this is the active color" affordance
+- Fix (regression guard, tests): `handleSwitchSides` no longer calls `switchSides()` AND the parent `onSwitchSides` callback. The parent's handler already invokes `switchSides()` internally, so the previous double-fire produced no net swap in tournament mode. New contract: panel delegates entirely to the parent when `onSwitchSides` is provided; otherwise it swaps locally. New vitest cases in `GameCustomizePanel.test.ts` cover both branches and a parent-integration scenario
+
 ## [2.5.31] - 2026-05-04
 - Release: bundles v2.5.26–v2.5.30 for Firebase Hosting deploy. No new code in this version — see entries below for actual changes since the last tagged release (v2.5.25)
 

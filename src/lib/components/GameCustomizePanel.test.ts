@@ -6,13 +6,25 @@
 import { describe, it, expect, vi } from 'vitest';
 
 // ─── Mirrors handleSwitchSides (GameCustomizePanel.svelte) ───────────────────
+//
+// REGRESSION GUARD (v2.5.32):
+// The previous implementation called switchSides() AND onSwitchSides(),
+// which caused a double swap in tournament mode (parent's onSwitchSides
+// also calls switchSides() internally). Net effect: team.name appeared
+// unchanged while avatars (derived from context) flipped — visible asymmetry.
+//
+// New contract: when a parent provides onSwitchSides, the panel delegates
+// completely. Otherwise, it performs the swap locally.
 
 function handleSwitchSides(
 	switchSides: () => void,
 	onSwitchSides?: () => void
 ) {
-	switchSides();
-	if (onSwitchSides) onSwitchSides();
+	if (onSwitchSides) {
+		onSwitchSides();
+	} else {
+		switchSides();
+	}
 }
 
 // ─── Mirrors setNameSize (GameCustomizePanel.svelte) ─────────────────────────
@@ -50,10 +62,19 @@ function applyTeamColor(
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('handleSwitchSides', () => {
-	it('calls switchSides', () => {
+	it('calls switchSides when no callback is provided (friendly mode)', () => {
 		const switchSides = vi.fn();
 		handleSwitchSides(switchSides);
 		expect(switchSides).toHaveBeenCalledOnce();
+	});
+
+	it('does NOT call switchSides when a callback is provided (tournament mode)', () => {
+		// Regression: previously called switchSides() AND the callback,
+		// causing parent's switchSides() to fire a second time → no net swap.
+		const switchSides = vi.fn();
+		const onSwitchSides = vi.fn();
+		handleSwitchSides(switchSides, onSwitchSides);
+		expect(switchSides).not.toHaveBeenCalled();
 	});
 
 	it('calls onSwitchSides callback when provided', () => {
@@ -68,12 +89,23 @@ describe('handleSwitchSides', () => {
 		expect(() => handleSwitchSides(switchSides, undefined)).not.toThrow();
 	});
 
-	it('calls switchSides before onSwitchSides', () => {
-		const order: string[] = [];
-		const switchSides = vi.fn(() => order.push('switchSides'));
-		const onSwitchSides = vi.fn(() => order.push('onSwitchSides'));
-		handleSwitchSides(switchSides, onSwitchSides);
-		expect(order).toEqual(['switchSides', 'onSwitchSides']);
+	it('integration: parent+panel produces exactly ONE swap end-to-end', () => {
+		// Models the real flow: parent's handler internally calls switchSides
+		// + flips currentUserSide. Panel's handler must defer to parent only.
+		// If both ran switchSides, we'd see 2 calls = no net change.
+		const switchSides = vi.fn();
+		let currentUserSide: 'A' | 'B' = 'A';
+
+		const parentHandleSwitchSides = () => {
+			switchSides();
+			currentUserSide = currentUserSide === 'A' ? 'B' : 'A';
+		};
+
+		// Simulate user clicking "Switch sides" in the modal (tournament mode)
+		handleSwitchSides(switchSides, parentHandleSwitchSides);
+
+		expect(switchSides).toHaveBeenCalledOnce();
+		expect(currentUserSide).toBe('B');
 	});
 });
 
