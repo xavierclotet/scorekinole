@@ -1235,6 +1235,8 @@
 		transition: font-size 0.08s ease-out;
 		pointer-events: auto;
 		cursor: pointer;
+		width: 100%;
+		text-align: center;
 		/* manipulation lets us tap fast without the 300ms zoom delay, but
 		   avoids the touchcancel issues that touch-action:none triggers in
 		   Safari iOS / Brave when the parent has touch-action:pan-y. */

@@ -2,6 +2,9 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.29] - 2026-05-04
+- UX: tap area for the +1 score in `TeamCard` now spans the full column width. `.score` was sized to the digits only because `.score-display` uses `align-items: center` (no stretch); added `width: 100%; text-align: center;` so the entire horizontal band at the score row registers a tap
+
 ## [2.5.28] - 2026-05-04
 - UX: tournament `MatchPreviewDialog` no longer closes on outside click (`interactOutsideBehavior="ignore"`). Escape and the X close button still work
 - UX: while `autoStartMatch` is in flight, the preview dialog stays open and the action area is replaced by a centered spinner + "Iniciando…" (`role="status"`). The dialog closes only after the Firebase round-trip resolves, on success or error. Closes the dead-air gap users reported between clicking "Empezar / Reanudar / [hammer]" and the tournament data appearing in `/game`
