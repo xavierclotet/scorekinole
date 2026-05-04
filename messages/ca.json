@@ -1676,5 +1676,13 @@
   "bracket_winnerChangedAndRepropagated": "Guanyador actualitzat. El nou participant ja apareix a la següent fase.",
   "bracket_winnerChangeInfo": "Canviaràs el guanyador del partit. En desar, s'actualitzarà el següent bràquet amb el nou guanyador.",
   "tournament_removeRound": "Eliminar ronda",
-  "bracket_downstreamAlreadyPlayed": "No es pot canviar el guanyador: el partit següent (o el de consolació) ja està jugat. Primer cal revertir-ho."
+  "bracket_downstreamAlreadyPlayed": "No es pot canviar el guanyador: el partit següent (o el de consolació) ja està jugat. Primer cal revertir-ho.",
+  "bracket_revertMatch": "Revertir resultat",
+  "bracket_revertMatchTooltip": "Tornar a posar el partit en pendent i netejar el guanyador del següent bràquet. Només permès si el partit següent encara no s'ha jugat.",
+  "bracket_revertConfirmTitle": "Revertir resultat?",
+  "bracket_revertConfirmDesc": "El partit tornarà a estar PENDENT i s'esborraran els resultats. El següent bràquet perdrà aquest jugador. Acció reversible jugant el partit un altre cop.",
+  "bracket_revertSuccess": "Resultat revertit. El partit torna a estar pendent.",
+  "bracket_revertBlockedDownstream": "No es pot revertir: el partit següent ja està jugat. Primer reverteix el següent.",
+  "bracket_revertError": "Error en revertir el resultat.",
+  "tournament_edit20s_button": "Desa 20s"
 }

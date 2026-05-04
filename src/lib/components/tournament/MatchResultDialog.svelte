@@ -4,6 +4,8 @@
   import { adminTheme } from '$lib/stores/theme';
   import { getPhaseConfig } from '$lib/utils/bracketPhaseConfig';
   import { extractYouTubeId } from '$lib/utils/youtube';
+  import { editCompletedMatch20s } from '$lib/firebase/tournamentMatches';
+  import { isSuperAdminUser } from '$lib/stores/admin';
 
   interface Props {
     match: GroupMatch;
@@ -150,6 +152,103 @@
   // Flag to prevent reactive block from double-counting gamesWon during initialization
   let gamesWonInitialized = $state(false);
 
+  // ── Editar 20s (superadmin, torneo completado) ───────────────────────────────
+  type Edit20sLocation =
+    | { type: 'group'; groupIndex: number }
+    | { type: 'bracket'; bracketKey: 'gold' | 'silver' | 'parallel'; parallelIndex?: number; section: 'main' | 'thirdPlace' | 'consolation'; consolationIndex?: number };
+
+  let original20s = $state<{ twentiesA: number; twentiesB: number }[]>([]);
+  let saving20s = $state(false);
+  let save20sError = $state<string | null>(null);
+
+  let canEdit20s = $derived(
+    $isSuperAdminUser &&
+    tournament.status === 'COMPLETED' &&
+    match.status === 'COMPLETED' &&
+    Array.isArray(match.rounds) && match.rounds.length > 0
+  );
+
+  let dirty20s = $derived(
+    canEdit20s &&
+    rounds.length === original20s.length &&
+    rounds.some((r, i) => r.twentiesA !== original20s[i]?.twentiesA || r.twentiesB !== original20s[i]?.twentiesB)
+  );
+
+  let editLocation = $derived.by<Edit20sLocation | null>(() => {
+    if (!canEdit20s) return null;
+    if (!isBracket) {
+      const groups = tournament.groupStage?.groups || [];
+      for (let gi = 0; gi < groups.length; gi++) {
+        const g = groups[gi];
+        const inSchedule = g.schedule?.some(r => r.matches.some(m2 => m2.id === match.id));
+        const inPairings = g.pairings?.some(p => p.matches.some(m2 => m2.id === match.id));
+        if (inSchedule || inPairings) return { type: 'group', groupIndex: gi };
+      }
+      return null;
+    }
+
+    const fs = tournament.finalStage;
+    if (!fs) return null;
+
+    type BracketRoot = { rounds?: { matches: { id: string }[] }[]; thirdPlaceMatch?: { id: string }; consolationBrackets?: { rounds: { matches: { id: string }[] }[] }[] };
+
+    function locate(root: BracketRoot | undefined, bracketKey: 'gold' | 'silver' | 'parallel', parallelIndex?: number): Edit20sLocation | null {
+      if (!root) return null;
+      if (root.thirdPlaceMatch && root.thirdPlaceMatch.id === match.id) {
+        return { type: 'bracket', bracketKey, parallelIndex, section: 'thirdPlace' };
+      }
+      if (root.rounds?.some(r => r.matches.some(m2 => m2.id === match.id))) {
+        return { type: 'bracket', bracketKey, parallelIndex, section: 'main' };
+      }
+      if (root.consolationBrackets) {
+        for (let ci = 0; ci < root.consolationBrackets.length; ci++) {
+          if (root.consolationBrackets[ci].rounds.some(r => r.matches.some(m2 => m2.id === match.id))) {
+            return { type: 'bracket', bracketKey, parallelIndex, section: 'consolation', consolationIndex: ci };
+          }
+        }
+      }
+      return null;
+    }
+
+    const goldHit = locate(fs.goldBracket as BracketRoot | undefined, 'gold');
+    if (goldHit) return goldHit;
+    const silverHit = locate(fs.silverBracket as BracketRoot | undefined, 'silver');
+    if (silverHit) return silverHit;
+    if (fs.parallelBrackets) {
+      for (let pi = 0; pi < fs.parallelBrackets.length; pi++) {
+        const hit = locate(fs.parallelBrackets[pi].bracket as BracketRoot | undefined, 'parallel', pi);
+        if (hit) return hit;
+      }
+    }
+    return null;
+  });
+
+  async function save20s() {
+    const loc = editLocation;
+    if (!loc || !dirty20s || saving20s) return;
+    saving20s = true;
+    save20sError = null;
+    try {
+      await editCompletedMatch20s(
+        tournament.id,
+        match.id,
+        loc,
+        rounds.map(r => ({
+          gameNumber: r.gameNumber,
+          roundInGame: r.roundInGame,
+          twentiesA: r.twentiesA,
+          twentiesB: r.twentiesB
+        }))
+      );
+      original20s = rounds.map(r => ({ twentiesA: r.twentiesA, twentiesB: r.twentiesB }));
+    } catch (e: unknown) {
+      save20sError = e instanceof Error ? e.message : String(e);
+    } finally {
+      saving20s = false;
+    }
+  }
+  // ─────────────────────────────────────────────────────────────────────────────
+
   // Initialize rounds only once when dialog opens
   $effect(() => {
     if (match && visible && !initialized) {
@@ -244,6 +343,9 @@
       // Load video URL if exists
       videoUrl = match.videoUrl || '';
 
+      original20s = rounds.map(r => ({ twentiesA: r.twentiesA, twentiesB: r.twentiesB }));
+      save20sError = null;
+
       initialized = true;
     }
   });
@@ -259,6 +361,8 @@
       currentGameComplete = false;
       extraRoundsCount = 0;
       videoUrl = '';
+      original20s = [];
+      save20sError = null;
     }
   });
 
@@ -738,10 +842,19 @@
                         <tr class="player-row">
                           <td class="player-name">{nameA}</td>
                           {#each gameRounds as round}
+                            {@const roundIdx = rounds.findIndex(r => r === round)}
                             <td class="round-cell readonly" class:has-hammer={round.hammer === match.participantA}>
                               <span class="cell-points" class:winner={round.pointsA === 2} class:loser={round.pointsA === 0} class:tie={round.pointsA === 1}>{round.pointsA ?? '-'}</span>
                               {#if tournament.show20s}
-                                <span class="cell-twenties">{round.twentiesA}</span>
+                                {#if canEdit20s}
+                                  <span class="cell-twenties-edit">
+                                    <button type="button" class="micro-step" onclick={() => handleTwentiesChange(roundIdx, 'A', round.twentiesA - 1)} disabled={round.twentiesA <= 0} aria-label="−1">−</button>
+                                    <input type="number" min="0" value={round.twentiesA} oninput={(e) => handleTwentiesChange(roundIdx, 'A', parseInt(e.currentTarget.value) || 0)} class="micro-input" />
+                                    <button type="button" class="micro-step" onclick={() => handleTwentiesChange(roundIdx, 'A', round.twentiesA + 1)} aria-label="+1">+</button>
+                                  </span>
+                                {:else}
+                                  <span class="cell-twenties">{round.twentiesA}</span>
+                                {/if}
                               {/if}
                             </td>
                           {/each}
@@ -757,10 +870,19 @@
                         <tr class="player-row">
                           <td class="player-name">{nameB}</td>
                           {#each gameRounds as round}
+                            {@const roundIdx = rounds.findIndex(r => r === round)}
                             <td class="round-cell readonly" class:has-hammer={round.hammer === match.participantB}>
                               <span class="cell-points" class:winner={round.pointsB === 2} class:loser={round.pointsB === 0} class:tie={round.pointsB === 1}>{round.pointsB ?? '-'}</span>
                               {#if tournament.show20s}
-                                <span class="cell-twenties">{round.twentiesB}</span>
+                                {#if canEdit20s}
+                                  <span class="cell-twenties-edit">
+                                    <button type="button" class="micro-step" onclick={() => handleTwentiesChange(roundIdx, 'B', round.twentiesB - 1)} disabled={round.twentiesB <= 0} aria-label="−1">−</button>
+                                    <input type="number" min="0" value={round.twentiesB} oninput={(e) => handleTwentiesChange(roundIdx, 'B', parseInt(e.currentTarget.value) || 0)} class="micro-input" />
+                                    <button type="button" class="micro-step" onclick={() => handleTwentiesChange(roundIdx, 'B', round.twentiesB + 1)} aria-label="+1">+</button>
+                                  </span>
+                                {:else}
+                                  <span class="cell-twenties">{round.twentiesB}</span>
+                                {/if}
                               {/if}
                             </td>
                           {/each}
@@ -1186,11 +1308,19 @@
                     <!-- Player A -->
                     <tr class="player-row">
                       <td class="player-name">{nameA}</td>
-                      {#each rounds as round}
+                      {#each rounds as round, roundIdx}
                         <td class="round-cell readonly" class:has-hammer={round.hammer === match.participantA}>
                           <span class="cell-points" class:winner={round.pointsA === 2} class:loser={round.pointsA === 0} class:tie={round.pointsA === 1}>{round.pointsA ?? '-'}</span>
                           {#if tournament.show20s}
-                            <span class="cell-twenties">{round.twentiesA}</span>
+                            {#if canEdit20s}
+                              <span class="cell-twenties-edit">
+                                <button type="button" class="micro-step" onclick={() => handleTwentiesChange(roundIdx, 'A', round.twentiesA - 1)} disabled={round.twentiesA <= 0} aria-label="−1">−</button>
+                                <input type="number" min="0" value={round.twentiesA} oninput={(e) => handleTwentiesChange(roundIdx, 'A', parseInt(e.currentTarget.value) || 0)} class="micro-input" />
+                                <button type="button" class="micro-step" onclick={() => handleTwentiesChange(roundIdx, 'A', round.twentiesA + 1)} aria-label="+1">+</button>
+                              </span>
+                            {:else}
+                              <span class="cell-twenties">{round.twentiesA}</span>
+                            {/if}
                           {/if}
                         </td>
                       {/each}
@@ -1205,11 +1335,19 @@
                     <!-- Player B -->
                     <tr class="player-row">
                       <td class="player-name">{nameB}</td>
-                      {#each rounds as round}
+                      {#each rounds as round, roundIdx}
                         <td class="round-cell readonly" class:has-hammer={round.hammer === match.participantB}>
                           <span class="cell-points" class:winner={round.pointsB === 2} class:loser={round.pointsB === 0} class:tie={round.pointsB === 1}>{round.pointsB ?? '-'}</span>
                           {#if tournament.show20s}
-                            <span class="cell-twenties">{round.twentiesB}</span>
+                            {#if canEdit20s}
+                              <span class="cell-twenties-edit">
+                                <button type="button" class="micro-step" onclick={() => handleTwentiesChange(roundIdx, 'B', round.twentiesB - 1)} disabled={round.twentiesB <= 0} aria-label="−1">−</button>
+                                <input type="number" min="0" value={round.twentiesB} oninput={(e) => handleTwentiesChange(roundIdx, 'B', parseInt(e.currentTarget.value) || 0)} class="micro-input" />
+                                <button type="button" class="micro-step" onclick={() => handleTwentiesChange(roundIdx, 'B', round.twentiesB + 1)} aria-label="+1">+</button>
+                              </span>
+                            {:else}
+                              <span class="cell-twenties">{round.twentiesB}</span>
+                            {/if}
                           {/if}
                         </td>
                       {/each}
@@ -1485,8 +1623,8 @@
 
       </div>
 
-      {#if canEdit}
-        {#if wouldChangeWinner}
+      {#if canEdit || canEdit20s}
+        {#if canEdit && wouldChangeWinner}
           <div class="winner-change-warning">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10"/>
@@ -1495,11 +1633,19 @@
             <span>{m.bracket_winnerChangeInfo()}</span>
           </div>
         {/if}
+        {#if save20sError}
+          <div class="edit-20s-error" role="alert">{save20sError}</div>
+        {/if}
         <div class="dialog-footer">
+          {#if canEdit20s}
+            <button class="btn btn-edit-20s" onclick={save20s} disabled={!dirty20s || saving20s}>
+              {saving20s ? '…' : m.tournament_edit20s_button()}
+            </button>
+          {/if}
           <button class="btn btn-secondary" onclick={handleClose}>
             {m.common_cancel()}
           </button>
-          {#if isAdmin && isMatchCompleted && isBracket && onrevert}
+          {#if canEdit && isAdmin && isMatchCompleted && isBracket && onrevert}
             <button class="btn btn-danger" onclick={() => onrevert?.()} title={m.bracket_revertMatchTooltip()}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
@@ -1508,7 +1654,7 @@
               {m.bracket_revertMatch()}
             </button>
           {/if}
-          {#if !isBye}
+          {#if canEdit && !isBye}
             {#if canForceFinish && !wouldChangeWinner}
               <button class="btn btn-warning" onclick={handleSave} title={m.tournament_forceFinishTooltip()}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2675,6 +2821,84 @@
   .btn-danger svg {
     width: 16px;
     height: 16px;
+  }
+
+  .btn-edit-20s {
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+    color: var(--primary);
+    border: 1px solid var(--border);
+    margin-right: auto;
+  }
+
+  .btn-edit-20s:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--primary) 20%, transparent);
+  }
+
+  .btn-edit-20s:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .cell-twenties-edit {
+    display: inline-flex;
+    align-items: center;
+    gap: 1px;
+    margin-top: 1px;
+    line-height: 1;
+  }
+
+  .micro-step {
+    width: 14px;
+    height: 14px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--primary) 8%, transparent);
+    color: var(--foreground);
+    font-size: 0.75rem;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-grid;
+    place-items: center;
+  }
+
+  .micro-step:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--primary) 18%, transparent);
+  }
+
+  .micro-step:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  .micro-input {
+    width: 22px;
+    height: 14px;
+    text-align: center;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--card);
+    color: #fbbf24;
+    font-size: 0.7rem;
+    line-height: 1;
+    padding: 0;
+    appearance: textfield;
+    -moz-appearance: textfield;
+  }
+
+  .micro-input::-webkit-outer-spin-button,
+  .micro-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .edit-20s-error {
+    margin: 0 0 8px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: color-mix(in srgb, #dc2626 10%, transparent);
+    color: #dc2626;
+    font-size: 0.85rem;
   }
 
   .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .btn-danger {

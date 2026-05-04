@@ -2,6 +2,11 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.25] - 2026-05-04
+- Tournament admin: superadmins can now correct the **20s of any round** in matches of an already COMPLETED tournament (group stage and bracket — gold, silver, parallel, third-place and consolation). 20s editing is **inline** inside the existing match detail dialog: each round shows compact `−` / `[n]` / `+` steppers when the conditions are met, and a "Guardar 20s" button enables only when there are unsaved changes
+- New backend function `editCompletedMatch20s` in `tournamentMatches.ts` — transactional, gated by `isSuperAdmin()` + tournament `status === 'COMPLETED'` + match `status === 'COMPLETED'`. Recomputes `total20sA/B` automatically and re-runs `calculateStandings()` for group matches so positions and tiebreakers stay consistent. Does NOT touch winner / points / games won
+- Tests: 7 new vitest cases (`tournamentMatches.editCompletedMatch20s.test.ts`) covering happy path, super-admin guard, status guard, walkover guard, validation, missing-round error, and bracket main-round path
+
 ## [2.5.24] - 2026-05-03
 - chore: `.gitignore` now blocks Firebase Admin service-account key files (`.firebase-keys/`, `*-firebase-adminsdk-*.json`, `serviceAccountKey*.json`) to prevent accidental credential commits
 

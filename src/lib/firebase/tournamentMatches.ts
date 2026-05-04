@@ -6,7 +6,7 @@
 
 import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db, isFirebaseEnabled } from './config';
-import type { GroupMatch, GroupStanding, BracketMatch, Tournament, TournamentParticipant } from '$lib/types/tournament';
+import type { GroupMatch, GroupStanding, BracketMatch, BracketWithConfig, Tournament, TournamentParticipant } from '$lib/types/tournament';
 import type { TournamentGameConfig } from '$lib/stores/tournamentContext';
 import { getTournament, parseTournamentData } from './tournaments';
 import { DEFAULT_TIME_CONFIG } from '$lib/firebase/timeConfig';
@@ -14,6 +14,7 @@ import { resolveTiebreaker, updateHeadToHeadRecord, calculateMatchPoints } from 
 import { browser } from '$app/environment';
 import { cleanUndefined } from './cleanUndefined';
 import { validateMatchResult } from './matchResultValidation';
+import { isSuperAdmin } from './admin';
 
 /**
  * Reassign a freed table to the best pending match without a table.
@@ -2733,4 +2734,116 @@ export async function completeTournamentMatch(
     console.error('❌ Error completing tournament match:', error);
     return false;
   }
+}
+
+/**
+ * Edit only the round-by-round twenties of a COMPLETED match in a COMPLETED tournament.
+ * Recomputes total20s of the match and (for group matches) the standings of the group.
+ * Does NOT change winner, points, or games won.
+ *
+ * Authorization: caller must be a platform super-admin (profile.isSuperAdmin === true).
+ *
+ * @throws if the user is not super-admin, the tournament is not COMPLETED, the match
+ *         is not COMPLETED, the match is not found, or any twenties value is invalid.
+ */
+export async function editCompletedMatch20s(
+  tournamentId: string,
+  matchId: string,
+  location:
+    | { type: 'group'; groupIndex: number }
+    | {
+        type: 'bracket';
+        bracketKey: 'gold' | 'silver' | 'parallel';
+        parallelIndex?: number;
+        section: 'main' | 'thirdPlace' | 'consolation';
+        consolationIndex?: number;
+      },
+  newTwenties: Array<{
+    gameNumber: number;
+    roundInGame: number;
+    twentiesA: number;
+    twentiesB: number;
+  }>
+): Promise<void> {
+  if (!db) throw new Error('Firestore not initialized');
+
+  for (const r of newTwenties) {
+    if (!Number.isInteger(r.twentiesA) || r.twentiesA < 0) {
+      throw new Error(`Invalid twentiesA for game ${r.gameNumber} round ${r.roundInGame}`);
+    }
+    if (!Number.isInteger(r.twentiesB) || r.twentiesB < 0) {
+      throw new Error(`Invalid twentiesB for game ${r.gameNumber} round ${r.roundInGame}`);
+    }
+  }
+
+  const allowed = await isSuperAdmin();
+  if (!allowed) throw new Error('Not authorized: super-admin required');
+
+  const tournamentRef = doc(db, 'tournaments', tournamentId);
+
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(tournamentRef);
+    if (!snap.exists()) throw new Error('Tournament not found');
+
+    const tournament = parseTournamentData(snap.data());
+    if (tournament.status !== 'COMPLETED') {
+      throw new Error('Tournament is not COMPLETED — editing not allowed');
+    }
+
+    let match: GroupMatch | BracketMatch | undefined;
+
+    if (location.type === 'group') {
+      if (!tournament.groupStage) throw new Error('Group stage not found');
+      const group = tournament.groupStage.groups[location.groupIndex];
+      if (!group) throw new Error(`Group ${location.groupIndex} not found`);
+      // Round Robin uses schedule[]; Swiss uses pairings[] — search both
+      const fromSchedule = group.schedule?.flatMap(r => r.matches).find(m => m.id === matchId);
+      const fromPairings = group.pairings?.flatMap(p => p.matches).find(m => m.id === matchId);
+      match = fromSchedule || fromPairings;
+    } else {
+      const fs = tournament.finalStage;
+      if (!fs) throw new Error('Final stage not found');
+      let bracket: BracketWithConfig | undefined;
+      if (location.bracketKey === 'gold') bracket = fs.goldBracket;
+      else if (location.bracketKey === 'silver') bracket = fs.silverBracket;
+      else if (location.bracketKey === 'parallel') bracket = fs.parallelBrackets?.[location.parallelIndex ?? 0]?.bracket;
+      if (!bracket) throw new Error('Bracket not found');
+
+      if (location.section === 'thirdPlace') {
+        match = bracket.thirdPlaceMatch?.id === matchId ? bracket.thirdPlaceMatch : undefined;
+      } else if (location.section === 'consolation') {
+        const cons = bracket.consolationBrackets?.[location.consolationIndex ?? 0];
+        match = cons?.rounds.flatMap(r => r.matches).find(m => m.id === matchId);
+      } else {
+        match = bracket.rounds?.flatMap(r => r.matches).find(m => m.id === matchId);
+      }
+    }
+
+    if (!match) throw new Error(`Match ${matchId} not found`);
+    if (match.status !== 'COMPLETED') throw new Error('Match is not COMPLETED');
+    if (!match.rounds || match.rounds.length === 0) throw new Error('Match has no rounds to edit');
+
+    for (const upd of newTwenties) {
+      const r = match.rounds.find(x => x.gameNumber === upd.gameNumber && x.roundInGame === upd.roundInGame);
+      if (!r) throw new Error(`Round (${upd.gameNumber}, ${upd.roundInGame}) not found in match ${matchId}`);
+      r.twentiesA = upd.twentiesA;
+      r.twentiesB = upd.twentiesB;
+    }
+
+    match.total20sA = match.rounds.reduce((s, r) => s + (r.twentiesA || 0), 0);
+    match.total20sB = match.rounds.reduce((s, r) => s + (r.twentiesB || 0), 0);
+
+    if (location.type === 'group') {
+      calculateStandings(tournament, location.groupIndex);
+      transaction.update(tournamentRef, {
+        groupStage: cleanUndefined(tournament.groupStage),
+        updatedAt: serverTimestamp()
+      });
+    } else {
+      transaction.update(tournamentRef, {
+        finalStage: cleanUndefined(tournament.finalStage),
+        updatedAt: serverTimestamp()
+      });
+    }
+  });
 }
