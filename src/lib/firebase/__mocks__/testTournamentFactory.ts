@@ -433,3 +433,96 @@ export function findMatchBetween(
   }
   return null;
 }
+
+/**
+ * Test fixture: marks every match in a tournament as COMPLETED with deterministic
+ * rounds[] data and sets the tournament to COMPLETED. Used by tests that need
+ * to exercise edit-after-completion code paths.
+ */
+type MatchLike = {
+  participantA?: string;
+  participantB: string;
+  rounds?: GroupMatch['rounds'];
+  status?: string;
+  winner?: string;
+  gamesWonA?: number;
+  gamesWonB?: number;
+  totalPointsA?: number;
+  totalPointsB?: number;
+  total20sA?: number;
+  total20sB?: number;
+  completedAt?: number;
+};
+
+type BracketLike = {
+  rounds?: { matches: MatchLike[] }[];
+  thirdPlaceMatch?: MatchLike;
+  consolationBrackets?: { rounds?: { matches: MatchLike[] }[] }[];
+};
+
+export function completeTestTournament(tournament: Tournament): Tournament {
+  const now = Date.now();
+
+  function fillMatch(match: MatchLike) {
+    if (match.participantB === 'BYE') return;
+    match.rounds = [
+      { gameNumber: 1, roundInGame: 1, pointsA: 4, pointsB: 2, twentiesA: 1, twentiesB: 0 },
+      { gameNumber: 1, roundInGame: 2, pointsA: 4, pointsB: 2, twentiesA: 1, twentiesB: 0 },
+      { gameNumber: 1, roundInGame: 3, pointsA: 4, pointsB: 2, twentiesA: 1, twentiesB: 0 },
+      { gameNumber: 1, roundInGame: 4, pointsA: 4, pointsB: 2, twentiesA: 1, twentiesB: 0 }
+    ];
+    match.status = 'COMPLETED';
+    match.winner = match.participantA;
+    match.gamesWonA = 1;
+    match.gamesWonB = 0;
+    match.totalPointsA = 16;
+    match.totalPointsB = 8;
+    match.total20sA = 4;
+    match.total20sB = 0;
+    match.completedAt = now;
+  }
+
+  if (tournament.groupStage) {
+    for (const group of tournament.groupStage.groups) {
+      if (group.schedule) {
+        for (const r of group.schedule) {
+          for (const m of r.matches) fillMatch(m);
+        }
+      }
+      if (group.pairings) {
+        for (const p of group.pairings) {
+          for (const m of p.matches) fillMatch(m);
+        }
+      }
+    }
+  }
+
+  const fs = tournament.finalStage;
+  if (fs) {
+    const brackets: BracketLike[] = [];
+    if (fs.goldBracket) brackets.push(fs.goldBracket as BracketLike);
+    if (fs.silverBracket) brackets.push(fs.silverBracket as BracketLike);
+    if (fs.parallelBrackets) {
+      for (const nb of fs.parallelBrackets) brackets.push(nb.bracket as BracketLike);
+    }
+
+    for (const br of brackets) {
+      for (const r of br.rounds || []) {
+        for (const m of r.matches) fillMatch(m);
+      }
+      if (br.thirdPlaceMatch) fillMatch(br.thirdPlaceMatch);
+      if (br.consolationBrackets) {
+        for (const cb of br.consolationBrackets) {
+          for (const r of cb.rounds || []) {
+            for (const m of r.matches) fillMatch(m);
+          }
+        }
+      }
+    }
+    fs.isComplete = true;
+  }
+
+  tournament.status = 'COMPLETED';
+  tournament.completedAt = now;
+  return tournament;
+}

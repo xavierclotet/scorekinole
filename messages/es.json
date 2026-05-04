@@ -1201,6 +1201,7 @@
   "tournament_connectionError": "Error de conexión",
   "tournament_date": "Fecha",
   "tournament_didNotShowUp": "{name} no se presentó",
+  "tournament_edit20s_button": "Guardar 20s",
   "tournament_enterKey": "Introduce la Clave del Torneo",
   "tournament_errorMatchCompleted": "El partido ya ha sido completado",
   "tournament_errorMatchInProgress": "El partido ya está en progreso en otro dispositivo",

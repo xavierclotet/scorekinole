@@ -1676,5 +1676,13 @@
   "bracket_winnerChangedAndRepropagated": "Winner updated. The new participant now appears in the next phase.",
   "bracket_winnerChangeInfo": "You will change the winner of the match. When you save, the bracket will be updated with the new winner.",
   "tournament_removeRound": "Remove round",
-  "bracket_downstreamAlreadyPlayed": "The winner cannot be changed: the next match (or the consolation match) has already been played. First, the result must be reversed."
+  "bracket_downstreamAlreadyPlayed": "The winner cannot be changed: the next match (or the consolation match) has already been played. First, the result must be reversed.",
+  "bracket_revertMatch": "Reverse result",
+  "bracket_revertMatchTooltip": "Re-post the match and remove the winner from the next bracket. Only allowed if the next match has not yet been played.",
+  "bracket_revertConfirmTitle": "Reverse the result?",
+  "bracket_revertConfirmDesc": "The match will be marked as PENDING again and the results will be deleted. The next bracket will lose this player. This action can be reversed by playing the match again.",
+  "bracket_revertSuccess": "The result has been reversed. The match is pending again.",
+  "bracket_revertBlockedDownstream": "It can't be reversed: the next match has already been played. First, reverse the next one.",
+  "bracket_revertError": "Error reversing the result.",
+  "tournament_edit20s_button": "Save 20s"
 }
