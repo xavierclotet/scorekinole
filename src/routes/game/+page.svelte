@@ -2886,9 +2886,7 @@
 
 					{#if hasProgress}
 						<div class="exit-actions">
-							<!-- svelte-ignore a11y_click_events_have_key_events -->
-							<!-- svelte-ignore a11y_no_static_element_interactions -->
-							<div class="exit-action pause" onclick={pauseTournamentMatch}>
+							<button type="button" class="exit-action pause" onclick={pauseTournamentMatch}>
 								<div class="action-icon">
 									<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
 								</div>
@@ -2896,10 +2894,8 @@
 									<span class="action-label">{m.tournament_pauseMatch() || 'Pausar partido'}</span>
 									<span class="action-hint">{m.tournament_pauseMatchDesc() || 'Guarda el progreso. Tú u otro jugador podréis continuar.'}</span>
 								</div>
-							</div>
-							<!-- svelte-ignore a11y_click_events_have_key_events -->
-							<!-- svelte-ignore a11y_no_static_element_interactions -->
-							<div class="exit-action abandon" onclick={confirmTournamentExit}>
+							</button>
+							<button type="button" class="exit-action abandon" onclick={confirmTournamentExit}>
 								<div class="action-icon">
 									<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
 								</div>
@@ -2907,7 +2903,7 @@
 									<span class="action-label">{m.tournament_abandonMatch() || 'Abandonar partido'}</span>
 									<span class="action-hint">{m.tournament_abandonMatchDesc() || 'Se perderá el progreso y otro podrá jugarlo desde cero.'}</span>
 								</div>
-							</div>
+							</button>
 						</div>
 					{:else}
 						<p class="exit-info">{m.scoring_noProgressWarning() || 'El partido no tiene progreso. ¿Quieres salir?'}</p>
@@ -3693,6 +3689,18 @@
 		border-radius: 8px;
 		cursor: pointer;
 		transition: all 0.1s ease;
+		touch-action: manipulation;
+		font-family: inherit;
+		color: inherit;
+		text-align: left;
+		width: 100%;
+		background: transparent;
+		border: none;
+	}
+
+	.exit-action .action-label,
+	.exit-action .action-hint {
+		text-align: left;
 	}
 
 	.exit-action .action-icon {
@@ -3790,6 +3798,7 @@
 		border-radius: 6px;
 		cursor: pointer;
 		transition: all 0.1s ease;
+		touch-action: manipulation;
 	}
 
 	.exit-btn.cancel {

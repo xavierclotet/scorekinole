@@ -2,6 +2,15 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.30] - 2026-05-04
+- Fix: tournament exit dialog actions ("Pausar partido" / "Abandonar partido") were `<div onclick>` — converted to real `<button>` elements. Synthetic-click double-fires on iOS Safari/Brave/in-app WebViews now eliminated; keyboard navigation (Enter/Space) and screen-reader semantics also improved
+- Defensive: added `touch-action: manipulation` to every critical button in the tournament-play flow that has `cursor: pointer` and lives inside a parent with `touch-action: pan-y pinch-zoom`. Prevents the spurious `touchcancel` events that iOS Safari and Chromium-based mobile browsers (Brave, Samsung Internet, Edge) fire when they suspect a scroll. Buttons covered:
+  - `.exit-action` and `.exit-btn` in tournament exit dialog (game/+page.svelte)
+  - `.btn-play` and `.hammer-btn` in `MatchPreviewDialog`
+  - `.num-btn` and `.action-btn` in `TwentyInputDialog`
+  - `.option` and `.random-btn` in `HammerDialog`
+  - `.winner-btn`, `.stepper-btn` and `.accept-btn` in `TimeoutRoundModal`
+
 ## [2.5.29] - 2026-05-04
 - UX: tap area for the +1 score in `TeamCard` now spans the full column width. `.score` was sized to the digits only because `.score-display` uses `align-items: center` (no stretch); added `width: 100%; text-align: center;` so the entire horizontal band at the score row registers a tap
 

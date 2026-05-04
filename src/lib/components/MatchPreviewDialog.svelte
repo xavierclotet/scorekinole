@@ -567,6 +567,7 @@
 		font-size: 1rem;
 		font-weight: 600;
 		transition: all 0.15s ease;
+		touch-action: manipulation;
 	}
 
 	.btn-play:hover {
@@ -681,6 +682,7 @@
 		transition: all 0.15s ease;
 		text-align: center;
 		overflow: hidden;
+		touch-action: manipulation;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}

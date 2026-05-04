@@ -161,6 +161,7 @@
 		padding: 1rem;
 		cursor: pointer;
 		transition: transform 0.1s ease, opacity 0.1s ease;
+		touch-action: manipulation;
 	}
 
 	.option:hover {
@@ -219,6 +220,7 @@
 		letter-spacing: 0.02em;
 		cursor: pointer;
 		transition: all 0.2s ease;
+		touch-action: manipulation;
 	}
 
 	.random-btn:hover {

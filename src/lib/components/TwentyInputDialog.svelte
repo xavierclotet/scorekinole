@@ -332,6 +332,7 @@
 		color: var(--text-unselected);
 		cursor: pointer;
 		transition: all 0.1s ease;
+		touch-action: manipulation;
 	}
 
 	.num-btn:hover {
@@ -366,6 +367,7 @@
 		font-weight: 500;
 		cursor: pointer;
 		transition: all 0.15s ease;
+		touch-action: manipulation;
 	}
 
 	.cancel-btn {

@@ -280,6 +280,7 @@
 		border-radius: 8px;
 		cursor: pointer;
 		transition: all 0.15s ease;
+		touch-action: manipulation;
 	}
 
 	.winner-btn:hover {
@@ -376,6 +377,7 @@
 		color: rgba(255, 255, 255, 0.7);
 		cursor: pointer;
 		transition: all 0.1s ease;
+		touch-action: manipulation;
 	}
 
 	.stepper-btn:hover:not(:disabled) {
@@ -423,6 +425,7 @@
 		background: #ff7070;
 		border: none;
 		color: #fff;
+		touch-action: manipulation;
 	}
 
 	.accept-btn:hover:not(:disabled) {
