@@ -261,11 +261,20 @@
 				} else {
 					decrementScore();
 				}
-			} else if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10 && deltaTime < 300) {
-				// Tap detection - increment score
+			} else if (Math.abs(deltaX) < 20 && Math.abs(deltaY) < 20) {
+				// Tap detection - increment score.
+				// Suppress the synthetic click iOS Safari fires ~300ms after touchend.
+				e.preventDefault();
 				incrementScore();
 			}
 		}
+	}
+
+	function handleTouchCancel() {
+		// Some mobile browsers (notably Safari iOS) fire touchcancel instead of
+		// touchend when they suspect the gesture might be a scroll. Reset state
+		// so the next touch starts cleanly.
+		isPinching = false;
 	}
 
 
@@ -306,14 +315,20 @@
 				} else {
 					decrementScore();
 				}
-			} else if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10 && deltaTime < 300) {
+			} else if (Math.abs(deltaX) < 20 && Math.abs(deltaY) < 20) {
 				// Click detection - increment score
 				incrementScore();
 			}
 		}
 	}
 
+	// Guard against double-fire from touchend + synthetic click on Safari iOS,
+	// or from rapid double taps. Reset on next microtask so legitimate fast taps
+	// (one per touch) still count.
+	let isProcessingScoreChange = false;
+
 	function incrementScore() {
+		if (isProcessingScoreChange) return;
 		// Block scoring if match is complete (including ties) or either team has won
 		if (isMatchComplete) {
 			return; // Don't allow score changes after match is complete
@@ -323,6 +338,9 @@
 		if (t1.hasWon || t2.hasWon) {
 			return; // Don't allow score changes after match is won
 		}
+
+		isProcessingScoreChange = true;
+		queueMicrotask(() => { isProcessingScoreChange = false; });
 
 		const previousT1 = get(lastRoundPoints).team1;
 		const previousT2 = get(lastRoundPoints).team2;
@@ -336,6 +354,7 @@
 	}
 
 	function decrementScore() {
+		if (isProcessingScoreChange) return;
 		// Block scoring if match is complete (including ties) or either team has won
 		if (isMatchComplete) {
 			return; // Don't allow score changes after match is complete
@@ -354,6 +373,9 @@
 		if (t1.points === previousT1 && t2.points === previousT2) {
 			return; // Don't allow decrementing a completed round score
 		}
+
+		isProcessingScoreChange = true;
+		queueMicrotask(() => { isProcessingScoreChange = false; });
 
 		updateTeam(teamNumber, { points: Math.max(0, team.points - 1) });
 		vibrate(10);
@@ -896,6 +918,7 @@
 			use:pinchZoom
 			ontouchstart={handleTouchStart}
 			ontouchend={handleTouchEnd}
+			ontouchcancel={handleTouchCancel}
 			onmousedown={handleMouseDown}
 			onmouseup={handleMouseUp}
 			role="button"
@@ -1212,7 +1235,10 @@
 		transition: font-size 0.08s ease-out;
 		pointer-events: auto;
 		cursor: pointer;
-		touch-action: none;
+		/* manipulation lets us tap fast without the 300ms zoom delay, but
+		   avoids the touchcancel issues that touch-action:none triggers in
+		   Safari iOS / Brave when the parent has touch-action:pan-y. */
+		touch-action: manipulation;
 	}
 
 	/* Name size variants - base (desktop) */

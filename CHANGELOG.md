@@ -2,6 +2,13 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.27] - 2026-05-04
+- Fix: tap on the big score in `TeamCard` now registers reliably on Safari iOS and Brave. The custom tap detector was rejecting valid taps because the movement threshold (10px) and time window (300ms) were too tight for typical mobile jitter. Threshold relaxed to 20px (still well below the 30px swipe threshold) and the redundant inner time check is gone — the outer `SWIPE_TIMEOUT` (500ms) now governs both branches
+- Fix: `e.preventDefault()` is now called on detected tap to suppress the synthetic `click` Safari iOS fires ~300ms after `touchend`, preventing phantom score increments behind the 20s dialog
+- Fix: new `ontouchcancel` handler — Safari iOS / Brave fire `touchcancel` instead of `touchend` when they suspect a scroll, leaving the gesture state stale; we now reset cleanly so the next touch works
+- Fix: `incrementScore`/`decrementScore` now guarded by `isProcessingScoreChange` (released on next microtask). Prevents the touchend + synthetic-click pair from doubling the score
+- CSS: `.score` switched from `touch-action: none` to `touch-action: manipulation`. `none` clashes with the body's `touch-action: pan-y pinch-zoom` and is what triggers the spurious `touchcancel` events on iOS / Brave; `manipulation` keeps the no-300ms-delay benefit without the side effects
+
 ## [2.5.26] - 2026-05-04
 - Tournament classification: when a tournament has **no consolation** for a given round (and no 3rd-place match for the semifinal), the round losers now display as a **tied range** — `"5–8º"` for QF losers, `"9–16º"` for R16 losers, `"3–4º"` for semifinalists. Previously the display showed individual sequential positions decided by bracket index, which felt arbitrary
 - Within each tied range, internal `finalPosition` is **reordered DESC by total tournament points** (group stage + bracket + consolation + 3rd-place) so the best-performing tied loser still earns the most ranking points. Display label stays identical for all tied participants
