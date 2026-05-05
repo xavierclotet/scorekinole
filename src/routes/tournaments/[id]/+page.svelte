@@ -6241,52 +6241,36 @@
 		display: none;
 	}
 
-	/* Vertical connector lines for pairs of matches */
+	/* Vertical connector lines - handled by .pair-connector instead (container-relative, exact) */
 	.bracket-match::before {
-		content: '';
+		display: none;
+	}
+
+	/* Vertical + horizontal connector between paired matches.
+	   Positioned relative to .matches-column (container), not individual matches,
+	   so it's mathematically exact with space-around regardless of match card size. */
+	.pair-connector {
 		position: absolute;
+		/* At the junction point: end of the .bracket-match::after horizontal stub */
 		left: calc(100% + 2.5rem);
 		width: 2px;
 		background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
-		z-index: 0;
+		z-index: 1;
+		/* Top = center of upper match in the pair: (2k + 0.5) / N */
+		top: calc((var(--pair-index) * 2 + 0.5) / var(--total-matches) * 100%);
+		/* Height = distance between paired match centers = 1/N of container */
+		height: calc(100% / var(--total-matches));
 	}
 
-	/* Top match in pair - vertical line goes down */
-	.bracket-match:nth-child(odd)::before {
-		top: 50%;
-	}
-
-	/* Bottom match in pair - vertical line goes up */
-	.bracket-match:nth-child(even)::before {
-		bottom: 50%;
-	}
-
-	/* Dynamic vertical line height based on round index - space-around distribution */
-	/* Each subsequent round doubles: 2^roundIndex * base */
-	.bracket-match::before {
-		height: calc(var(--round-mult) * (50% + 0.25rem));
-	}
-
-	/* Remove vertical connectors from final round */
-	.bracket-round:last-child .bracket-match::before {
-		display: none;
-	}
-
-	/* For single match rounds (like finals), hide the vertical line */
-	.matches-column:has(> :only-child) .bracket-match::before {
-		display: none;
-	}
-
-	/* Horizontal connector from the vertical line junction to next round - other half of gap */
-	.pair-connector {
+	/* Horizontal extension from the vertical line midpoint to next round */
+	.pair-connector::after {
+		content: '';
 		position: absolute;
+		top: 50%;
+		left: 0;
 		width: 2.5rem;
 		height: 2px;
 		background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-		right: -5rem;
-		z-index: 1;
-		/* Position at midpoint between each pair of matches */
-		top: calc((var(--pair-index) * 2 + 1) / var(--total-matches) * 100%);
 		transform: translateY(-50%);
 	}
 
