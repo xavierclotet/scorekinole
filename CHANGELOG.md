@@ -2,6 +2,10 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.37] - 2026-05-05
+- Fix (bracket display, public tournament page): vertical merge lines between rounds were drawn via `.bracket-match::before` with height computed as a percentage of the **match card** (`calc(var(--round-mult) * (50% + 0.25rem))`). That formula only aligns when matches are perfectly tight-packed — any layout slack made the vertical stubs fall short and pairs looked disconnected (visible report: only 2 of 4 expected "Y" merges between QF and SF). Replaced with the same container-relative approach already in the admin bracket page (commit `99a7e86`): `.bracket-match::before` is `display: none`, and `.pair-connector` itself becomes the vertical line with `height: calc(100% / var(--total-matches))` and `top: calc((var(--pair-index) * 2 + 0.5) / var(--total-matches) * 100%)` — both percentages relative to `.matches-column`, mathematically exact under `space-around` regardless of card size. A `.pair-connector::after` adds the horizontal extension into the next round
+- Misc (from c77e087, since v2.5.36): participant profile links, removal of the 24h registration deadline rule, and `userKey` backfill on existing tournament participants
+
 ## [2.5.36] - 2026-05-04
 - Release: bundles v2.5.32–v2.5.35 for Firebase Hosting deploy. No new code in this version — see entries below for actual changes since the last tagged release (v2.5.31)
 
