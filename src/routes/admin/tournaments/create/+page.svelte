@@ -90,7 +90,6 @@
     switch (result.reason) {
       case 'in_past': return 'registration_deadlineErrorPast' as const;
       case 'after_tournament': return 'registration_deadlineErrorAfterTournament' as const;
-      case 'too_close': return 'registration_deadlineErrorTooClose' as const;
       default: return null;
     }
   });
@@ -1386,8 +1385,6 @@
       errors.push(m.registration_deadlineErrorPast());
     } else if (regDeadlineErrorKey === 'registration_deadlineErrorAfterTournament') {
       errors.push(m.registration_deadlineErrorAfterTournament());
-    } else if (regDeadlineErrorKey === 'registration_deadlineErrorTooClose') {
-      errors.push(m.registration_deadlineErrorTooClose());
     }
     return errors;
   }
@@ -2167,8 +2164,6 @@
                           <span class="field-error">{m.registration_deadlineErrorPast()}</span>
                         {:else if regDeadlineErrorKey === 'registration_deadlineErrorAfterTournament'}
                           <span class="field-error">{m.registration_deadlineErrorAfterTournament()}</span>
-                        {:else if regDeadlineErrorKey === 'registration_deadlineErrorTooClose'}
-                          <span class="field-error">{m.registration_deadlineErrorTooClose()}</span>
                         {/if}
                       </div>
                       <div class="info-field">

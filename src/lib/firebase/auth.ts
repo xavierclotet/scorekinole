@@ -333,6 +333,13 @@ export function initAuthListener(): void {
               // Apply language preference silently
               setLocale(profile.language, { reload: false });
             }
+
+            // Backfill 6-char `key` for legacy profiles so future participant snapshots
+            // get a clean URL identifier instead of the raw Firebase UID.
+            if (!profile.key) {
+              const { ensureUserKey } = await import('./userProfile');
+              ensureUserKey(user.uid).catch(err => console.warn('ensureUserKey failed:', err));
+            }
           }
         }
       } catch (error) {

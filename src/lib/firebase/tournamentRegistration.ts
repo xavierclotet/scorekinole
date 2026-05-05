@@ -50,8 +50,7 @@ export function validateRegistration(
 
 export type DeadlineValidationReason =
   | 'in_past'           // deadline is already in the past
-  | 'after_tournament'  // deadline is on or after tournamentDate
-  | 'too_close';        // deadline is less than 24h before tournamentDate
+  | 'after_tournament'; // deadline is on or after tournamentDate
 
 export interface DeadlineValidation {
   valid: boolean;
@@ -64,8 +63,6 @@ export interface DeadlineValidation {
  * Rules:
  *  - Deadline must not be in the past (relative to `now`).
  *  - If `tournamentDate` is provided, deadline must be strictly before it.
- *  - If `tournamentDate` is provided, deadline must be at least 24h before it
- *    (to give the admin time to close registrations and start the tournament).
  *
  * Pure function — no Firebase / Date.now() side effects.
  */
@@ -77,8 +74,6 @@ export function validateRegistrationDeadline(
   if (deadlineMs < now) return { valid: false, reason: 'in_past' };
   if (tournamentDate !== undefined) {
     if (deadlineMs >= tournamentDate) return { valid: false, reason: 'after_tournament' };
-    const oneDayMs = 24 * 60 * 60 * 1000;
-    if (tournamentDate - deadlineMs < oneDayMs) return { valid: false, reason: 'too_close' };
   }
   return { valid: true };
 }

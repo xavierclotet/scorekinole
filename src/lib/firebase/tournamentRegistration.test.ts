@@ -1749,16 +1749,9 @@ describe('validateRegistrationDeadline (wizard-side validation)', () => {
     expect(result).toEqual({ valid: false, reason: 'after_tournament' });
   });
 
-  it('rejects a deadline less than 24h before the tournament', () => {
+  it('accepts a deadline shortly before the tournament', () => {
     const tournamentDate = new Date('2026-06-01T10:00:00').getTime();
-    const deadline = tournamentDate - 12 * 60 * 60 * 1000; // 12h before
-    const result = validateRegistrationDeadline(deadline, tournamentDate, now);
-    expect(result).toEqual({ valid: false, reason: 'too_close' });
-  });
-
-  it('accepts a deadline exactly 24h before the tournament', () => {
-    const tournamentDate = new Date('2026-06-01T10:00:00').getTime();
-    const deadline = tournamentDate - oneDay;
+    const deadline = tournamentDate - 60 * 60 * 1000; // 1h before
     const result = validateRegistrationDeadline(deadline, tournamentDate, now);
     expect(result).toEqual({ valid: true });
   });

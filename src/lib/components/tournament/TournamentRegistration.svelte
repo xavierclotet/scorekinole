@@ -48,6 +48,41 @@
   let reg = $derived(tournament.registration!);
   let participantCount = $derived(tournament.participants.length);
   let waitlistCount = $derived(tournament.waitlist?.length ?? 0);
+
+  // Backfill cache: legacy participant snapshots may have empty `userKey` while the
+  // user's profile already (or eventually) has one. Resolve client-side and cache.
+  // Map value: 6-char key string, or null = lookup attempted but no key available.
+  let resolvedKeys = $state<Map<string, string | null>>(new Map());
+
+  $effect(() => {
+    const missing = new Set<string>();
+    for (const p of tournament.participants) {
+      if (p.userId && !p.userKey && !resolvedKeys.has(p.userId)) missing.add(p.userId);
+      if (p.partner?.userId && !p.partner.userKey && !resolvedKeys.has(p.partner.userId)) missing.add(p.partner.userId);
+    }
+    if (missing.size === 0) return;
+    (async () => {
+      const { getUserProfileById } = await import('$lib/firebase/userProfile');
+      const updates = await Promise.all(
+        Array.from(missing).map(async (uid) => {
+          const profile = await getUserProfileById(uid);
+          return [uid, profile?.key ?? null] as const;
+        })
+      );
+      const next = new Map(resolvedKeys);
+      for (const [uid, key] of updates) next.set(uid, key);
+      resolvedKeys = next;
+    })();
+  });
+
+  function profileHref(userId: string | undefined, userKey: string | undefined): string | null {
+    if (userKey) return `/users/${userKey}`;
+    if (userId) {
+      const cached = resolvedKeys.get(userId);
+      if (cached) return `/users/${cached}`;
+    }
+    return null;
+  }
   let isFull = $derived(reg.maxParticipants ? participantCount >= reg.maxParticipants : false);
   let waitlistAllowed = $derived(reg.allowWaitlist !== false);
   let isDeadlinePassed = $derived(reg.deadline ? Date.now() > reg.deadline : false);
@@ -527,6 +562,8 @@
     </div>
     <ul class="enrolled-grid">
       {#each tournament.participants as p (p.id)}
+        {@const mainHref = profileHref(p.userId, p.userKey)}
+        {@const partnerHref = p.partner ? profileHref(p.partner.userId, p.partner.userKey) : null}
         <li class="enrolled-item">
           {#if p.photoURL}
             <img src={p.photoURL} alt="" class="enrolled-avatar" referrerpolicy="no-referrer" />
@@ -534,8 +571,18 @@
             <div class="enrolled-avatar placeholder">{p.name.charAt(0).toUpperCase()}</div>
           {/if}
           <div class="enrolled-info">
-            <span class="enrolled-name">{p.name}</span>
-            {#if p.partner}<span class="enrolled-partner">& {p.partner.name}</span>{/if}
+            {#if mainHref}
+              <a href={mainHref} class="enrolled-name enrolled-link">{p.name}</a>
+            {:else}
+              <span class="enrolled-name">{p.name}</span>
+            {/if}
+            {#if p.partner}
+              {#if partnerHref}
+                <a href={partnerHref} class="enrolled-partner enrolled-link">& {p.partner.name}</a>
+              {:else}
+                <span class="enrolled-partner">& {p.partner.name}</span>
+              {/if}
+            {/if}
           </div>
         </li>
       {/each}
@@ -1389,6 +1436,23 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .enrolled-link {
+    color: var(--primary);
+    text-decoration: none;
+    cursor: pointer;
+    transition: color 0.15s ease, text-decoration-color 0.15s ease;
+  }
+
+  .enrolled-link:hover {
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, var(--primary) 60%, transparent);
+    text-underline-offset: 2px;
+  }
+
+  .enrolled-partner.enrolled-link {
+    color: color-mix(in srgb, var(--primary) 80%, var(--muted-foreground));
   }
 
   /* Waitlist sub-section */

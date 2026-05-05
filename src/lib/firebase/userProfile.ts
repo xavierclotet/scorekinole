@@ -327,6 +327,31 @@ export async function getUserProfileById(userId: string): Promise<UserProfile | 
 }
 
 /**
+ * Ensure a user profile has a 6-char `key` for clean profile URLs.
+ * If the profile exists and has no key, generate one and persist it.
+ * Returns the existing or newly-created key, or null on failure / missing profile.
+ *
+ * Why: legacy profiles (created before keys existed) have no `key`, so participant
+ * snapshots taken at registration store an empty string. This backfills silently.
+ */
+export async function ensureUserKey(userId: string): Promise<string | null> {
+  if (!browser || !isFirebaseEnabled() || !db) return null;
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) return null;
+    const existing = userSnap.data() as UserProfile;
+    if (existing.key) return existing.key;
+    const key = await generateUniqueUserKey();
+    await setDoc(userRef, { key, updatedAt: serverTimestamp() }, { merge: true });
+    return key;
+  } catch (error) {
+    console.error('❌ Error ensuring user key:', error);
+    return null;
+  }
+}
+
+/**
  * Remove a tournament record from user's history
  * Used when deleting a tournament
  * Note: Ranking is calculated from tournaments, not stored separately
