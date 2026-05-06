@@ -43,6 +43,8 @@ export interface WaitlistEntry {
   userName: string;
   userKey: string;
   registeredAt: number;
+  email?: string;
+  photoURL?: string;
   teamName?: string;
   partner?: {
     type: ParticipantType;

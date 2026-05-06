@@ -9,9 +9,38 @@ export function normalizeEmail(email: string): string {
 
 // --- Pure validation (exported for testing) ---
 
+/**
+ * Resolve `registration.allowWaitlist` to an explicit boolean.
+ * Default (undefined) is `true` — full tournaments waitlist new sign-ups.
+ * Only an explicit `false` enables a hard cap that blocks new registrations.
+ */
+export function isWaitlistAllowed(allowWaitlist: boolean | undefined): boolean {
+  return allowWaitlist !== false;
+}
+
 export interface RegistrationValidation {
   canRegister: boolean;
-  reason?: 'not_draft' | 'registration_disabled' | 'deadline_passed' | 'tournament_full' | 'already_registered' | 'already_waitlisted' | 'self_as_partner' | 'partner_already_registered' | 'partner_on_waitlist';
+  reason?: 'not_draft' | 'registration_disabled' | 'deadline_passed' | 'tournament_full' | 'already_registered' | 'already_waitlisted' | 'self_as_partner' | 'partner_already_registered' | 'partner_on_waitlist' | 'guest_partner_name_taken';
+}
+
+/** Normalize a guest partner name for collision checks: trim + lowercase + collapse whitespace. */
+export function normalizeGuestPartnerName(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+/** Collect normalized guest partner names already in use across participants and waitlist. */
+export function collectGuestPartnerNames(
+  participants: TournamentParticipant[],
+  waitlist: WaitlistEntry[]
+): string[] {
+  const names: string[] = [];
+  for (const p of participants) {
+    if (p.partner?.type === 'GUEST' && p.partner.name) names.push(normalizeGuestPartnerName(p.partner.name));
+  }
+  for (const w of waitlist) {
+    if (w.partner?.type === 'GUEST' && w.partner.name) names.push(normalizeGuestPartnerName(w.partner.name));
+  }
+  return names;
 }
 
 export function validateRegistration(
@@ -26,13 +55,17 @@ export function validateRegistration(
   /** userId of the partner the current user wants to register with (doubles only) */
   partnerUserId?: string,
   /** Tournament scheduled date (ms). Defense-in-depth: close registrations once it passes. */
-  tournamentDate?: number
+  tournamentDate?: number,
+  /** Normalized guest partner names already in use (use `collectGuestPartnerNames`) */
+  existingGuestPartnerNames: string[] = [],
+  /** Raw name the user proposes for a GUEST partner (only relevant when type === 'GUEST') */
+  proposedGuestPartnerName?: string
 ): RegistrationValidation {
   if (tournamentStatus !== 'DRAFT') return { canRegister: false, reason: 'not_draft' };
   if (!registration?.enabled) return { canRegister: false, reason: 'registration_disabled' };
   if (registration.deadline && now > registration.deadline) return { canRegister: false, reason: 'deadline_passed' };
   if (tournamentDate !== undefined && now >= tournamentDate) return { canRegister: false, reason: 'deadline_passed' };
-  if (registration.allowWaitlist === false && registration.maxParticipants && participantUserIds.length >= registration.maxParticipants) {
+  if (!isWaitlistAllowed(registration.allowWaitlist) && registration.maxParticipants && participantUserIds.length >= registration.maxParticipants) {
     return { canRegister: false, reason: 'tournament_full' };
   }
   if (participantUserIds.includes(currentUserId)) return { canRegister: false, reason: 'already_registered' };
@@ -41,7 +74,14 @@ export function validateRegistration(
   if (partnerUserId) {
     if (partnerUserId === currentUserId) return { canRegister: false, reason: 'self_as_partner' };
     if (participantUserIds.includes(partnerUserId)) return { canRegister: false, reason: 'partner_already_registered' };
+    if (partnerUserIds.includes(partnerUserId)) return { canRegister: false, reason: 'partner_already_registered' };
     if (waitlistUserIds.includes(partnerUserId)) return { canRegister: false, reason: 'partner_on_waitlist' };
+  }
+  if (proposedGuestPartnerName !== undefined && proposedGuestPartnerName.trim() !== '') {
+    const normalized = normalizeGuestPartnerName(proposedGuestPartnerName);
+    if (existingGuestPartnerNames.includes(normalized)) {
+      return { canRegister: false, reason: 'guest_partner_name_taken' };
+    }
   }
   return { canRegister: true };
 }
@@ -91,12 +131,14 @@ const REGISTRATION_ERROR_KEY_MAP: Record<string, string> = {
   not_draft: 'registration_closed',
   registration_disabled: 'registration_closed',
   deadline_passed: 'registration_closed',
+  guest_partner_name_taken: 'registration_guestPartnerNameTaken',
   // Thrown Error.message strings from Firestore operations
   'Cannot unregister after tournament has started': 'registration_closed',
   'Cannot leave waitlist after tournament has started': 'registration_closed',
   'Not registered': 'registration_closed',
   'Not on waitlist': 'registration_onWaitlist',
   'Not authenticated': 'registration_loginToRegister',
+  'Email not verified': 'registration_emailNotVerified',
 };
 
 export function getRegistrationErrorMessageKey(error: string): string | null {
@@ -138,7 +180,7 @@ export function determineRegistrationOutcome(
   maxParticipants?: number,
   allowWaitlist?: boolean
 ): 'registered' | 'waitlisted' {
-  if (maxParticipants && participantsCount >= maxParticipants && allowWaitlist !== false) return 'waitlisted';
+  if (maxParticipants && participantsCount >= maxParticipants && isWaitlistAllowed(allowWaitlist)) return 'waitlisted';
   return 'registered';
 }
 
@@ -224,6 +266,8 @@ export function adminPromoteFromWaitlist(
   const entryIndex = waitlist.findIndex(w => w.userId === userId);
   if (entryIndex === -1) return null;
   const entry = waitlist[entryIndex];
+  const remainingWaitlist = waitlist.filter((_, i) => i !== entryIndex);
+  const safePartner = sanitizePromotedPartner(entry.partner, participants, remainingWaitlist, entry.userId);
   const promoted: TournamentParticipant = {
     id: participantId,
     type: 'REGISTERED',
@@ -232,12 +276,14 @@ export function adminPromoteFromWaitlist(
     name: entry.userName,
     rankingSnapshot: 0,
     status: 'ACTIVE',
-    ...(entry.partner ? { partner: entry.partner } : {}),
+    ...(entry.email ? { email: entry.email } : {}),
+    ...(entry.photoURL ? { photoURL: entry.photoURL } : {}),
+    ...(safePartner ? { partner: safePartner } : {}),
     ...(entry.teamName ? { teamName: entry.teamName } : {})
   };
   return {
     participants: [...participants, promoted],
-    waitlist: waitlist.filter((_, i) => i !== entryIndex)
+    waitlist: remainingWaitlist
   };
 }
 
@@ -246,6 +292,68 @@ export function adminRemoveFromWaitlist(
   userId: string
 ): WaitlistEntry[] {
   return waitlist.filter(w => w.userId !== userId);
+}
+
+/**
+ * Validate a waitlist entry's `partner` snapshot against the live tournament state
+ * at promotion time. Stale REGISTERED partner refs (now a primary participant,
+ * already in another partner slot, or on waitlist as primary) are dropped to
+ * avoid creating duplicates. GUEST / NONE partners pass through unchanged.
+ *
+ * Returns the partner to keep on the promoted participant, or `undefined` to drop it.
+ */
+export function sanitizePromotedPartner(
+  partner: { type: ParticipantType; userId?: string; name: string } | undefined,
+  currentParticipants: TournamentParticipant[],
+  currentWaitlist: WaitlistEntry[],
+  promotedUserId: string
+): { type: ParticipantType; userId?: string; name: string } | undefined {
+  if (!partner) return undefined;
+  if (partner.type !== 'REGISTERED' || !partner.userId) return partner;
+  // Self-as-own-partner safety net (shouldn't happen but be defensive).
+  if (partner.userId === promotedUserId) return undefined;
+  const primaryIds = new Set(
+    currentParticipants.map(p => p.userId).filter((id): id is string => !!id)
+  );
+  if (primaryIds.has(partner.userId)) return undefined;
+  const partnerSlots = new Set(collectPartnerUserIds(currentParticipants, currentWaitlist));
+  if (partnerSlots.has(partner.userId)) return undefined;
+  const waitlistPrimaryIds = new Set(currentWaitlist.map(w => w.userId));
+  if (waitlistPrimaryIds.has(partner.userId)) return undefined;
+  return partner;
+}
+
+/**
+ * Strip `userId` from any partner slot in participants and waitlist.
+ * Used when a user listed only as a REGISTERED partner asks to unregister:
+ * the primary's row stays, but their `partner` field is cleared so the slot
+ * can be reassigned (admin or new partner) without leaving a dangling reference.
+ *
+ * Returns the new arrays plus whether anything was detached.
+ */
+export function detachUserFromPartnerSlots(
+  participants: TournamentParticipant[],
+  waitlist: WaitlistEntry[],
+  userId: string
+): { participants: TournamentParticipant[]; waitlist: WaitlistEntry[]; detached: boolean } {
+  let detached = false;
+  const newParticipants = participants.map(p => {
+    if (p.partner?.userId === userId) {
+      detached = true;
+      const { partner, ...rest } = p;
+      return rest as TournamentParticipant;
+    }
+    return p;
+  });
+  const newWaitlist = waitlist.map(w => {
+    if (w.partner?.userId === userId) {
+      detached = true;
+      const { partner, ...rest } = w;
+      return rest as WaitlistEntry;
+    }
+    return w;
+  });
+  return { participants: newParticipants, waitlist: newWaitlist, detached };
 }
 
 // --- Firestore operations ---
@@ -278,10 +386,13 @@ export async function registerForTournament(
   }
 
   const { get } = await import('svelte/store');
-  const { currentUser } = await import('./auth');
+  const { currentUser, isCurrentEmailVerified } = await import('./auth');
   const user = get(currentUser);
   if (!user) {
     return { success: false, error: 'Not authenticated' };
+  }
+  if (!isCurrentEmailVerified()) {
+    return { success: false, error: 'Email not verified' };
   }
 
   try {
@@ -303,6 +414,7 @@ export async function registerForTournament(
         .map(p => p.userId!);
       const waitlistUserIds = (tournament.waitlist || []).map((w: WaitlistEntry) => w.userId);
       const partnerUserIds = collectPartnerUserIds(tournament.participants, tournament.waitlist || []);
+      const guestPartnerNames = collectGuestPartnerNames(tournament.participants, tournament.waitlist || []);
 
       const validation = validateRegistration(
         tournament.status,
@@ -312,8 +424,10 @@ export async function registerForTournament(
         user.id,
         Date.now(),
         partnerUserIds,
-        undefined,
-        tournament.tournamentDate
+        partnerData?.type === 'REGISTERED' ? partnerData.userId : undefined,
+        tournament.tournamentDate,
+        guestPartnerNames,
+        partnerData?.type === 'GUEST' ? partnerData.name : undefined
       );
 
       if (!validation.canRegister) {
@@ -351,6 +465,8 @@ export async function registerForTournament(
           userName: user.name || 'Jugador',
           userKey: profile?.key ?? '',
           registeredAt: Date.now(),
+          ...(user.email ? { email: normalizeEmail(user.email) } : {}),
+          ...(user.photoURL ? { photoURL: user.photoURL } : {}),
           ...(partnerData ? { partner: partnerData } : {})
         };
 
@@ -403,14 +519,28 @@ export async function unregisterFromTournament(
       if (tournament.status !== 'DRAFT') throw new Error('Cannot unregister after tournament has started');
 
       const participantIndex = tournament.participants.findIndex(p => p.userId === user.id);
-      if (participantIndex === -1) throw new Error('Not registered');
+      const waitlist: WaitlistEntry[] = tournament.waitlist || [];
+
+      // Case B: user is not a primary participant but occupies a partner slot
+      // (REGISTERED partner of someone else's team). Detach without removing the team.
+      if (participantIndex === -1) {
+        const detach = detachUserFromPartnerSlots(tournament.participants, waitlist, user.id);
+        if (!detach.detached) throw new Error('Not registered');
+        transaction.update(tournamentRef, {
+          participants: detach.participants,
+          waitlist: detach.waitlist,
+          updatedAt: serverTimestamp()
+        });
+        return;
+      }
 
       const newParticipants = tournament.participants.filter(p => p.userId !== user.id);
-      const waitlist: WaitlistEntry[] = tournament.waitlist || [];
       let newWaitlist = waitlist;
 
       if (shouldAutoPromote(waitlist, tournament.registration, newParticipants.length)) {
         const next = waitlist[0];
+        const remainingWaitlist = waitlist.slice(1);
+        const safePartner = sanitizePromotedPartner(next.partner, newParticipants, remainingWaitlist, next.userId);
         const promoted_participant: TournamentParticipant = {
           id: `participant-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
           type: 'REGISTERED',
@@ -419,11 +549,13 @@ export async function unregisterFromTournament(
           name: next.userName,
           rankingSnapshot: 0,
           status: 'ACTIVE',
-          ...(next.partner ? { partner: next.partner } : {}),
+          ...(next.email ? { email: next.email } : {}),
+          ...(next.photoURL ? { photoURL: next.photoURL } : {}),
+          ...(safePartner ? { partner: safePartner } : {}),
           ...(next.teamName ? { teamName: next.teamName } : {})
         };
         newParticipants.push(promoted_participant);
-        newWaitlist = waitlist.slice(1);
+        newWaitlist = remainingWaitlist;
         promoted = true;
       }
 

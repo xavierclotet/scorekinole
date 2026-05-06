@@ -1684,5 +1684,7 @@
   "bracket_revertBlockedDownstream": "It can't be reversed: the next match has already been played. First, reverse the next one.",
   "bracket_revertError": "Error reversing the result.",
   "tournament_edit20s_button": "Save 20s",
-  "tournament_exiting": "Leaving..."
+  "tournament_exiting": "Leaving...",
+  "registration_pairsSpotsLeft": "{count} available pairs",
+  "registration_pairs": "Couples"
 }

@@ -3,6 +3,7 @@
   import type { UserProfile } from '$lib/firebase/userProfile';
   import { currentUser } from '$lib/firebase/auth';
   import { registerForTournament, unregisterFromTournament, leaveWaitlist, filterEligiblePartners, getRegistrationErrorMessageKey } from '$lib/firebase/tournamentRegistration';
+  import { createRequestSequencer } from '$lib/utils/requestSequencer';
   import * as Dialog from '$lib/components/ui/dialog';
   import LoginModal from '$lib/components/LoginModal.svelte';
   import * as m from '$lib/paraglide/messages.js';
@@ -35,7 +36,7 @@
   type PartnerMode = 'search' | 'guest' | 'none';
   let partnerMode = $state<PartnerMode>('search');
   let partnerSearchQuery = $state('');
-  let partnerSearchResults = $state<UserProfile[]>([]);
+  let partnerSearchResultsRaw = $state<UserProfile[]>([]);
   let partnerSearching = $state(false);
   let selectedPartner = $state<UserProfile | null>(null);
   let partnerGuestName = $state('');
@@ -135,28 +136,44 @@
       case 'registration_onWaitlist': return m.registration_onWaitlist();
       case 'registration_closed': return m.registration_closed();
       case 'registration_loginToRegister': return m.registration_loginToRegister();
+      case 'registration_guestPartnerNameTaken': return (m as any).registration_guestPartnerNameTaken?.() ?? 'Ya hay una pareja invitada con ese nombre. Añade un apellido o inicial para diferenciarla.';
+      case 'registration_emailNotVerified': return (m as any).registration_emailNotVerified?.() ?? 'Verifica tu email antes de inscribirte en un torneo.';
       default: return fallback;
     }
   }
 
   let searchTimeout: ReturnType<typeof setTimeout>;
+  const partnerSearchSeq = createRequestSequencer();
   async function searchPartner(query: string) {
-    partnerSearchResults = [];
+    partnerSearchResultsRaw = [];
     if (query.length < 2) return;
+    const reqId = partnerSearchSeq.next();
     partnerSearching = true;
     try {
       const { searchUsers } = await import('$lib/firebase/tournaments');
       const results = await searchUsers(query);
-      // Exclude self, primary participants, already-assigned partners, and waitlist entries
-      partnerSearchResults = filterEligiblePartners(
-        results as Array<{ userId: string; playerName: string } & typeof results[number]>,
-        tournament.participants,
-        tournament.waitlist ?? [],
-        $currentUser?.id ?? ''
-      );
-    } catch { partnerSearchResults = []; }
-    partnerSearching = false;
+      if (!partnerSearchSeq.isLatest(reqId)) return; // stale: a newer query superseded
+      partnerSearchResultsRaw = results;
+    } catch {
+      if (!partnerSearchSeq.isLatest(reqId)) return;
+      partnerSearchResultsRaw = [];
+    }
+    if (partnerSearchSeq.isLatest(reqId)) partnerSearching = false;
   }
+
+  // Derived view: re-filters raw results live against current tournament state
+  // (participants, waitlist, selectedPartner) so externally-registered or just-selected
+  // users disappear from the dropdown without needing a new search.
+  let partnerSearchResults = $derived.by(() => {
+    const base = filterEligiblePartners(
+      partnerSearchResultsRaw as Array<{ userId: string; playerName: string } & typeof partnerSearchResultsRaw[number]>,
+      tournament.participants,
+      tournament.waitlist ?? [],
+      $currentUser?.id ?? ''
+    );
+    const selectedId = selectedPartner?.userId;
+    return selectedId ? base.filter(u => u.userId !== selectedId) : base;
+  });
 
   function onPartnerSearchInput(query: string) {
     partnerSearchQuery = query;
@@ -168,14 +185,14 @@
   function selectPartner(user: UserProfile) {
     selectedPartner = user;
     partnerSearchQuery = user.playerName;
-    partnerSearchResults = [];
+    partnerSearchResultsRaw = [];
   }
 
   function resetDoublesPanel() {
     showDoublesPanel = false;
     partnerMode = 'none';
     partnerSearchQuery = '';
-    partnerSearchResults = [];
+    partnerSearchResultsRaw = [];
     selectedPartner = null;
     partnerGuestName = '';
     teamName = '';
@@ -326,10 +343,10 @@
         <div class="stat-text">
           {#if reg.maxParticipants}
             <span class="stat-value">{participantCount}<span class="stat-max">/{reg.maxParticipants}</span></span>
-            <span class="stat-label">{m.registration_participants()}</span>
+            <span class="stat-label">{isDoubles ? ((m as any).registration_pairs?.() ?? 'Parejas') : m.registration_participants()}</span>
           {:else}
             <span class="stat-value">{participantCount}</span>
-            <span class="stat-label">{m.registration_participants()}</span>
+            <span class="stat-label">{isDoubles ? ((m as any).registration_pairs?.() ?? 'Parejas') : m.registration_participants()}</span>
           {/if}
         </div>
       </div>
@@ -365,7 +382,11 @@
         {#if isFull && waitlistAllowed && waitlistCount > 0}
           <span class="cap-legend-waitlist">+{waitlistCount} {m.registration_waitlist()}</span>
         {:else if !isFull}
-          <span class="cap-legend-spots">{m["registration_spotsLeft"]({ count: reg.maxParticipants - participantCount })}</span>
+          <span class="cap-legend-spots">{
+            isDoubles
+              ? ((m as any).registration_pairsSpotsLeft?.({ count: reg.maxParticipants - participantCount }) ?? `${reg.maxParticipants - participantCount} parejas disponibles`)
+              : m["registration_spotsLeft"]({ count: reg.maxParticipants - participantCount })
+          }</span>
         {:else}
           <span class="cap-legend-full">{m.registration_full()}</span>
         {/if}
@@ -557,7 +578,7 @@
 {#if reg.showParticipantList && participantCount > 0}
   <div class="enrolled-section">
     <div class="enrolled-header">
-      <span class="enrolled-title">{m.registration_participants()}</span>
+      <span class="enrolled-title">{isDoubles ? ((m as any).registration_pairs?.() ?? 'Parejas') : m.registration_participants()}</span>
       <span class="enrolled-count">{participantCount}{reg.maxParticipants ? `/${reg.maxParticipants}` : ''}</span>
     </div>
     <ul class="enrolled-grid">

@@ -65,8 +65,10 @@ import {
 	disposeAuthListener,
 	currentUser,
 	emailVerificationPending,
-	needsProfileSetup
+	needsProfileSetup,
+	isCurrentEmailVerified
 } from './auth';
+import { auth as mockedAuth } from './config';
 import {
 	createUserWithEmailAndPassword,
 	signInWithEmailAndPassword,
@@ -117,6 +119,35 @@ describe('isGmailDomain', () => {
 	it('returns false for malformed input without @', () => {
 		expect(isGmailDomain('gmail.com')).toBe(false);
 		expect(isGmailDomain('invalid')).toBe(false);
+	});
+});
+
+// ─── isCurrentEmailVerified ──────────────────────────────────────────────────
+
+describe('isCurrentEmailVerified (defense-in-depth re-check)', () => {
+	beforeEach(() => {
+		// Reset the live auth.currentUser pointer between tests
+		(mockedAuth as any).currentUser = null;
+	});
+
+	it('returns true when no live FB user is present (caller will reject with auth error)', () => {
+		(mockedAuth as any).currentUser = null;
+		expect(isCurrentEmailVerified()).toBe(true);
+	});
+
+	it('returns true when live FB user is verified', () => {
+		(mockedAuth as any).currentUser = { uid: 'u1', emailVerified: true };
+		expect(isCurrentEmailVerified()).toBe(true);
+	});
+
+	it('returns false when live FB user is NOT verified', () => {
+		(mockedAuth as any).currentUser = { uid: 'u1', emailVerified: false };
+		expect(isCurrentEmailVerified()).toBe(false);
+	});
+
+	it('returns false when emailVerified is missing (falsy)', () => {
+		(mockedAuth as any).currentUser = { uid: 'u1' };
+		expect(isCurrentEmailVerified()).toBe(false);
 	});
 });
 

@@ -199,6 +199,24 @@ export async function signInWithEmail(email: string, password: string): Promise<
 }
 
 /**
+ * Read the live Firebase Auth user's `emailVerified` flag. Used as a
+ * defense-in-depth re-check at action time (e.g., tournament registration)
+ * even when `currentUser` is already set, in case the verified status was
+ * revoked or the session was opened in an unusual flow.
+ *
+ * Returns `true` when:
+ *   - Firebase is disabled (mock/dev mode — no real verification model).
+ *   - There is no live FB user (caller will reject with auth error first).
+ *   - The live FB user's `emailVerified` is `true`.
+ */
+export function isCurrentEmailVerified(): boolean {
+  if (!isFirebaseEnabled() || !auth) return true;
+  const fbUser = auth.currentUser;
+  if (!fbUser) return true;
+  return fbUser.emailVerified === true;
+}
+
+/**
  * Send password reset email
  */
 export async function resetPassword(email: string): Promise<void> {

@@ -1684,5 +1684,7 @@
   "bracket_revertBlockedDownstream": "No es pot revertir: el partit següent ja està jugat. Primer reverteix el següent.",
   "bracket_revertError": "Error en revertir el resultat.",
   "tournament_edit20s_button": "Desa 20s",
-  "tournament_exiting": "Sortint..."
+  "tournament_exiting": "Sortint...",
+  "registration_pairsSpotsLeft": "{count} parelles disponibles",
+  "registration_pairs": "Parelles"
 }

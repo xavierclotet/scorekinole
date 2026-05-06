@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   validateRegistration,
   determineRegistrationOutcome,
@@ -13,6 +15,11 @@ import {
   shouldAutoPromote,
   normalizeEmail,
   validateRegistrationDeadline,
+  detachUserFromPartnerSlots,
+  sanitizePromotedPartner,
+  isWaitlistAllowed,
+  normalizeGuestPartnerName,
+  collectGuestPartnerNames,
 } from './tournamentRegistration';
 import type { TournamentParticipant, WaitlistEntry } from '$lib/types/tournament';
 
@@ -1534,6 +1541,13 @@ describe('validateRegistration: partner userId validation (doubles)', () => {
     expect(result.reason).toBe('partner_on_waitlist');
   });
 
+  it('rejects partner who already occupies a partner slot in another team (participants or waitlist)', () => {
+    // u2 is already partner of someone in participants or waitlist
+    const result = validateRegistration('DRAFT', baseReg, ['u3'], ['u4'], 'u1', now, ['u2'], 'u2');
+    expect(result.canRegister).toBe(false);
+    expect(result.reason).toBe('partner_already_registered');
+  });
+
   it('allows a valid partner who is not in any list', () => {
     const result = validateRegistration('DRAFT', baseReg, ['u3'], ['u4'], 'u1', now, [], 'u2');
     expect(result.canRegister).toBe(true);
@@ -1660,6 +1674,318 @@ describe('buildRegistrationConfig: maxParticipants sanitization', () => {
   it('preserves valid positive maxParticipants', () => {
     const config = buildRegistrationConfig(true, '', '', 8, '', true, false, true);
     expect(config?.maxParticipants).toBe(8);
+  });
+});
+
+// #BUG email-verification: registration error mapping + es.json key
+describe('email verification gate at registration', () => {
+  it('maps "Email not verified" thrown error to registration_emailNotVerified', () => {
+    expect(getRegistrationErrorMessageKey('Email not verified')).toBe('registration_emailNotVerified');
+  });
+
+  it('es.json defines registration_emailNotVerified', () => {
+    const esPath = resolve(__dirname, '../../../messages/es.json');
+    const es = JSON.parse(readFileSync(esPath, 'utf-8')) as Record<string, string>;
+    expect(es.registration_emailNotVerified).toBeDefined();
+    expect(es.registration_emailNotVerified.length).toBeGreaterThan(0);
+  });
+});
+
+// #BUG guest-collision: normalizeGuestPartnerName + collectGuestPartnerNames + validator branch
+describe('normalizeGuestPartnerName', () => {
+  it('lowercases and trims', () => {
+    expect(normalizeGuestPartnerName('  Juan García  ')).toBe('juan garcía');
+  });
+  it('collapses internal whitespace', () => {
+    expect(normalizeGuestPartnerName('Juan    García')).toBe('juan garcía');
+  });
+  it('handles already-normalized', () => {
+    expect(normalizeGuestPartnerName('juan garcía')).toBe('juan garcía');
+  });
+});
+
+describe('collectGuestPartnerNames', () => {
+  const part = (id: string, partner?: TournamentParticipant['partner']): TournamentParticipant => ({
+    id, type: 'REGISTERED', userId: id, name: id, rankingSnapshot: 0, status: 'ACTIVE',
+    ...(partner ? { partner } : {}),
+  });
+  const wait = (id: string, partner?: WaitlistEntry['partner']): WaitlistEntry => ({
+    userId: id, userName: id, userKey: id, registeredAt: 1,
+    ...(partner ? { partner } : {}),
+  });
+
+  it('returns empty when no GUEST partners exist', () => {
+    expect(collectGuestPartnerNames([part('p1')], [wait('w1')])).toEqual([]);
+  });
+  it('collects guest names from participants', () => {
+    const guest = { type: 'GUEST' as const, name: '  Juan García ' };
+    expect(collectGuestPartnerNames([part('p1', guest)], [])).toEqual(['juan garcía']);
+  });
+  it('collects guest names from waitlist', () => {
+    const guest = { type: 'GUEST' as const, name: 'María López' };
+    expect(collectGuestPartnerNames([], [wait('w1', guest)])).toEqual(['maría lópez']);
+  });
+  it('skips REGISTERED partners (they have userId, not name-based identity)', () => {
+    const reg = { type: 'REGISTERED' as const, userId: 'u2', name: 'User Two' };
+    expect(collectGuestPartnerNames([part('p1', reg)], [])).toEqual([]);
+  });
+});
+
+describe('validateRegistration: guest partner name collision', () => {
+  const baseReg = { enabled: true, notifyOnRegistration: false, showParticipantList: true };
+  const now = Date.now();
+
+  it('rejects when proposed GUEST name collides with an existing GUEST partner name', () => {
+    const result = validateRegistration(
+      'DRAFT', baseReg, [], [], 'u1', now, [], undefined, undefined,
+      ['juan garcía'], 'Juan García'
+    );
+    expect(result.canRegister).toBe(false);
+    expect(result.reason).toBe('guest_partner_name_taken');
+  });
+
+  it('case-insensitive and whitespace-tolerant collision', () => {
+    const result = validateRegistration(
+      'DRAFT', baseReg, [], [], 'u1', now, [], undefined, undefined,
+      ['juan garcía'], '  JUAN   GARCÍA  '
+    );
+    expect(result.canRegister).toBe(false);
+    expect(result.reason).toBe('guest_partner_name_taken');
+  });
+
+  it('allows when proposed GUEST name is unique', () => {
+    const result = validateRegistration(
+      'DRAFT', baseReg, [], [], 'u1', now, [], undefined, undefined,
+      ['juan garcía'], 'Pedro Sánchez'
+    );
+    expect(result.canRegister).toBe(true);
+  });
+
+  it('does not check guest name when no name is proposed (empty / undefined)', () => {
+    const a = validateRegistration('DRAFT', baseReg, [], [], 'u1', now, [], undefined, undefined, ['juan garcía'], undefined);
+    const b = validateRegistration('DRAFT', baseReg, [], [], 'u1', now, [], undefined, undefined, ['juan garcía'], '');
+    expect(a.canRegister).toBe(true);
+    expect(b.canRegister).toBe(true);
+  });
+
+  it('error code maps to localizable Paraglide key', () => {
+    expect(getRegistrationErrorMessageKey('guest_partner_name_taken')).toBe('registration_guestPartnerNameTaken');
+  });
+});
+
+// #BUG 5: doubles capacity label disambiguation — new i18n keys must exist
+describe('BUG 5: doubles-aware capacity labels (i18n keys)', () => {
+  const esPath = resolve(__dirname, '../../../messages/es.json');
+  const es = JSON.parse(readFileSync(esPath, 'utf-8')) as Record<string, string>;
+
+  it('es.json defines registration_pairs', () => {
+    expect(es.registration_pairs).toBeDefined();
+    expect(es.registration_pairs.length).toBeGreaterThan(0);
+  });
+
+  it('es.json defines registration_pairsSpotsLeft with {count} placeholder', () => {
+    expect(es.registration_pairsSpotsLeft).toBeDefined();
+    expect(es.registration_pairsSpotsLeft).toContain('{count}');
+  });
+
+  it('es.json keeps the singles equivalents (registration_participants, registration_spotsLeft)', () => {
+    expect(es.registration_participants).toBeDefined();
+    expect(es.registration_spotsLeft).toBeDefined();
+    expect(es.registration_spotsLeft).toContain('{count}');
+  });
+});
+
+// #BUG 6: explicit default for allowWaitlist
+describe('isWaitlistAllowed: explicit default resolution', () => {
+  it('treats undefined as true (waitlist allowed by default)', () => {
+    expect(isWaitlistAllowed(undefined)).toBe(true);
+  });
+
+  it('treats explicit true as true', () => {
+    expect(isWaitlistAllowed(true)).toBe(true);
+  });
+
+  it('treats explicit false as false (hard cap)', () => {
+    expect(isWaitlistAllowed(false)).toBe(false);
+  });
+});
+
+// #BUG 2 integration: adminPromoteFromWaitlist applies sanitizePromotedPartner
+describe('adminPromoteFromWaitlist: stale partner sanitization (integration)', () => {
+  const baseEntry = (userId: string, partner?: WaitlistEntry['partner']): WaitlistEntry => ({
+    userId, userName: `P ${userId}`, userKey: `k-${userId}`, registeredAt: 1,
+    ...(partner ? { partner } : {}),
+  });
+  const baseP = (userId: string, partnerId?: string): TournamentParticipant => ({
+    id: `p-${userId}`, type: 'REGISTERED', userId, userKey: `k-${userId}`,
+    name: `P ${userId}`, rankingSnapshot: 0, status: 'ACTIVE',
+    ...(partnerId ? { partner: { type: 'REGISTERED' as const, userId: partnerId, name: `Partner ${partnerId}` } } : {}),
+  });
+
+  it('drops a REGISTERED partner that is now a primary participant', () => {
+    const entry = baseEntry('u1', { type: 'REGISTERED', userId: 'u2', name: 'P u2' });
+    const result = adminPromoteFromWaitlist([baseP('u2')], [entry], 'u1', 'pid', 'DRAFT');
+    expect(result!.participants.find(p => p.userId === 'u1')!.partner).toBeUndefined();
+    // u2 (the conflicting primary) stays untouched
+    expect(result!.participants.find(p => p.userId === 'u2')).toBeDefined();
+  });
+
+  it('drops a REGISTERED partner that already occupies another partner slot', () => {
+    const entry = baseEntry('u1', { type: 'REGISTERED', userId: 'u2', name: 'P u2' });
+    const result = adminPromoteFromWaitlist([baseP('u3', 'u2')], [entry], 'u1', 'pid', 'DRAFT');
+    expect(result!.participants.find(p => p.userId === 'u1')!.partner).toBeUndefined();
+  });
+
+  it('keeps a valid REGISTERED partner that is not in any conflict', () => {
+    const entry = baseEntry('u1', { type: 'REGISTERED', userId: 'u2', name: 'P u2' });
+    const result = adminPromoteFromWaitlist([baseP('u3')], [entry], 'u1', 'pid', 'DRAFT');
+    expect(result!.participants.find(p => p.userId === 'u1')!.partner).toEqual({
+      type: 'REGISTERED', userId: 'u2', name: 'P u2',
+    });
+  });
+
+  it('keeps a GUEST partner unchanged (no userId to validate)', () => {
+    const guest = { type: 'GUEST' as const, name: 'Juan' };
+    const entry = baseEntry('u1', guest);
+    const result = adminPromoteFromWaitlist([baseP('u2', 'u3')], [entry], 'u1', 'pid', 'DRAFT');
+    expect(result!.participants.find(p => p.userId === 'u1')!.partner).toEqual(guest);
+  });
+});
+
+// #profile-propagation: email + photoURL survive the waitlist round-trip
+describe('adminPromoteFromWaitlist: profile fields propagation', () => {
+  it('propagates email and photoURL from waitlist entry to promoted participant', () => {
+    const entry: WaitlistEntry = {
+      userId: 'u1', userName: 'Player', userKey: 'k1', registeredAt: 1,
+      email: 'player@example.com', photoURL: 'https://cdn/img.png',
+    };
+    const result = adminPromoteFromWaitlist([], [entry], 'u1', 'pid', 'DRAFT');
+    expect(result!.participants[0].email).toBe('player@example.com');
+    expect(result!.participants[0].photoURL).toBe('https://cdn/img.png');
+  });
+
+  it('omits email/photoURL when waitlist entry has neither (no undefined fields)', () => {
+    const entry: WaitlistEntry = {
+      userId: 'u1', userName: 'Player', userKey: 'k1', registeredAt: 1,
+    };
+    const result = adminPromoteFromWaitlist([], [entry], 'u1', 'pid', 'DRAFT');
+    const promoted = result!.participants[0];
+    expect('email' in promoted).toBe(false);
+    expect('photoURL' in promoted).toBe(false);
+  });
+});
+
+// #partner-promote: sanitizePromotedPartner — drop stale REGISTERED partner refs at promotion
+describe('sanitizePromotedPartner', () => {
+  const makeP = (userId: string, partnerId?: string): TournamentParticipant => ({
+    id: `p-${userId}`, type: 'REGISTERED', userId, userKey: `k-${userId}`,
+    name: `P ${userId}`, rankingSnapshot: 0, status: 'ACTIVE',
+    ...(partnerId ? { partner: { type: 'REGISTERED' as const, userId: partnerId, name: `Partner ${partnerId}` } } : {}),
+  });
+  const makeW = (userId: string, partnerId?: string): WaitlistEntry => ({
+    userId, userName: `P ${userId}`, userKey: `k-${userId}`, registeredAt: 1,
+    ...(partnerId ? { partner: { type: 'REGISTERED' as const, userId: partnerId, name: `Partner ${partnerId}` } } : {}),
+  });
+
+  it('returns undefined when partner is undefined', () => {
+    expect(sanitizePromotedPartner(undefined, [], [], 'u1')).toBeUndefined();
+  });
+
+  it('passes a GUEST partner through unchanged (no userId to validate)', () => {
+    const partner = { type: 'GUEST' as const, name: 'Juan' };
+    expect(sanitizePromotedPartner(partner, [], [], 'u1')).toEqual(partner);
+  });
+
+  it('passes a REGISTERED partner that is still eligible', () => {
+    const partner = { type: 'REGISTERED' as const, userId: 'u2', name: 'Partner u2' };
+    expect(sanitizePromotedPartner(partner, [makeP('u3')], [], 'u1')).toEqual(partner);
+  });
+
+  it('drops a REGISTERED partner who is now a primary participant', () => {
+    const partner = { type: 'REGISTERED' as const, userId: 'u2', name: 'Partner u2' };
+    expect(sanitizePromotedPartner(partner, [makeP('u2')], [], 'u1')).toBeUndefined();
+  });
+
+  it('drops a REGISTERED partner who already occupies another partner slot in participants', () => {
+    const partner = { type: 'REGISTERED' as const, userId: 'u2', name: 'Partner u2' };
+    expect(sanitizePromotedPartner(partner, [makeP('u3', 'u2')], [], 'u1')).toBeUndefined();
+  });
+
+  it('drops a REGISTERED partner who already occupies another partner slot in waitlist', () => {
+    const partner = { type: 'REGISTERED' as const, userId: 'u2', name: 'Partner u2' };
+    expect(sanitizePromotedPartner(partner, [], [makeW('u3', 'u2')], 'u1')).toBeUndefined();
+  });
+
+  it('drops a REGISTERED partner who is now on the waitlist as primary', () => {
+    const partner = { type: 'REGISTERED' as const, userId: 'u2', name: 'Partner u2' };
+    expect(sanitizePromotedPartner(partner, [], [makeW('u2')], 'u1')).toBeUndefined();
+  });
+
+  it('drops a REGISTERED partner that points to the promoted user themselves (defensive)', () => {
+    const partner = { type: 'REGISTERED' as const, userId: 'u1', name: 'Self' };
+    expect(sanitizePromotedPartner(partner, [], [], 'u1')).toBeUndefined();
+  });
+});
+
+// #partner-detach: detachUserFromPartnerSlots
+describe('detachUserFromPartnerSlots', () => {
+  const makeP = (overrides: Partial<TournamentParticipant>): TournamentParticipant => ({
+    id: 'p',
+    type: 'REGISTERED',
+    name: 'P',
+    rankingSnapshot: 0,
+    status: 'ACTIVE',
+    ...overrides,
+  });
+
+  it('returns detached=false when user is not in any partner slot', () => {
+    const participants = [makeP({ id: 'p1', userId: 'u1' })];
+    const waitlist: WaitlistEntry[] = [];
+    const result = detachUserFromPartnerSlots(participants, waitlist, 'u-other');
+    expect(result.detached).toBe(false);
+    expect(result.participants).toEqual(participants);
+  });
+
+  it('clears partner field on the matching participant when user is REGISTERED partner', () => {
+    const participants = [
+      makeP({ id: 'p1', userId: 'u1', partner: { type: 'REGISTERED', userId: 'u2', name: 'A' } }),
+      makeP({ id: 'p2', userId: 'u3' }),
+    ];
+    const result = detachUserFromPartnerSlots(participants, [], 'u2');
+    expect(result.detached).toBe(true);
+    expect(result.participants[0].partner).toBeUndefined();
+    expect(result.participants[0].userId).toBe('u1'); // primary still in
+    expect(result.participants[1]).toEqual(participants[1]); // unrelated row untouched
+  });
+
+  it('clears partner field on a waitlist entry when user is its REGISTERED partner', () => {
+    const waitlist: WaitlistEntry[] = [{
+      userId: 'u1', userName: 'P', userKey: 'k1', registeredAt: 1,
+      partner: { type: 'REGISTERED', userId: 'u2', name: 'A' },
+    }];
+    const result = detachUserFromPartnerSlots([], waitlist, 'u2');
+    expect(result.detached).toBe(true);
+    expect(result.waitlist[0].partner).toBeUndefined();
+    expect(result.waitlist[0].userId).toBe('u1');
+  });
+
+  it('detaches from BOTH participants and waitlist if user is somehow in multiple slots (defensive cleanup)', () => {
+    const participants = [makeP({ id: 'p1', userId: 'u1', partner: { type: 'REGISTERED', userId: 'u2', name: 'A' } })];
+    const waitlist: WaitlistEntry[] = [{
+      userId: 'u3', userName: 'P3', userKey: 'k3', registeredAt: 1,
+      partner: { type: 'REGISTERED', userId: 'u2', name: 'A' },
+    }];
+    const result = detachUserFromPartnerSlots(participants, waitlist, 'u2');
+    expect(result.detached).toBe(true);
+    expect(result.participants[0].partner).toBeUndefined();
+    expect(result.waitlist[0].partner).toBeUndefined();
+  });
+
+  it('does not detach a GUEST partner (no userId match possible)', () => {
+    const participants = [makeP({ id: 'p1', userId: 'u1', partner: { type: 'GUEST', name: 'Juan' } })];
+    const result = detachUserFromPartnerSlots(participants, [], 'u2');
+    expect(result.detached).toBe(false);
+    expect(result.participants[0].partner).toEqual({ type: 'GUEST', name: 'Juan' });
   });
 });
 
