@@ -8,6 +8,7 @@ import type { UserProfile } from './userProfile';
 import type { TournamentRecord, TournamentTier } from '$lib/types/tournament';
 import { normalizeTier } from '$lib/types/tournament';
 import { calculateRankingPoints } from '$lib/algorithms/ranking';
+import { normalizeCountryForFilter } from '$lib/utils/countryNames';
 import {
   collection,
   getDocs,
@@ -164,19 +165,31 @@ export async function getCompletedTournaments(): Promise<Map<string, TournamentI
 }
 
 /**
- * Extract unique countries from completed tournaments
+ * Extract unique countries from registered players who have tournament activity.
+ * When `year` is provided, only include users with at least one tournament in that year
+ * (matched against the tournamentsMap, which already excludes test tournaments).
  */
-export function getAvailableCountries(tournamentsMap: Map<string, TournamentInfo>, year?: number): string[] {
+export function getAvailableCountries(
+  users: UserWithId[],
+  tournamentsMap: Map<string, TournamentInfo>,
+  year?: number
+): string[] {
   const countries = new Set<string>();
-  tournamentsMap.forEach(tournament => {
-    if (tournament.country) {
-      if (year && tournament.completedAt) {
-        const tournamentYear = new Date(tournament.completedAt).getFullYear();
-        if (tournamentYear !== year) return;
-      }
-      countries.add(tournament.country);
+  for (const user of users) {
+    const country = normalizeCountryForFilter(user.country);
+    if (!country) continue;
+    if (!user.tournaments?.length) continue;
+
+    if (year) {
+      const hasInYear = user.tournaments.some(record => {
+        if (!tournamentsMap.has(record.tournamentId)) return false;
+        return new Date(record.tournamentDate).getFullYear() === year;
+      });
+      if (!hasInYear) continue;
     }
-  });
+
+    countries.add(country);
+  }
   return Array.from(countries).sort();
 }
 
@@ -313,7 +326,14 @@ export function calculateRankings(
   for (const user of users) {
     if (!user.tournaments?.length) continue;
 
-    // 1. Filter user's tournaments by year and country, score with current system
+    // Country filter applies to the player's nationality, not the tournament's host country.
+    // Subnational codes (e.g. CAT → ES) are normalized so Catalan players count as Spanish.
+    // Excludes guest/unregistered players (no `user.country`) when a country is selected.
+    if (filters.filterType === 'country' && filters.countryValue) {
+      if (normalizeCountryForFilter(user.country) !== filters.countryValue) continue;
+    }
+
+    // 1. Filter user's tournaments by year, score with current system
     // Use lightweight intermediate objects to avoid spreading TournamentRecord for every entry
     const scored: { record: TournamentRecord; points: number; info: TournamentInfo }[] = [];
     let bestPosition = Infinity;
@@ -327,11 +347,6 @@ export function calculateRankings(
       // Year filter
       const year = new Date(record.tournamentDate).getFullYear();
       if (year !== filters.year) continue;
-
-      // Country filter
-      if (filters.filterType === 'country' && filters.countryValue) {
-        if (info.country !== filters.countryValue) continue;
-      }
 
       // Recalculate points using current Series system (normalizes legacy tiers)
       const points = calculateRankingPoints(

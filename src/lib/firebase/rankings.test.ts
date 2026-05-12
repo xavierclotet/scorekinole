@@ -254,23 +254,78 @@ describe('calculateRankings', () => {
 		expect(ranked).toHaveLength(0);
 	});
 
-	it('applies country filter', () => {
+	it('applies country filter on player nationality (not tournament host country)', () => {
 		const users = [
 			makeUser({
-				odId: 'u1', playerName: 'Alice',
+				odId: 'u1', playerName: 'Spanish Player', country: 'ES',
 				tournaments: [
+					// Plays in both Spanish (t1) and French (t2) tournaments
 					makeRecord({ tournamentId: 't1', finalPosition: 1, tournamentDate: new Date('2025-06-15').getTime() }),
 					makeRecord({ tournamentId: 't2', finalPosition: 1, tournamentDate: new Date('2025-03-10').getTime() })
+				]
+			}),
+			makeUser({
+				odId: 'u2', playerName: 'French Player', country: 'FR',
+				tournaments: [
+					// Plays in a Spanish tournament — must NOT appear when filtering by ES
+					makeRecord({ tournamentId: 't1', finalPosition: 2, tournamentDate: new Date('2025-06-15').getTime() })
+				]
+			}),
+			makeUser({
+				odId: 'u3', playerName: 'Guest Player',
+				// no country (unregistered/guest) — must be excluded from any country filter
+				tournaments: [
+					makeRecord({ tournamentId: 't1', finalPosition: 3, tournamentDate: new Date('2025-06-15').getTime() })
 				]
 			})
 		];
 		const countryFilters: RankingFilters = {
-			year: 2025, filterType: 'country', countryValue: 'FR', bestOfN: 5
+			year: 2025, filterType: 'country', countryValue: 'ES', bestOfN: 5
 		};
 		const ranked = calculateRankings(users, tournamentsMap, countryFilters);
+		// Only the Spanish player appears
 		expect(ranked).toHaveLength(1);
-		// Only t2 (FR) should be counted
-		expect(ranked[0].tournamentsCount).toBe(1);
+		expect(ranked[0].playerName).toBe('Spanish Player');
+		// All their tournaments count, regardless of host country
+		expect(ranked[0].tournamentsCount).toBe(2);
+	});
+
+	it('CAT (Catalonia) players appear when filtering by ES (Spain)', () => {
+		const users = [
+			makeUser({
+				odId: 'u1', playerName: 'Catalan Player', country: 'CAT',
+				tournaments: [
+					makeRecord({ tournamentId: 't1', finalPosition: 1, tournamentDate: new Date('2025-06-15').getTime() })
+				]
+			}),
+			makeUser({
+				odId: 'u2', playerName: 'Spanish Player', country: 'ES',
+				tournaments: [
+					makeRecord({ tournamentId: 't1', finalPosition: 2, tournamentDate: new Date('2025-06-15').getTime() })
+				]
+			})
+		];
+		const ranked = calculateRankings(users, tournamentsMap, {
+			year: 2025, filterType: 'country', countryValue: 'ES', bestOfN: 5
+		});
+		expect(ranked.map(p => p.playerName).sort()).toEqual(['Catalan Player', 'Spanish Player']);
+		// The Catalan player keeps their CAT identity (flag stays CAT in the table)
+		expect(ranked.find(p => p.playerName === 'Catalan Player')?.country).toBe('CAT');
+	});
+
+	it('CAT players do NOT appear when filtering by an unrelated country (e.g. FR)', () => {
+		const users = [
+			makeUser({
+				odId: 'u1', playerName: 'Catalan Player', country: 'CAT',
+				tournaments: [
+					makeRecord({ tournamentId: 't1', finalPosition: 1, tournamentDate: new Date('2025-06-15').getTime() })
+				]
+			})
+		];
+		const ranked = calculateRankings(users, tournamentsMap, {
+			year: 2025, filterType: 'country', countryValue: 'FR', bestOfN: 5
+		});
+		expect(ranked).toHaveLength(0);
 	});
 
 	it('bestOfN = 0 means all tournaments count', () => {
@@ -472,26 +527,48 @@ describe('calculateRankings', () => {
 // getAvailableCountries
 // ─────────────────────────────────────────────────
 describe('getAvailableCountries', () => {
-	it('returns unique countries sorted alphabetically', () => {
-		const tMap = new Map<string, TournamentInfo>([
-			['t1', makeTournamentInfo({ id: 't1', country: 'FR' })],
-			['t2', makeTournamentInfo({ id: 't2', country: 'ES' })],
-			['t3', makeTournamentInfo({ id: 't3', country: 'FR' })],
-			['t4', makeTournamentInfo({ id: 't4', country: 'DE' })]
-		]);
-		expect(getAvailableCountries(tMap)).toEqual(['DE', 'ES', 'FR']);
+	const tMap = new Map<string, TournamentInfo>([
+		['t1', makeTournamentInfo({ id: 't1', completedAt: new Date('2025-06-15').getTime() })]
+	]);
+
+	it('returns unique countries from registered players sorted alphabetically', () => {
+		const users = [
+			makeUser({ odId: 'u1', country: 'FR', tournaments: [makeRecord({ tournamentId: 't1' })] }),
+			makeUser({ odId: 'u2', country: 'ES', tournaments: [makeRecord({ tournamentId: 't1' })] }),
+			makeUser({ odId: 'u3', country: 'FR', tournaments: [makeRecord({ tournamentId: 't1' })] }),
+			makeUser({ odId: 'u4', country: 'DE', tournaments: [makeRecord({ tournamentId: 't1' })] })
+		];
+		expect(getAvailableCountries(users, tMap)).toEqual(['DE', 'ES', 'FR']);
 	});
 
-	it('skips empty country strings', () => {
-		const tMap = new Map<string, TournamentInfo>([
-			['t1', makeTournamentInfo({ id: 't1', country: '' })],
-			['t2', makeTournamentInfo({ id: 't2', country: 'ES' })]
-		]);
-		expect(getAvailableCountries(tMap)).toEqual(['ES']);
+	it('skips users without country (guests/unregistered)', () => {
+		const users = [
+			makeUser({ odId: 'u1', country: '', tournaments: [makeRecord({ tournamentId: 't1' })] }),
+			makeUser({ odId: 'u2', tournaments: [makeRecord({ tournamentId: 't1' })] }), // no country
+			makeUser({ odId: 'u3', country: 'ES', tournaments: [makeRecord({ tournamentId: 't1' })] })
+		];
+		expect(getAvailableCountries(users, tMap)).toEqual(['ES']);
 	});
 
-	it('returns empty array for empty map', () => {
-		expect(getAvailableCountries(new Map())).toEqual([]);
+	it('skips users without tournaments', () => {
+		const users = [
+			makeUser({ odId: 'u1', country: 'FR', tournaments: [] }),
+			makeUser({ odId: 'u2', country: 'ES', tournaments: [makeRecord({ tournamentId: 't1' })] })
+		];
+		expect(getAvailableCountries(users, tMap)).toEqual(['ES']);
+	});
+
+	it('returns empty array for empty users', () => {
+		expect(getAvailableCountries([], new Map())).toEqual([]);
+	});
+
+	it('folds CAT (Catalonia) into ES (Spain) — CAT does not appear as a separate country', () => {
+		const users = [
+			makeUser({ odId: 'u1', country: 'CAT', tournaments: [makeRecord({ tournamentId: 't1' })] }),
+			makeUser({ odId: 'u2', country: 'FR', tournaments: [makeRecord({ tournamentId: 't1' })] })
+		];
+		// Returns ES (from CAT) and FR — never CAT as a standalone entry
+		expect(getAvailableCountries(users, tMap)).toEqual(['ES', 'FR']);
 	});
 });
 
@@ -527,32 +604,39 @@ describe('getAvailableYears', () => {
 // ─────────────────────────────────────────────────
 describe('getAvailableCountries with year filter', () => {
 	const tMap = new Map<string, TournamentInfo>([
-		['t1', makeTournamentInfo({ id: 't1', country: 'ES', completedAt: new Date('2025-06-15').getTime() })],
-		['t2', makeTournamentInfo({ id: 't2', country: 'FR', completedAt: new Date('2024-03-10').getTime() })],
-		['t3', makeTournamentInfo({ id: 't3', country: 'DE', completedAt: new Date('2025-09-01').getTime() })],
-		['t4', makeTournamentInfo({ id: 't4', country: 'FR', completedAt: new Date('2025-01-01').getTime() })]
+		['t2025a', makeTournamentInfo({ id: 't2025a', completedAt: new Date('2025-06-15').getTime() })],
+		['t2025b', makeTournamentInfo({ id: 't2025b', completedAt: new Date('2025-09-01').getTime() })],
+		['t2024', makeTournamentInfo({ id: 't2024', completedAt: new Date('2024-03-10').getTime() })]
 	]);
 
-	it('returns all countries when no year is specified', () => {
-		expect(getAvailableCountries(tMap)).toEqual(['DE', 'ES', 'FR']);
+	const users = [
+		makeUser({ odId: 'u1', country: 'ES', tournaments: [
+			makeRecord({ tournamentId: 't2025a', tournamentDate: new Date('2025-06-15').getTime() })
+		]}),
+		makeUser({ odId: 'u2', country: 'DE', tournaments: [
+			makeRecord({ tournamentId: 't2025b', tournamentDate: new Date('2025-09-01').getTime() })
+		]}),
+		makeUser({ odId: 'u3', country: 'FR', tournaments: [
+			makeRecord({ tournamentId: 't2024', tournamentDate: new Date('2024-03-10').getTime() })
+		]}),
+		makeUser({ odId: 'u4', country: 'FR', tournaments: [
+			makeRecord({ tournamentId: 't2025a', tournamentDate: new Date('2025-06-15').getTime() })
+		]})
+	];
+
+	it('returns all player countries when no year is specified', () => {
+		expect(getAvailableCountries(users, tMap)).toEqual(['DE', 'ES', 'FR']);
 	});
 
-	it('filters countries by year', () => {
-		expect(getAvailableCountries(tMap, 2025)).toEqual(['DE', 'ES', 'FR']);
-		expect(getAvailableCountries(tMap, 2024)).toEqual(['FR']);
+	it('filters countries to only players with activity in that year', () => {
+		// 2025: u1 (ES), u2 (DE), u4 (FR)
+		expect(getAvailableCountries(users, tMap, 2025)).toEqual(['DE', 'ES', 'FR']);
+		// 2024: only u3 (FR)
+		expect(getAvailableCountries(users, tMap, 2024)).toEqual(['FR']);
 	});
 
-	it('returns empty when no tournaments match the year', () => {
-		expect(getAvailableCountries(tMap, 2020)).toEqual([]);
-	});
-
-	it('handles completedAt = 0 gracefully with year filter', () => {
-		const withZero = new Map<string, TournamentInfo>([
-			['t1', makeTournamentInfo({ id: 't1', country: 'ES', completedAt: 0 })],
-			['t2', makeTournamentInfo({ id: 't2', country: 'FR', completedAt: new Date('2025-06-15').getTime() })]
-		]);
-		// completedAt=0 is falsy, so the year check is skipped and ES is included
-		expect(getAvailableCountries(withZero, 2025)).toEqual(['ES', 'FR']);
+	it('returns empty when no users have tournaments in that year', () => {
+		expect(getAvailableCountries(users, tMap, 2020)).toEqual([]);
 	});
 });
 
@@ -621,7 +705,7 @@ describe('calculateRankings — large dataset', () => {
 		expect(lastPlayer.totalPoints).toBe(0);
 	});
 
-	it('handles country filter with large dataset', () => {
+	it('handles country filter with large dataset (filters by player nationality)', () => {
 		const tMap = new Map<string, TournamentInfo>();
 		for (let t = 0; t < 10; t++) {
 			tMap.set(`t${t}`, makeTournamentInfo({
@@ -642,9 +726,16 @@ describe('calculateRankings — large dataset', () => {
 					tournamentDate: new Date(`2025-${String(((u + t) % 10) + 1).padStart(2, '0')}-15`).getTime()
 				}));
 			}
+			// Half the users are ES, the rest split between FR and unregistered (no country)
+			let country: string | undefined;
+			if (u % 2 === 0) country = 'ES';
+			else if (u % 4 === 1) country = 'FR';
+			// remaining: no country (guest)
+
 			users.push(makeUser({
 				odId: `user${u}`,
 				playerName: `Player ${u}`,
+				country,
 				tournaments
 			}));
 		}
@@ -652,15 +743,14 @@ describe('calculateRankings — large dataset', () => {
 		const esFilters: RankingFilters = { year: 2025, filterType: 'country', countryValue: 'ES', bestOfN: 2 };
 		const esRanked = calculateRankings(users, tMap, esFilters);
 
-		// Some users may not have ES tournaments
-		expect(esRanked.length).toBeGreaterThan(0);
-		expect(esRanked.length).toBeLessThanOrEqual(500);
+		// Exactly the ES players (250 of 500) should appear
+		expect(esRanked.length).toBe(250);
 
-		// All returned players should only have ES tournament details
+		// Guests (no country) must never appear under a country filter
+		// Non-ES players must never appear under ES filter
+		// (Since we only have player.country in `RankedPlayer`, assert here.)
 		for (const player of esRanked) {
-			for (const t of player.tournaments) {
-				expect(t.country).toBe('ES');
-			}
+			expect(player.country).toBe('ES');
 		}
 	});
 });

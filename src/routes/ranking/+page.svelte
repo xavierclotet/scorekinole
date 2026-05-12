@@ -18,6 +18,7 @@
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import PullToRefresh from '$lib/components/PullToRefresh.svelte';
 	import { getFlagUrl } from '$lib/utils/countryFlags';
+	import { getCountryName } from '$lib/utils/countryNames';
 	import { theme } from '$lib/stores/theme';
 	import SEO from '$lib/components/SEO.svelte';
 	import { ChevronRight } from '@lucide/svelte';
@@ -35,7 +36,13 @@
 	let filterType = $state<'all' | 'country'>('all');
 	let selectedCountry = $state('');
 	let availableCountries = $derived(
-		tournamentsMap.size > 0 ? getAvailableCountries(tournamentsMap, selectedYear) : []
+		users.length > 0 ? getAvailableCountries(users, tournamentsMap, selectedYear) : []
+	);
+	// Country options sorted by translated name (e.g. "España", "Países Bajos") instead of ISO code
+	let countryOptions = $derived(
+		availableCountries
+			.map(code => ({ code, name: getCountryName(code) }))
+			.sort((a, b) => a.name.localeCompare(b.name))
 	);
 
 	// Modal state
@@ -238,7 +245,7 @@
 				class:active={filterType === 'all'}
 				onclick={() => (filterType = 'all')}
 			>
-				{m.ranking_allTournaments()}
+				{m.ranking_allCountries()}
 			</button>
 			<button
 				class="filter-tab"
@@ -261,8 +268,8 @@
 
 			{#if filterType === 'country'}
 				<select class="filter-select" bind:value={selectedCountry}>
-					{#each availableCountries as country}
-						<option value={country}>{country}</option>
+					{#each countryOptions as option}
+						<option value={option.code}>{option.name}</option>
 					{/each}
 				</select>
 			{/if}
