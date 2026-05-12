@@ -1686,5 +1686,8 @@
   "tournament_edit20s_button": "Desa 20s",
   "tournament_exiting": "Sortint...",
   "registration_pairsSpotsLeft": "{count} parelles disponibles",
-  "registration_pairs": "Parelles"
+  "registration_pairs": "Parelles",
+  "ranking_allCountries": "Tots els Països",
+  "registration_guestPartnerNameTaken": "Ja hi ha una parella convidada amb aquest nom. Afegeix un cognom o inicial per diferenciar-la.",
+  "registration_emailNotVerified": "Verifica el teu correu electrònic abans d'inscriure't en un torneig."
 }

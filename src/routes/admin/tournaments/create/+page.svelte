@@ -8,7 +8,8 @@
   import PairSelector from '$lib/components/tournament/PairSelector.svelte';
   import SinglesPlayerSelector from '$lib/components/tournament/SinglesPlayerSelector.svelte';
   import VenueSelector from '$lib/components/tournament/VenueSelector.svelte';
-  import { Trash2, Pencil, CircleCheck, X, User, UserPlus, Clock } from '@lucide/svelte';
+  import { Trash2, Pencil, CircleCheck, X, User, UserPlus, Clock, Info } from '@lucide/svelte';
+  import * as Popover from '$lib/components/ui/popover';
   import { adminTheme } from '$lib/stores/theme';
   import { adminState } from '$lib/stores/admin';
   import { goto } from '$app/navigation';
@@ -2185,10 +2186,23 @@
                           <span>{(m as any).registration_allowWaitlist?.() ?? 'Soportar lista de espera'}</span>
                         </label>
                       {/if}
-                      <label class="option-check">
-                        <input type="checkbox" bind:checked={regNotify} />
-                        <span>{m.registration_notifyRegistrations()}</span>
-                      </label>
+                      <div class="option-row">
+                        <label class="option-check">
+                          <input type="checkbox" bind:checked={regNotify} />
+                          <span>{m.registration_notifyRegistrations()}</span>
+                        </label>
+                        <Popover.Root>
+                          <Popover.Trigger
+                            class="option-info-btn"
+                            aria-label={m.registration_notifyRegistrationsTooltip()}
+                          >
+                            <Info size={14} />
+                          </Popover.Trigger>
+                          <Popover.Content class="option-info-popover" sideOffset={6} align="start">
+                            {m.registration_notifyRegistrationsTooltip()}
+                          </Popover.Content>
+                        </Popover.Root>
+                      </div>
                       <label class="option-check">
                         <input type="checkbox" bind:checked={regShowList} />
                         <span>{m.registration_showParticipantList()}</span>
@@ -4232,6 +4246,41 @@
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
+  }
+
+  .option-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  :global(.option-info-btn) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: #9ca3af;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+  }
+
+  :global(.option-info-btn:hover),
+  :global(.option-info-btn:focus-visible) {
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+    outline: none;
+  }
+
+  :global(.option-info-popover) {
+    max-width: 280px;
+    padding: 0.6rem 0.75rem;
+    font-size: 0.75rem;
+    line-height: 1.4;
   }
 
   @media (max-width: 700px) {

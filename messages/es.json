@@ -1641,6 +1641,7 @@
   "registration_maxParticipants": "Máximo participantes",
   "registration_allowWaitlist": "Soportar lista de espera",
   "registration_notifyRegistrations": "Notificar inscripciones",
+  "registration_notifyRegistrationsTooltip": "Envía una notificación push a los administradores del torneo cada vez que alguien se inscribe o entra en la lista de espera. Solo se aplica mientras las inscripciones están abiertas (estado borrador).",
   "registration_showParticipantList": "Mostrar lista de inscritos",
   "registration_confirmRegistration": "Confirmar inscripción",
   "registration_selectPartner": "Seleccionar pareja",

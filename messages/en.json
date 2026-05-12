@@ -1686,5 +1686,8 @@
   "tournament_edit20s_button": "Save 20s",
   "tournament_exiting": "Leaving...",
   "registration_pairsSpotsLeft": "{count} available pairs",
-  "registration_pairs": "Couples"
+  "registration_pairs": "Couples",
+  "ranking_allCountries": "All Countries",
+  "registration_guestPartnerNameTaken": "There is already a couple invited with that name. Please add a surname or initial to differentiate them.",
+  "registration_emailNotVerified": "Verify your email before registering for a tournament."
 }
