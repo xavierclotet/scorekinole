@@ -2,6 +2,12 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.40] - 2026-05-18
+- Fix (bracket cross-seeding): when split-divisions sent K groups × Q qualifiers to gold, the old "reverse pos-2" logic produced same-group R1 rematches (e.g. 4×3=12 paired all four R1 matches with group-mates). Extracted `crossSeedQualifiers` to `bracket.ts` with K/2 rotation on odd position bands; same-group R1 collisions eliminated across K∈{2..5,8}, Q∈{1..6}. 93 bracket tests passing
+- Fix (public tournament page): live reload via Firestore `onSnapshot` was stalling when the tab sat in background (Chrome freezes the websocket). Added `visibilitychange` / `online` handlers that refetch the tournament when the tab comes back, so rounds/matches catch up without a manual reload
+- Feat (public tournament view): BYE matches in the gold/parallel brackets are now rendered (were filtered out), so users can trace who skipped a round. Dashed border, striped BYE slot, the winner side keeps full opacity
+- Polish: BYE matches in admin bracket page show a gray "BYE" badge instead of green "FINALIZADO". MatchCard / Live / Completed views drop the heavy 0.5 opacity on BYE matches in favor of a subtle diagonal-stripe pattern
+
 ## [2.5.39] - 2026-05-12
 - Fix (ranking, public page): country filter now matches the player's nationality (`user.country`) instead of the tournament's host country, so foreign visitors and unregistered guests no longer leak into a country's list. `getAvailableCountries` derives from registered players (not tournament locations), optionally limited to a year. CAT (Catalonia) is folded into ES (Spain) for both the dropdown and the filter — Catalan players count as Spanish and keep their CAT flag in the row. Dropdown now shows translated country names (España, Países Bajos…) sorted alphabetically. Filter tab "Todos los Torneos" renamed to "Todos los Países"
 - Feat (tournament form): info-icon Popover next to the "Notificar inscripciones" checkbox explaining who gets notified (push to owner + adminIds on new signup or waitlist entry) and when (only while tournament is in DRAFT)
