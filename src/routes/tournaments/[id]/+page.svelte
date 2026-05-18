@@ -501,6 +501,28 @@
 		translating = false;
 	}
 
+	async function refreshTournament() {
+		if (!resolvedDocId) return;
+		try {
+			const fresh = await getTournament(resolvedDocId);
+			if (fresh) {
+				tournament = JSON.parse(JSON.stringify(fresh));
+			}
+		} catch (err) {
+			console.error('Error refreshing tournament:', err);
+		}
+	}
+
+	function handleVisibilityChange() {
+		if (document.visibilityState === 'visible') {
+			refreshTournament();
+		}
+	}
+
+	function handleOnline() {
+		refreshTournament();
+	}
+
 	onMount(async () => {
 		await loadTournament();
 
@@ -512,6 +534,10 @@
 				}
 			});
 		}
+
+		// Background tabs freeze the Firestore WebSocket — refetch when user returns
+		document.addEventListener('visibilitychange', handleVisibilityChange);
+		window.addEventListener('online', handleOnline);
 	});
 
 	// Check if group stage has match details (wins/losses) or just aggregated data
@@ -531,6 +557,12 @@
 	onDestroy(() => {
 		if (unsubscribe) {
 			unsubscribe();
+		}
+		if (typeof document !== 'undefined') {
+			document.removeEventListener('visibilitychange', handleVisibilityChange);
+		}
+		if (typeof window !== 'undefined') {
+			window.removeEventListener('online', handleOnline);
 		}
 	});
 
@@ -2154,11 +2186,24 @@
 											<h3 class="round-name">{translateRoundName(round.name)} {#if goldRoundLabel}<span class="scoring-badge">{goldRoundLabel}</span>{/if}</h3>
 											<div class="matches-column">
 												{#each round.matches as match}
+													{@const isMatchBye = isByeMatch(match)}
 													{@const isByeA = match.participantA?.toUpperCase().includes('BYE')}
 													{@const isByeB = match.participantB?.toUpperCase().includes('BYE')}
 													{@const winnerIsA = isByeB || match.winner === match.participantA}
 													{@const winnerIsB = isByeA || (!isByeB && match.winner === match.participantB)}
-													{#if !isByeMatch(match)}
+													{#if isMatchBye}
+														<div class="bracket-match bye">
+															<div class="match-participant winner">
+																{@render participantAvatar(isByeA ? match.participantB : match.participantA, "sm")}
+																{#if getSeed(isByeA ? match.participantB : match.participantA)}<span class="seed">#{getSeed(isByeA ? match.participantB : match.participantA)}</span>{/if}
+																<span class="participant-name">{getParticipantName(isByeA ? match.participantB : match.participantA)}</span>
+															</div>
+															{@render vsDivider(match.duration)}
+															<div class="match-participant bye-slot">
+																<span class="participant-name">BYE</span>
+															</div>
+														</div>
+													{:else}
 														<!-- svelte-ignore a11y_click_events_have_key_events -->
 														<!-- svelte-ignore a11y_no_static_element_interactions -->
 														<div
@@ -2214,8 +2259,8 @@
 												{/each}
 												<!-- Horizontal connectors between pairs -->
 												{#if roundIndex < goldBracket.rounds.length - 1}
-													{#each Array(Math.floor(visibleMatches.length / 2)) as _, pairIndex}
-														<div class="pair-connector" style="--pair-index: {pairIndex}; --total-pairs: {Math.floor(visibleMatches.length / 2)}; --total-matches: {visibleMatches.length}"></div>
+													{#each Array(Math.floor(round.matches.length / 2)) as _, pairIndex}
+														<div class="pair-connector" style="--pair-index: {pairIndex}; --total-pairs: {Math.floor(round.matches.length / 2)}; --total-matches: {round.matches.length}"></div>
 													{/each}
 												{/if}
 											</div>
@@ -2753,11 +2798,24 @@
 											<h3 class="round-name">{translateRoundName(round.name)} {#if parallelRoundLabel}<span class="scoring-badge">{parallelRoundLabel}</span>{/if}</h3>
 											<div class="matches-column">
 												{#each round.matches as match}
+													{@const isMatchBye = isByeMatch(match)}
 													{@const isByeA = match.participantA?.toUpperCase().includes('BYE')}
 													{@const isByeB = match.participantB?.toUpperCase().includes('BYE')}
 													{@const winnerIsA = isByeB || match.winner === match.participantA}
 													{@const winnerIsB = isByeA || (!isByeB && match.winner === match.participantB)}
-													{#if !isByeMatch(match)}
+													{#if isMatchBye}
+														<div class="bracket-match bye">
+															<div class="match-participant winner">
+																{@render participantAvatar(isByeA ? match.participantB : match.participantA, "sm")}
+																{#if getSeed(isByeA ? match.participantB : match.participantA)}<span class="seed">#{getSeed(isByeA ? match.participantB : match.participantA)}</span>{/if}
+																<span class="participant-name">{getParticipantName(isByeA ? match.participantB : match.participantA)}</span>
+															</div>
+															{@render vsDivider(match.duration)}
+															<div class="match-participant bye-slot">
+																<span class="participant-name">BYE</span>
+															</div>
+														</div>
+													{:else}
 														<!-- svelte-ignore a11y_click_events_have_key_events -->
 														<!-- svelte-ignore a11y_no_static_element_interactions -->
 														<div
@@ -2813,8 +2871,8 @@
 												{/each}
 												<!-- Horizontal connectors between pairs -->
 												{#if roundIndex < rounds.length - 1}
-													{#each Array(Math.floor(visibleMatches.length / 2)) as _, pairIndex}
-														<div class="pair-connector" style="--pair-index: {pairIndex}; --total-pairs: {Math.floor(visibleMatches.length / 2)}; --total-matches: {visibleMatches.length}"></div>
+													{#each Array(Math.floor(round.matches.length / 2)) as _, pairIndex}
+														<div class="pair-connector" style="--pair-index: {pairIndex}; --total-pairs: {Math.floor(round.matches.length / 2)}; --total-matches: {round.matches.length}"></div>
 													{/each}
 												{/if}
 											</div>
@@ -6210,16 +6268,25 @@
 	}
 
 	.bracket-match.bye {
-		opacity: 0.45;
 		border-style: dashed;
-		border-color: #2d3748;
+		border-color: color-mix(in srgb, var(--border) 70%, #667eea 30%);
 		pointer-events: none;
+	}
+
+	.bracket-match.bye .bye-slot {
+		background: repeating-linear-gradient(
+			45deg,
+			transparent,
+			transparent 6px,
+			color-mix(in srgb, #667eea 12%, transparent) 6px,
+			color-mix(in srgb, #667eea 12%, transparent) 12px
+		);
 	}
 
 	.bracket-match.bye .bye-slot .participant-name {
 		font-style: italic;
 		color: #667eea;
-		opacity: 0.7;
+		opacity: 0.8;
 	}
 
 	/* Connector lines between rounds */

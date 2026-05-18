@@ -23,7 +23,7 @@
   } from '$lib/firebase/tournamentTransition';
   import { recalculateStandings } from '$lib/firebase/tournamentGroups';
   import { generateBracket, generateSplitBrackets } from '$lib/firebase/tournamentBracket';
-  import { MIN_PARTICIPANTS_FOR_CONSOLATION } from '$lib/algorithms/bracket';
+  import { MIN_PARTICIPANTS_FOR_CONSOLATION, crossSeedQualifiers } from '$lib/algorithms/bracket';
   import { updateTournament, updateTournamentPublic } from '$lib/firebase/tournaments';
   import type { Tournament } from '$lib/types/tournament';
   import { getParticipantDisplayName } from '$lib/types/tournament';
@@ -599,26 +599,9 @@
       });
     });
 
-    // Apply cross-seeding within each bracket
-    function applyCrossSeeding(positionMap: Map<number, Array<{ id: string; position: number; groupIndex: number }>>): string[] {
-      const positions = Array.from(positionMap.keys()).sort((a, b) => a - b);
-      const seededList: Array<{ id: string; position: number; groupIndex: number }> = [];
-
-      positions.forEach((pos, posIdx) => {
-        const participantsAtPos = [...positionMap.get(pos)!];
-        participantsAtPos.sort((a, b) => a.groupIndex - b.groupIndex);
-        if (posIdx % 2 === 1) {
-          participantsAtPos.reverse();
-        }
-        seededList.push(...participantsAtPos);
-      });
-
-      return seededList.map(p => p.id);
-    }
-
     return {
-      gold: applyCrossSeeding(qualifiedByPosition),
-      silver: applyCrossSeeding(nonQualifiedByPosition)
+      gold: crossSeedQualifiers(qualifiedByPosition),
+      silver: crossSeedQualifiers(nonQualifiedByPosition)
     };
   })());
 

@@ -448,7 +448,7 @@
   }
 
   .match-card.bye {
-    opacity: 0.55;
+    border-style: dashed;
   }
 
   .match-card.locked {
@@ -729,9 +729,18 @@
   }
 
   /* ── BYE ── */
+  .player-row.bye-row {
+    background: repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 6px,
+      color-mix(in srgb, var(--muted-foreground) 8%, transparent) 6px,
+      color-mix(in srgb, var(--muted-foreground) 8%, transparent) 12px
+    );
+  }
   .player-row.bye-row .player-name {
     font-style: italic;
-    opacity: 0.5;
+    opacity: 0.6;
   }
   .player-row.bye-row .player-score {
     opacity: 0.3;

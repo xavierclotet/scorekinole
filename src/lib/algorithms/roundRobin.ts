@@ -179,6 +179,18 @@ export function splitIntoGroups(
     }
   }
 
+  // Shuffle participants within each group (Fisher-Yates)
+  // Snake draft determines WHICH group each player joins (balanced by ranking).
+  // Shuffling the ORDER within the group randomizes who gets BYE first
+  // in odd-sized groups (circle method fixes position 0, BYE starts at the end).
+  for (const group of groups) {
+    const arr = group.participants;
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+  }
+
   return groups;
 }
 

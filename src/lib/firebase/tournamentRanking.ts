@@ -54,11 +54,14 @@ export async function syncParticipantRankings(tournamentId: string): Promise<boo
     const profileMap = new Map(profileEntries.filter(([, p]) => p !== null));
 
     // 2. Collect unique tournament IDs from all participants' records
+    // Include both current and previous year to support ranking fallback for seeding
+    const previousYear = currentYear - 1;
     const tournamentIds = new Set<string>();
     for (const [, profile] of profileMap) {
       if (!profile?.tournaments) continue;
       for (const record of profile.tournaments) {
-        if (new Date(record.tournamentDate).getFullYear() === currentYear) {
+        const recordYear = new Date(record.tournamentDate).getFullYear();
+        if (recordYear === currentYear || recordYear === previousYear) {
           tournamentIds.add(record.tournamentId);
         }
       }
@@ -84,6 +87,7 @@ export async function syncParticipantRankings(tournamentId: string): Promise<boo
     }
 
     // 4. Recalculate ranking for each participant (and partner) using current algorithm
+    // If current year ranking is 0, fall back to previous year for seeding purposes
     const updatedParticipants = tournament.participants.map((participant) => {
       let rankingPoints = 0;
 
@@ -91,6 +95,10 @@ export async function syncParticipantRankings(tournamentId: string): Promise<boo
         const profile = profileMap.get(participant.userId);
         if (profile?.tournaments) {
           rankingPoints = recalculateUserRanking(profile.tournaments, tournamentsMap, currentYear, 2);
+          // Fallback: use previous year ranking for seeding when current year has no points
+          if (rankingPoints === 0) {
+            rankingPoints = recalculateUserRanking(profile.tournaments, tournamentsMap, previousYear, 2);
+          }
         }
       }
 
@@ -101,6 +109,10 @@ export async function syncParticipantRankings(tournamentId: string): Promise<boo
         const partnerProfile = profileMap.get(participant.partner.userId);
         if (partnerProfile?.tournaments) {
           partnerRanking = recalculateUserRanking(partnerProfile.tournaments, tournamentsMap, currentYear, 2);
+          // Fallback: use previous year ranking for seeding when current year has no points
+          if (partnerRanking === 0) {
+            partnerRanking = recalculateUserRanking(partnerProfile.tournaments, tournamentsMap, previousYear, 2);
+          }
         }
         updatedPartner = { ...participant.partner, rankingSnapshot: partnerRanking };
       }

@@ -571,3 +571,194 @@ describe('assignTablesToRounds — table distribution fairness', () => {
 		}
 	});
 });
+
+describe('splitIntoGroups — seeding distribution', () => {
+	/** Helper to create participants with specific rankings */
+	function createRankedParticipants(rankings: number[]): TournamentParticipant[] {
+		return rankings.map((ranking, i) => ({
+			id: `p${i + 1}`,
+			name: `Player ${i + 1}`,
+			type: 'GUEST' as const,
+			rankingSnapshot: ranking,
+			status: 'ACTIVE' as const
+		}));
+	}
+
+	it('4 groups: top 4 seeds go to 4 different groups', () => {
+		// 16 players with distinct rankings
+		const rankings = [100, 90, 85, 80, 70, 60, 55, 50, 45, 40, 35, 30, 25, 20, 15, 10];
+		const participants = createRankedParticipants(rankings);
+		const groups = splitIntoGroups(participants, 4);
+
+		expect(groups).toHaveLength(4);
+
+		// Top 4 seeds (p1=100, p2=90, p3=85, p4=80) must be in different groups
+		const top4Ids = ['p1', 'p2', 'p3', 'p4'];
+		const groupsContainingTopSeeds = new Set<number>();
+		for (let gi = 0; gi < groups.length; gi++) {
+			for (const id of top4Ids) {
+				if (groups[gi].participants.includes(id)) {
+					groupsContainingTopSeeds.add(gi);
+				}
+			}
+		}
+		expect(groupsContainingTopSeeds.size).toBe(4);
+	});
+
+	it('3 groups: top 3 seeds in different groups', () => {
+		const rankings = [120, 100, 95, 70, 60, 50, 40, 30, 20];
+		const participants = createRankedParticipants(rankings);
+		const groups = splitIntoGroups(participants, 3);
+
+		expect(groups).toHaveLength(3);
+
+		// Top 3 seeds must be in different groups
+		const top3Ids = ['p1', 'p2', 'p3'];
+		const groupsContainingTopSeeds = new Set<number>();
+		for (let gi = 0; gi < groups.length; gi++) {
+			for (const id of top3Ids) {
+				if (groups[gi].participants.includes(id)) {
+					groupsContainingTopSeeds.add(gi);
+				}
+			}
+		}
+		expect(groupsContainingTopSeeds.size).toBe(3);
+	});
+
+	it('mixed rankings: players with ranking 0 do not prevent top seeds separation', () => {
+		// Some players have ranking from previous year, many have 0
+		const rankings = [150, 120, 100, 80, 0, 0, 0, 0, 0, 0, 0, 0];
+		const participants = createRankedParticipants(rankings);
+		const groups = splitIntoGroups(participants, 4);
+
+		expect(groups).toHaveLength(4);
+
+		// Top 4 seeds (p1=150, p2=120, p3=100, p4=80) must be in different groups
+		const top4Ids = ['p1', 'p2', 'p3', 'p4'];
+		const groupsContainingTopSeeds = new Set<number>();
+		for (let gi = 0; gi < groups.length; gi++) {
+			for (const id of top4Ids) {
+				if (groups[gi].participants.includes(id)) {
+					groupsContainingTopSeeds.add(gi);
+				}
+			}
+		}
+		expect(groupsContainingTopSeeds.size).toBe(4);
+	});
+
+	it('2 groups with 20 players: top 2 in different groups, balanced ranking sums', () => {
+		// Simulate real scenario: 5 players with ranking, rest with 0
+		const rankings = [200, 150, 100, 80, 60, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+		const participants = createRankedParticipants(rankings);
+		const groups = splitIntoGroups(participants, 2);
+
+		expect(groups).toHaveLength(2);
+
+		// Top 2 must be in different groups
+		const group0HasP1 = groups[0].participants.includes('p1');
+		const group1HasP1 = groups[1].participants.includes('p1');
+		const group0HasP2 = groups[0].participants.includes('p2');
+		const group1HasP2 = groups[1].participants.includes('p2');
+
+		// p1 and p2 should be in different groups
+		expect(
+			(group0HasP1 && group1HasP2) || (group1HasP1 && group0HasP2)
+		).toBe(true);
+
+		// Both groups should have 10 players
+		expect(groups[0].participants).toHaveLength(10);
+		expect(groups[1].participants).toHaveLength(10);
+	});
+
+	it('snake draft: second row of seeds reverses direction (5-8 go D,C,B,A)', () => {
+		// 8 players with distinct rankings → 4 groups of 2
+		const rankings = [80, 70, 60, 50, 40, 30, 20, 10];
+		const participants = createRankedParticipants(rankings);
+		const groups = splitIntoGroups(participants, 4);
+
+		// Snake: p1→A, p2→B, p3→C, p4→D, p5→D, p6→C, p7→B, p8→A
+		expect(groups[0].participants).toContain('p1'); // Seed 1 → Group A
+		expect(groups[1].participants).toContain('p2'); // Seed 2 → Group B
+		expect(groups[2].participants).toContain('p3'); // Seed 3 → Group C
+		expect(groups[3].participants).toContain('p4'); // Seed 4 → Group D
+		expect(groups[3].participants).toContain('p5'); // Seed 5 → Group D (reverse)
+		expect(groups[2].participants).toContain('p6'); // Seed 6 → Group C (reverse)
+		expect(groups[1].participants).toContain('p7'); // Seed 7 → Group B (reverse)
+		expect(groups[0].participants).toContain('p8'); // Seed 8 → Group A (reverse)
+	});
+});
+
+describe('splitIntoGroups — BYE fairness in odd groups', () => {
+	function createRankedParticipants(rankings: number[]): TournamentParticipant[] {
+		return rankings.map((ranking, i) => ({
+			id: `p${i + 1}`,
+			name: `Player ${i + 1}`,
+			type: 'GUEST' as const,
+			rankingSnapshot: ranking,
+			status: 'ACTIVE' as const
+		}));
+	}
+
+	it('odd group: top seed should NOT always get BYE in round 1', () => {
+		// 5 players in 1 group → odd → one BYE per round
+		// splitIntoGroups shuffles participant order within the group,
+		// so the circle method's fixed position 0 varies → BYE is randomized
+		const rankings = [100, 80, 60, 40, 20];
+		const participants = createRankedParticipants(rankings);
+
+		const firstByeRecipients = new Set<string>();
+		for (let i = 0; i < 30; i++) {
+			// splitIntoGroups with numGroups=2 gives groups of ~3 and ~2
+			// Use 3 groups to get groups of 2,2,1 — nah, need odd group
+			// Use 10 players in 2 groups → 5 per group (odd!)
+			const tenPlayers = createRankedParticipants([100, 90, 80, 70, 60, 50, 40, 30, 20, 10]);
+			const groups = splitIntoGroups(tenPlayers, 2);
+			// Each group has 5 players (odd)
+			const schedule = generateRoundRobinSchedule(groups[0].participants);
+			const round1 = schedule[0];
+			const byeMatch = round1.matches.find(m => m.participantB === 'BYE');
+			if (byeMatch) {
+				firstByeRecipients.add(byeMatch.participantA);
+			}
+		}
+
+		// After fix: BYE should not always go to the same player
+		expect(firstByeRecipients.size).toBeGreaterThan(1);
+	});
+
+	it('odd group: each player gets BYE exactly once across all rounds', () => {
+		// This invariant must STILL hold after any fix
+		const ids = ['p1', 'p2', 'p3', 'p4', 'p5'];
+		const schedule = generateRoundRobinSchedule(ids);
+
+		const byeCount = new Map<string, number>();
+		for (const round of schedule) {
+			const byeMatch = round.matches.find(m => m.participantB === 'BYE');
+			if (byeMatch) {
+				byeCount.set(byeMatch.participantA, (byeCount.get(byeMatch.participantA) || 0) + 1);
+			}
+		}
+
+		// Each player gets BYE exactly once
+		for (const id of ids) {
+			expect(byeCount.get(id), `${id} should get exactly 1 BYE`).toBe(1);
+		}
+	});
+
+	it('splitIntoGroups shuffles within-group order so BYE is not deterministic', () => {
+		// 9 players in 3 groups of 3 (all odd)
+		const rankings = [90, 80, 70, 60, 50, 40, 30, 20, 10];
+		const participants = createRankedParticipants(rankings);
+
+		// Track which participant is first in each group across runs
+		const firstInGroupA = new Set<string>();
+		for (let i = 0; i < 20; i++) {
+			const groups = splitIntoGroups(participants, 3);
+			firstInGroupA.add(groups[0].participants[0]);
+		}
+
+		// After fix: first participant in group should vary (shuffled)
+		// Before fix: always the same (top seed = 'p1')
+		expect(firstInGroupA.size).toBeGreaterThan(1);
+	});
+});

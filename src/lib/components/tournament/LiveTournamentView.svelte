@@ -3637,12 +3637,21 @@
 	}
 
 	.match-card.bye-match {
-		opacity: 0.5;
 		border-left: 2px dashed #4a5568;
+		border-top: 1px dashed color-mix(in srgb, #4a5568 50%, transparent);
+		border-right: 1px dashed color-mix(in srgb, #4a5568 50%, transparent);
+		border-bottom: 1px dashed color-mix(in srgb, #4a5568 50%, transparent);
 	}
 
 	.match-player.bye {
 		font-style: italic;
+		background: repeating-linear-gradient(
+			45deg,
+			transparent,
+			transparent 6px,
+			color-mix(in srgb, #6b7a94 10%, transparent) 6px,
+			color-mix(in srgb, #6b7a94 10%, transparent) 12px
+		);
 	}
 
 	.match-player.bye .player-name {

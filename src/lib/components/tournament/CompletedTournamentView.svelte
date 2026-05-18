@@ -2196,13 +2196,18 @@
   }
 
   .match-participant.bye {
-    opacity: 0.4;
     font-style: italic;
     color: #9ca3af;
+    background: repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 6px,
+      color-mix(in srgb, #9ca3af 10%, transparent) 6px,
+      color-mix(in srgb, #9ca3af 10%, transparent) 12px
+    );
   }
 
   .bracket-match.bye-match {
-    opacity: 0.5;
     border-style: dashed;
     cursor: default;
   }

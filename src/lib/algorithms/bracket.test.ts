@@ -12,7 +12,8 @@ import {
 	nextPowerOfTwo,
 	isLoserPlaceholder,
 	isBye,
-	BYE_PARTICIPANT
+	BYE_PARTICIPANT,
+	crossSeedQualifiers
 } from './bracket';
 import type { TournamentParticipant } from '$lib/types/tournament';
 
@@ -1563,5 +1564,125 @@ describe('bracket edge cases', () => {
 		// (offset is applied by the Firebase layer, not the algorithm)
 		expect(goldBracket.startPosition).toBe(5);
 		expect(silverBracket.startPosition).toBe(5);
+	});
+});
+
+describe('crossSeedQualifiers — no same-group rematches in R1', () => {
+	// Build a positionMap for K groups × Q positions
+	function buildMap(K: number, Q: number) {
+		const map = new Map<number, Array<{ id: string; position: number; groupIndex: number }>>();
+		for (let pos = 1; pos <= Q; pos++) {
+			const list: Array<{ id: string; position: number; groupIndex: number }> = [];
+			for (let g = 0; g < K; g++) {
+				list.push({ id: `G${g}P${pos}`, position: pos, groupIndex: g });
+			}
+			map.set(pos, list);
+		}
+		return map;
+	}
+
+	// Given the seeded id list, simulate bracket R1 pairings and assert
+	// no participant faces someone from their own group.
+	function assertNoSameGroupInR1(seededIds: string[], bracketSize: number) {
+		const idGroup = (id: string) => id.match(/^G(\d+)P\d+$/)![1];
+		const pairs = getBracketSeeding(bracketSize);
+		for (const [seedA, seedB] of pairs) {
+			const a = seededIds[seedA - 1];
+			const b = seededIds[seedB - 1];
+			if (a === undefined || b === undefined) continue; // BYE
+			expect(idGroup(a), `seed ${seedA} (${a}) vs seed ${seedB} (${b}) same group`).not.toBe(idGroup(b));
+		}
+	}
+
+	it('K=4, Q=3 (12 in 16-bracket) — the user-reported case', () => {
+		const seeded = crossSeedQualifiers(buildMap(4, 3));
+		expect(seeded).toHaveLength(12);
+		// Group winners take the top seeds, one per group
+		expect(seeded.slice(0, 4)).toEqual(['G0P1', 'G1P1', 'G2P1', 'G3P1']);
+		assertNoSameGroupInR1(seeded, 16);
+	});
+
+	it('K=4, Q=2 (8 in 8-bracket)', () => {
+		const seeded = crossSeedQualifiers(buildMap(4, 2));
+		expect(seeded).toHaveLength(8);
+		assertNoSameGroupInR1(seeded, 8);
+	});
+
+	it('K=4, Q=4 (16 in 16-bracket, no BYEs)', () => {
+		const seeded = crossSeedQualifiers(buildMap(4, 4));
+		expect(seeded).toHaveLength(16);
+		assertNoSameGroupInR1(seeded, 16);
+	});
+
+	it('K=3, Q=2 (6 in 8-bracket)', () => {
+		const seeded = crossSeedQualifiers(buildMap(3, 2));
+		expect(seeded).toHaveLength(6);
+		assertNoSameGroupInR1(seeded, 8);
+	});
+
+	it('K=3, Q=3 (9 in 16-bracket)', () => {
+		const seeded = crossSeedQualifiers(buildMap(3, 3));
+		expect(seeded).toHaveLength(9);
+		assertNoSameGroupInR1(seeded, 16);
+	});
+
+	it('K=2, Q=2 (4 in 4-bracket)', () => {
+		const seeded = crossSeedQualifiers(buildMap(2, 2));
+		expect(seeded).toHaveLength(4);
+		assertNoSameGroupInR1(seeded, 4);
+	});
+
+	it('K=2, Q=4 (8 in 8-bracket)', () => {
+		const seeded = crossSeedQualifiers(buildMap(2, 4));
+		expect(seeded).toHaveLength(8);
+		assertNoSameGroupInR1(seeded, 8);
+	});
+
+	it('K=5, Q=2 (10 in 16-bracket)', () => {
+		const seeded = crossSeedQualifiers(buildMap(5, 2));
+		expect(seeded).toHaveLength(10);
+		assertNoSameGroupInR1(seeded, 16);
+	});
+
+	it('K=5, Q=3 (15 in 16-bracket)', () => {
+		const seeded = crossSeedQualifiers(buildMap(5, 3));
+		expect(seeded).toHaveLength(15);
+		assertNoSameGroupInR1(seeded, 16);
+	});
+
+	it('K=8, Q=1 (8 in 8-bracket — one per group)', () => {
+		const seeded = crossSeedQualifiers(buildMap(8, 1));
+		expect(seeded).toHaveLength(8);
+		assertNoSameGroupInR1(seeded, 8);
+	});
+
+	it('K=3, Q=4 (12 in 16-bracket — 3 groups × 4 qualifiers)', () => {
+		const seeded = crossSeedQualifiers(buildMap(3, 4));
+		expect(seeded).toHaveLength(12);
+		assertNoSameGroupInR1(seeded, 16);
+	});
+
+	it('K=6, Q=2 (12 in 16-bracket — 6 groups × 2 qualifiers)', () => {
+		const seeded = crossSeedQualifiers(buildMap(6, 2));
+		expect(seeded).toHaveLength(12);
+		assertNoSameGroupInR1(seeded, 16);
+	});
+
+	it('K=4, Q=5 (20 in 32-bracket)', () => {
+		const seeded = crossSeedQualifiers(buildMap(4, 5));
+		expect(seeded).toHaveLength(20);
+		assertNoSameGroupInR1(seeded, 32);
+	});
+
+	it('K=4, Q=6 (24 in 32-bracket)', () => {
+		const seeded = crossSeedQualifiers(buildMap(4, 6));
+		expect(seeded).toHaveLength(24);
+		assertNoSameGroupInR1(seeded, 32);
+	});
+
+	it('K=3, Q=5 (15 in 16-bracket)', () => {
+		const seeded = crossSeedQualifiers(buildMap(3, 5));
+		expect(seeded).toHaveLength(15);
+		assertNoSameGroupInR1(seeded, 16);
 	});
 });

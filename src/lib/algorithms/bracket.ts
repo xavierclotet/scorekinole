@@ -429,6 +429,46 @@ export function nextPowerOfTwo(n: number): number {
 }
 
 /**
+ * Cross-seed qualifiers across groups so that group-mates don't face each other
+ * in the first round of the bracket.
+ *
+ * For each position band P (1=group winners, 2=runners-up, 3=third place, ...)
+ * the K participants (one per group) get seeds [(P-1)*K+1, ..., P*K].
+ *
+ * In a standard bracket, the round-1 twin of seed S is seed (bracketSize+1-S).
+ * Even-indexed bands keep identity order; odd-indexed bands (pos-2, pos-4, ...)
+ * are rotated by floor(K/2) so their bracket-adjacent partners in R1 are from
+ * a different group. For K=2 identity already avoids collisions.
+ *
+ * See bracket.test.ts for verification across K∈{2..5,8} and Q∈{1..6}.
+ */
+export function crossSeedQualifiers(
+  qualifiedByPosition: Map<number, Array<{ id: string; position: number; groupIndex: number }>>
+): string[] {
+  const positions = Array.from(qualifiedByPosition.keys()).sort((a, b) => a - b);
+  const seededList: Array<{ id: string; position: number; groupIndex: number }> = [];
+
+  positions.forEach((pos, posIdx) => {
+    const participantsAtPos = [...qualifiedByPosition.get(pos)!];
+    participantsAtPos.sort((a, b) => a.groupIndex - b.groupIndex);
+
+    const K = participantsAtPos.length;
+
+    // Rotate odd-indexed bands so their R1 twin is in a different group.
+    // K=2 doesn't need rotation: identity already alternates G0/G1 which avoids any collision.
+    if (posIdx % 2 === 1 && K >= 3) {
+      const shift = Math.floor(K / 2);
+      const rotated = [...participantsAtPos.slice(shift), ...participantsAtPos.slice(0, shift)];
+      seededList.push(...rotated);
+    } else {
+      seededList.push(...participantsAtPos);
+    }
+  });
+
+  return seededList.map(p => p.id);
+}
+
+/**
  * Calculate qualified participants for bracket based on group standings
  *
  * @param groups Array of groups with standings

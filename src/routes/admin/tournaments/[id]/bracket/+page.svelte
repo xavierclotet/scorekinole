@@ -628,6 +628,10 @@
 
   // Get status display for a match, checking for disqualification
   function getMatchStatusDisplay(match: { status: string; participantA?: string; participantB?: string }): { text: string; color: string } {
+    // BYE matches are auto-completed but no real game was played → show "BYE"
+    if (isBye(match.participantA) || isBye(match.participantB)) {
+      return { text: 'BYE', color: '#6b7280' };
+    }
     if (match.status === 'WALKOVER') {
       // Check if WALKOVER is due to disqualification
       const isDisqualifiedA = isParticipantDisqualified(match.participantA);
