@@ -16,9 +16,10 @@
   import { createTournament, getTournament, updateTournament, searchTournamentNames, checkTournamentKeyExists, checkTournamentQuota, type TournamentNameInfo } from '$lib/firebase/tournaments';
   import { addParticipants } from '$lib/firebase/tournamentParticipants';
   import { buildRegistrationConfig, adminPromoteFromWaitlist, adminRemoveFromWaitlist, validateRegistrationDeadline } from '$lib/firebase/tournamentRegistration';
-  import type { TournamentParticipant, WaitlistEntry, RankingConfig, TournamentTier } from '$lib/types/tournament';
+  import type { TournamentParticipant, WaitlistEntry, RankingConfig, TournamentTier, ScoringSystem } from '$lib/types/tournament';
   import { normalizeTier } from '$lib/types/tournament';
   import { getTierInfo, getPointsDistribution, calculateRankingPoints, getNaturalThreshold } from '$lib/algorithms/ranking';
+  import { getFsiTierFloor } from '$lib/algorithms/rankingFsi';
   import { TIER_COLORS } from '$lib/constants';
   import { getUserProfileById, createGuestUserProfile } from '$lib/firebase/userProfile';
   import { DEFAULT_TIME_CONFIG } from '$lib/firebase/timeConfig';
@@ -175,6 +176,7 @@
   // Step 4: Ranking Configuration
   let rankingEnabled = $state(false);
   let selectedTier = $state<TournamentTier>('SERIES_15');
+  let selectedScoringSystem = $state<'CLASSIC' | 'FSI'>('CLASSIC');
 
   // Step 3: Participants
   let participants = $state<Partial<TournamentParticipant>[]>([]);
@@ -603,6 +605,7 @@
       // Step 4: Ranking
       rankingEnabled = tournament.rankingConfig?.enabled ?? false;
       selectedTier = normalizeTier(tournament.rankingConfig?.tier);
+      selectedScoringSystem = (tournament.rankingConfig?.scoringSystem as 'CLASSIC' | 'FSI') ?? 'CLASSIC';
 
       // Step 3: Waitlist (from registration)
       waitlist = tournament.waitlist || [];
@@ -868,6 +871,7 @@
       // Step 4: Ranking
       rankingEnabled = tournament.rankingConfig?.enabled ?? false;
       selectedTier = normalizeTier(tournament.rankingConfig?.tier);
+      selectedScoringSystem = (tournament.rankingConfig?.scoringSystem as 'CLASSIC' | 'FSI') ?? 'CLASSIC';
 
       // Step 3: Participants - Copy and refresh photos from user profiles
       // Also migrate old pair format (name with " / " but no partner field) to new format
@@ -1526,7 +1530,8 @@
     try {
       const rankingConfig: RankingConfig = {
         enabled: rankingEnabled,
-        tier: selectedTier
+        tier: selectedTier,
+        scoringSystem: rankingEnabled ? selectedScoringSystem : undefined,
       };
 
       // Build tournament data with phase-specific configuration
@@ -2901,6 +2906,27 @@
 
           {#if rankingEnabled}
             <div class="ranking-config">
+              <!-- Scoring system selector -->
+              <div class="scoring-system-selector">
+                <h4>{m.wizard_scoringSystemTitle()}</h4>
+                <div class="system-options">
+                  <label class="system-option {selectedScoringSystem === 'CLASSIC' ? 'selected' : ''}">
+                    <input type="radio" bind:group={selectedScoringSystem} value="CLASSIC" />
+                    <div class="system-card">
+                      <span class="system-name">{m.wizard_scoringSystemClassic()}</span>
+                      <span class="system-desc">{m.wizard_scoringSystemClassicDesc()}</span>
+                    </div>
+                  </label>
+                  <label class="system-option {selectedScoringSystem === 'FSI' ? 'selected' : ''}">
+                    <input type="radio" bind:group={selectedScoringSystem} value="FSI" />
+                    <div class="system-card">
+                      <span class="system-name">{m.wizard_scoringSystemFsi()}</span>
+                      <span class="system-desc">{m.wizard_scoringSystemFsiDesc()}</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
               <h4>🏆 {m.wizard_selectTierTitle()}</h4>
               <p class="tier-description">{m.wizard_seriesDescription()}</p>
 
@@ -2945,43 +2971,52 @@
                 </label>
               </div>
 
-              <!-- Points distribution for selected tier -->
-              {#key participantCount}
-              <div class="points-distribution">
-                <h4>
-                  📊 
-                  {#if participantCount > 0}
-                    {m.wizard_pointsDistributionDynamicFor({ tier: getTierInfo(selectedTier).name, participants: gameType === 'singles' ? m.wizard_nPlayers({ n: Math.max(2, participantCount) }) : m.wizard_nTeams({ n: Math.max(2, participantCount) }) })}
+              {#if selectedScoringSystem === 'CLASSIC'}
+                <!-- Points distribution for selected tier -->
+                {#key participantCount}
+                <div class="points-distribution">
+                  <h4>
+                    📊
+                    {#if participantCount > 0}
+                      {m.wizard_pointsDistributionDynamicFor({ tier: getTierInfo(selectedTier).name, participants: gameType === 'singles' ? m.wizard_nPlayers({ n: Math.max(2, participantCount) }) : m.wizard_nTeams({ n: Math.max(2, participantCount) }) })}
+                    {:else}
+                      {m.wizard_pointsDistributionMaxFor({ tier: getTierInfo(selectedTier).name, mode: gameType === 'singles' ? m.scoring_singles() : m.scoring_doubles()})}
+                    {/if}
+                  </h4>
+                  <table class="points-table">
+                    <thead>
+                      <tr>
+                        <th>{m.wizard_position()}</th>
+                        {#each getPointsDistribution(selectedTier, participantCount || getNaturalThreshold(getTierInfo(selectedTier).basePoints, gameType), gameType) as item}
+                          <th>{item.position}º</th>
+                        {/each}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>{m.scoring_points()}</td>
+                        {#each getPointsDistribution(selectedTier, participantCount || getNaturalThreshold(getTierInfo(selectedTier).basePoints, gameType), gameType) as item}
+                          <td class="points">{item.points}</td>
+                        {/each}
+                      </tr>
+                    </tbody>
+                  </table>
+                  {#if participantCount > 0 && participantCount < getNaturalThreshold(getTierInfo(selectedTier).basePoints, gameType)}
+                    <small class="help-text note-dynamic">{m.wizard_pointsNoteDynamic()}</small>
                   {:else}
-                    {m.wizard_pointsDistributionMaxFor({ tier: getTierInfo(selectedTier).name, mode: gameType === 'singles' ? m.scoring_singles() : m.scoring_doubles()})}
+                    <small class="help-text note-dynamic">{m.wizard_pointsNoteOfficial()}</small>
                   {/if}
-                </h4>
-                <table class="points-table">
-                  <thead>
-                    <tr>
-                      <th>{m.wizard_position()}</th>
-                      {#each getPointsDistribution(selectedTier, participantCount || getNaturalThreshold(getTierInfo(selectedTier).basePoints, gameType), gameType) as item}
-                        <th>{item.position}º</th>
-                      {/each}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>{m.scoring_points()}</td>
-                      {#each getPointsDistribution(selectedTier, participantCount || getNaturalThreshold(getTierInfo(selectedTier).basePoints, gameType), gameType) as item}
-                        <td class="points">{item.points}</td>
-                      {/each}
-                    </tr>
-                  </tbody>
-                </table>
-                {#if participantCount > 0 && participantCount < getNaturalThreshold(getTierInfo(selectedTier).basePoints, gameType)}
-                  <small class="help-text note-dynamic">{m.wizard_pointsNoteDynamic()}</small>
-                {:else}
-                  <small class="help-text note-dynamic">{m.wizard_pointsNoteOfficial()}</small>
-                {/if}
-                <small class="help-text">{m.wizard_pointsNote()}</small>
-              </div>
-              {/key}
+                  <small class="help-text">{m.wizard_pointsNote()}</small>
+                </div>
+                {/key}
+              {:else}
+                <div class="fsi-info">
+                  <p class="fsi-floor-label">
+                    {m.wizard_fsiFloorLabel()} <strong>{getFsiTierFloor(selectedTier)} pts</strong>
+                  </p>
+                  <p class="fsi-field-note">{m.wizard_fsiFieldNote()}</p>
+                </div>
+              {/if}
             </div>
           {/if}
         </div>
@@ -4629,6 +4664,72 @@
 
   .wizard-container:is([data-theme='dark'], [data-theme='violet']) .ranking-config h4 {
     color: var(--primary);
+  }
+
+  .scoring-system-selector {
+    margin-bottom: 24px;
+  }
+
+  .system-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 8px;
+  }
+
+  .system-option {
+    cursor: pointer;
+  }
+
+  .system-option input[type="radio"] {
+    display: none;
+  }
+
+  .system-card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 16px;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  .system-option.selected .system-card {
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 8%, transparent);
+  }
+
+  .system-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--foreground);
+  }
+
+  .system-desc {
+    font-size: 0.78rem;
+    color: var(--muted-foreground);
+    line-height: 1.4;
+  }
+
+  .fsi-info {
+    margin: 12px 0 16px;
+    padding: 12px 16px;
+    background: color-mix(in srgb, var(--primary) 8%, transparent);
+    border-left: 3px solid var(--primary);
+    border-radius: 0 8px 8px 0;
+  }
+
+  .fsi-floor-label {
+    font-size: 0.88rem;
+    margin: 0 0 4px;
+    color: var(--foreground);
+  }
+
+  .fsi-field-note {
+    font-size: 0.78rem;
+    color: var(--muted-foreground);
+    margin: 0;
   }
 
   .tier-description {
