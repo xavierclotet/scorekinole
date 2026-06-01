@@ -173,6 +173,13 @@ export interface Tournament {
 export type TournamentTier = 'SERIES_35' | 'SERIES_25' | 'SERIES_15';
 
 /**
+ * Scoring system for tournament ranking points
+ * CLASSIC: tier-based, scales by participant count
+ * FSI: dynamic, based on field strength index from player rankings
+ */
+export type ScoringSystem = 'CLASSIC' | 'FSI';
+
+/**
  * Normalize tier values (handles legacy CLUB/REGIONAL/NATIONAL/MAJOR from Firestore)
  */
 export function normalizeTier(tier: string | undefined): TournamentTier {
@@ -194,6 +201,7 @@ export function normalizeTier(tier: string | undefined): TournamentTier {
 export interface RankingConfig {
   enabled: boolean;
   tier?: TournamentTier;   // Tournament category (affects points)
+  scoringSystem?: ScoringSystem; // undefined treated as 'CLASSIC' (backward compatible)
 }
 
 /**
