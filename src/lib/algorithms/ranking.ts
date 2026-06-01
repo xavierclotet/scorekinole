@@ -54,29 +54,21 @@ export function getNaturalThreshold(basePoints: number, mode: 'singles' | 'doubl
 }
 
 /**
- * Calculate ranking points.
- *
- * Winner gets round(basePoints * min(1, N/threshold)) points.
- * Always uses interpolation (Hamilton or level fill) to spread points from winner to 1.
+ * Distribute ranking points given a known winner points value.
+ * Used by both CLASSIC and FSI scoring systems.
  *
  * @param position Final position (1 = winner)
- * @param tier Tournament series (SERIES_35, SERIES_25, SERIES_15)
- * @param participantsCount Number of participating teams/players (default 16)
- * @param mode Game mode: 'singles' or 'doubles' (default 'singles')
- * @returns Points earned
+ * @param winnerPoints Points awarded to 1st place
+ * @param participantsCount Total number of participants
+ * @param mode 'singles' or 'doubles'
+ * @returns Points earned at this position
  */
-export function calculateRankingPoints(
+export function distributeRankingPoints(
   position: number,
-  tier: TournamentTier,
-  participantsCount: number = 16,
+  winnerPoints: number,
+  participantsCount: number,
   mode: 'singles' | 'doubles' = 'singles'
 ): number {
-  const tierInfo = getTierInfo(tier);
-  const basePoints = tierInfo.basePoints;
-  const threshold = getNaturalThreshold(basePoints, mode);
-
-  const winnerPoints = Math.round(basePoints * Math.min(1, participantsCount / threshold));
-
   if (position === 1) return winnerPoints;
   if (position > participantsCount) return 0;
   if (winnerPoints <= 1) return 1;
@@ -95,8 +87,6 @@ export function calculateRankingPoints(
     }
   }
 
-  // Always interpolate: spread points from winnerPoints to 1
-  // (At threshold, standard drops sum exactly to winnerPoints-1, so interpolation = raw drops)
   const targetDrop = winnerPoints - 1;
   const totalStandardDrop = standardDrops.reduce((acc, val) => acc + val, 0);
 
@@ -135,6 +125,31 @@ export function calculateRankingPoints(
   let cumDrop = 0;
   for (let i = 0; i < position - 1; i++) cumDrop += actualDrops[i];
   return Math.max(1, winnerPoints - cumDrop);
+}
+
+/**
+ * Calculate ranking points.
+ *
+ * Winner gets round(basePoints * min(1, N/threshold)) points.
+ * Always uses interpolation (Hamilton or level fill) to spread points from winner to 1.
+ *
+ * @param position Final position (1 = winner)
+ * @param tier Tournament series (SERIES_35, SERIES_25, SERIES_15)
+ * @param participantsCount Number of participating teams/players (default 16)
+ * @param mode Game mode: 'singles' or 'doubles' (default 'singles')
+ * @returns Points earned
+ */
+export function calculateRankingPoints(
+  position: number,
+  tier: TournamentTier,
+  participantsCount: number = 16,
+  mode: 'singles' | 'doubles' = 'singles'
+): number {
+  const tierInfo = getTierInfo(tier);
+  const basePoints = tierInfo.basePoints;
+  const threshold = getNaturalThreshold(basePoints, mode);
+  const winnerPoints = Math.round(basePoints * Math.min(1, participantsCount / threshold));
+  return distributeRankingPoints(position, winnerPoints, participantsCount, mode);
 }
 
 /**

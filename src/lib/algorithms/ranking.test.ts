@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
 	calculateRankingPoints,
+	distributeRankingPoints,
 	getPointsDistribution,
 	getTierInfo,
 	getNaturalThreshold
@@ -152,5 +153,31 @@ describe('large player counts (50-200)', () => {
 		// And winner gets reasonable points
 		const firstDoubles = calculateRankingPoints(1, 'SERIES_35', 100, 'doubles');
 		expect(firstDoubles).toBeGreaterThan(10);
+	});
+});
+
+describe('distributeRankingPoints', () => {
+	it('matches calculateRankingPoints output for classic scenarios', () => {
+		const tier: TournamentTier = 'SERIES_25';
+		const count = 20;
+		// At threshold: winnerPoints = 25
+		const winnerPoints = 25;
+		for (let pos = 1; pos <= count; pos++) {
+			expect(distributeRankingPoints(pos, winnerPoints, count)).toBe(
+				calculateRankingPoints(pos, tier, count)
+			);
+		}
+	});
+
+	it('position 1 returns winnerPoints', () => {
+		expect(distributeRankingPoints(1, 18, 16)).toBe(18);
+	});
+
+	it('position beyond count returns 0', () => {
+		expect(distributeRankingPoints(17, 18, 16)).toBe(0);
+	});
+
+	it('winnerPoints <= 1 returns 1 for all positions', () => {
+		expect(distributeRankingPoints(2, 1, 5)).toBe(1);
 	});
 });
