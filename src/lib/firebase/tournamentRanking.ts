@@ -4,7 +4,8 @@
 
 import { isFirebaseEnabled } from './config';
 import { getTournament, updateTournament, updateTournamentPublic } from './tournaments';
-import { calculateRankingPoints } from '$lib/algorithms/ranking';
+import { calculateRankingPoints, distributeRankingPoints } from '$lib/algorithms/ranking';
+import { calculateFsiWinnerPoints } from '$lib/algorithms/rankingFsi';
 import { calculateConsolationPositions } from '$lib/algorithms/bracket';
 import { browser } from '$app/environment';
 import { getUserProfileById, removeTournamentRecord } from './userProfile';
@@ -752,6 +753,7 @@ export async function applyRankingUpdates(
     const { addTournamentRecord } = await import('./userProfile');
 
     const tier = normalizeTier(tournament.rankingConfig?.tier);
+    const scoringSystem = tournament.rankingConfig?.scoringSystem ?? 'CLASSIC';
 
     // Treat missing status as ACTIVE for backward compatibility with legacy data
     const totalParticipants = tournament.participants.filter((p: any) => p.status === 'ACTIVE' || !p.status).length;
@@ -760,9 +762,19 @@ export async function applyRankingUpdates(
 
     const isDoubles = tournament.gameType === 'doubles';
 
+    // For FSI: compute winner points once from the full active field; reuse per participant
+    const fsiWinnerPoints = scoringSystem === 'FSI'
+      ? calculateFsiWinnerPoints(
+          activeParticipants.map((p: any) => ({ rankingSnapshot: p.rankingSnapshot || 0 })),
+          tier
+        )
+      : 0;
+
     for (const participant of activeParticipants) {
       const position = participant.finalPosition || 0;
-      const pointsEarned = calculateRankingPoints(position, tier, totalParticipants, tournament.gameType);
+      const pointsEarned = scoringSystem === 'FSI'
+        ? distributeRankingPoints(position, fsiWinnerPoints, totalParticipants, tournament.gameType)
+        : calculateRankingPoints(position, tier, totalParticipants, tournament.gameType);
       const rankingBefore = participant.rankingSnapshot || 0;
       const rankingAfter = rankingBefore + pointsEarned;
 
