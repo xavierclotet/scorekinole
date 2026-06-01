@@ -38,6 +38,13 @@ function toEpochMs(value: unknown): number {
 
 // Types (mirrored from client for server-side use)
 type TournamentTier = "SERIES_35" | "SERIES_25" | "SERIES_15";
+type ScoringSystem = "CLASSIC" | "FSI";
+
+const FSI_TIER_FLOORS: Record<TournamentTier, number> = {
+  SERIES_35: 40,
+  SERIES_25: 30,
+  SERIES_15: 20,
+};
 
 /**
  * Normalize tier values (handles legacy CLUB/REGIONAL/NATIONAL/MAJOR from Firestore)
@@ -113,6 +120,7 @@ interface Tournament {
   rankingConfig?: {
     enabled: boolean;
     tier?: TournamentTier;
+    scoringSystem?: ScoringSystem;
   };
   participants: TournamentParticipant[];
   completedAt?: number;
@@ -142,18 +150,15 @@ function getNaturalThreshold(basePoints: number, mode: "singles" | "doubles"): n
 }
 
 /**
- * Calculate ranking points with smart interpolation.
+ * Distribute ranking points given a known winner points value.
+ * Used by both CLASSIC and FSI scoring systems.
  */
-function calculateRankingPoints(
+function distributeRankingPoints(
   position: number,
-  tier: TournamentTier,
-  participantsCount: number = 16,
+  winnerPoints: number,
+  participantsCount: number,
   mode: "singles" | "doubles" = "singles"
 ): number {
-  const basePoints = TIER_BASE_POINTS[tier];
-  const threshold = getNaturalThreshold(basePoints, mode);
-  const winnerPoints = Math.round(basePoints * Math.min(1, participantsCount / threshold));
-
   if (position === 1) return winnerPoints;
   if (position > participantsCount) return 0;
   if (winnerPoints <= 1) return 1;
@@ -172,7 +177,6 @@ function calculateRankingPoints(
   }
 
   // Always interpolate: spread points from winnerPoints to 1
-  // (At threshold, standard drops sum exactly to winnerPoints-1, so interpolation = raw drops)
   const targetDrop = winnerPoints - 1;
   const totalStandardDrop = standardDrops.reduce((acc, val) => acc + val, 0);
 
@@ -211,6 +215,50 @@ function calculateRankingPoints(
   let cumDrop = 0;
   for (let i = 0; i < position - 1; i++) cumDrop += actualDrops[i];
   return Math.max(1, winnerPoints - cumDrop);
+}
+
+/**
+ * Calculate ranking points with smart interpolation (CLASSIC system).
+ */
+function calculateRankingPoints(
+  position: number,
+  tier: TournamentTier,
+  participantsCount: number = 16,
+  mode: "singles" | "doubles" = "singles"
+): number {
+  const basePoints = TIER_BASE_POINTS[tier];
+  const threshold = getNaturalThreshold(basePoints, mode);
+  const winnerPoints = Math.round(basePoints * Math.min(1, participantsCount / threshold));
+  return distributeRankingPoints(position, winnerPoints, participantsCount, mode);
+}
+
+/**
+ * Compute the Field Strength Index for a set of participants (FSI system).
+ *
+ * fsi = 0.6 × avg(top10 by rankingSnapshot)
+ *     + 0.3 × avg(all participants)
+ *     + 0.1 × size_bonus
+ * size_bonus = min(N / 20, 1) × 10
+ */
+function calculateFsi(participants: { rankingSnapshot: number }[]): number {
+  if (participants.length === 0) return 0;
+  const sorted = [...participants].sort((a, b) => b.rankingSnapshot - a.rankingSnapshot);
+  const top10 = sorted.slice(0, 10);
+  const avgTop10 = top10.reduce((sum, p) => sum + p.rankingSnapshot, 0) / top10.length;
+  const avgAll = participants.reduce((sum, p) => sum + p.rankingSnapshot, 0) / participants.length;
+  const sizeBonus = Math.min(participants.length / 20, 1) * 10;
+  return 0.6 * avgTop10 + 0.3 * avgAll + 0.1 * sizeBonus;
+}
+
+/**
+ * Compute FSI winner points: max(tier_floor, round(fsi)).
+ */
+function calculateFsiWinnerPoints(
+  participants: { rankingSnapshot: number }[],
+  tier: TournamentTier
+): number {
+  const fsi = calculateFsi(participants);
+  return Math.max(FSI_TIER_FLOORS[tier], Math.round(fsi));
 }
 
 /**
@@ -339,11 +387,16 @@ async function processParticipant(
   tournament: Tournament,
   tier: TournamentTier,
   totalParticipants: number,
-  rankingEnabled: boolean
+  rankingEnabled: boolean,
+  fsiWinnerPoints: number  // 0 when scoringSystem is CLASSIC
 ): Promise<ParticipantProcessResult> {
   const result: ParticipantProcessResult = { participantId: participant.id };
   const position = participant.finalPosition || 0;
-  const pointsEarned = rankingEnabled ? calculateRankingPoints(position, tier, totalParticipants, tournament.gameType) : 0;
+  const pointsEarned = rankingEnabled
+    ? (fsiWinnerPoints > 0
+        ? distributeRankingPoints(position, fsiWinnerPoints, totalParticipants, tournament.gameType)
+        : calculateRankingPoints(position, tier, totalParticipants, tournament.gameType))
+    : 0;
   const rankingBefore = participant.rankingSnapshot || 0;
   const rankingAfter = rankingBefore + pointsEarned;
 
@@ -559,10 +612,19 @@ export const onTournamentComplete = onDocumentUpdated(
     // Add tournamentId to the tournament object (not included in document data)
     const tournamentWithId: Tournament = { ...afterData, id: tournamentId };
 
+    // Compute FSI winner points (0 when CLASSIC — processParticipant falls back to CLASSIC)
+    const scoringSystem: ScoringSystem = afterData.rankingConfig?.scoringSystem ?? "CLASSIC";
+    const fsiParticipants = scoringSystem === "FSI"
+      ? activeParticipants.map((p) => ({ rankingSnapshot: p.rankingSnapshot || 0 }))
+      : [];
+    const fsiWinnerPts = scoringSystem === "FSI"
+      ? calculateFsiWinnerPoints(fsiParticipants, tier)
+      : 0;
+
     // Process all participants (only runs if ranking is enabled)
     const results = await Promise.allSettled(
       activeParticipants.map((p) =>
-        processParticipant(p, tournamentWithId, tier, totalParticipants, true)
+        processParticipant(p, tournamentWithId, tier, totalParticipants, true, fsiWinnerPts)
       )
     );
 
@@ -632,7 +694,9 @@ export const onTournamentComplete = onDocumentUpdated(
 
       for (const p of activeParticipants) {
         const position = p.finalPosition || 0;
-        const points = calculateRankingPoints(position, tier, totalParticipants, afterData.gameType);
+        const points = fsiWinnerPts > 0
+          ? distributeRankingPoints(position, fsiWinnerPts, totalParticipants, afterData.gameType)
+          : calculateRankingPoints(position, tier, totalParticipants, afterData.gameType);
         if (points <= 0) continue;
 
         if (p.userId) {
