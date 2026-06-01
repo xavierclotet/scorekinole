@@ -89,6 +89,72 @@ El ganador recibe `round(basePoints * min(1, N / threshold))` puntos. **Siempre 
 - **Singles**: 1º = 12 pts (threshold=10, interpolación)
 - **Doubles**: 1º = 8 pts (threshold=15, interpolación) → menos puntos en doubles
 
+---
+
+## Sistema FSI (Field Strength Index) — Sistema Alternativo
+
+Sistema inspirado en la NCA (National Crokinole Association). Los puntos del torneo son **dinámicos y objetivos**: se calculan según el nivel real de los jugadores inscritos, no solo por el tier asignado al torneo.
+
+### Concepto clave
+
+El tier sigue existiendo, pero solo como **suelo mínimo** garantizado para el ganador:
+
+| Tier | Puntos mínimos ganador |
+|------|----------------------|
+| Tier 2 (Series 25) | 30 pts |
+| Tier 3 (Series 15) | 20 pts |
+
+Si el FSI del torneo es alto (campo competitivo), el ganador puede superar ese mínimo. Si es bajo, el suelo actúa de garantía.
+
+### Fórmula FSI
+
+```
+fsi = (0.6 × avg_top10) + (0.3 × avg_all) + (0.1 × size_bonus)
+winnerPoints = max(tier_floor, round(fsi))
+```
+
+Componentes:
+- **`avg_top10`**: media de `rankingSnapshot` de los 10 mejores jugadores inscritos (o todos si hay <10)
+- **`avg_all`**: media de `rankingSnapshot` de todos los participantes
+- **`size_bonus`**: `min(N / 20, 1) × 10` — bonificación por tamaño (máx 10 pts extra con ≥20 jugadores)
+
+La distribución por posiciones (interpolación/Hamilton) se aplica igual que en el sistema clásico, usando el `winnerPoints` resultante.
+
+### Pesos y rationale
+
+| Factor | Peso | Por qué |
+|--------|------|---------|
+| Fuerza del top (FSI) | 60% | Factor principal: quién está en la cima del campo |
+| Fuerza media del campo | 30% | Refleja la profundidad competitiva |
+| Tamaño del torneo | 10% | Factor secundario: más participantes = torneo más exigente |
+
+### Diferencias vs sistema clásico
+
+| | Sistema Clásico | Sistema FSI |
+|--|----------------|-------------|
+| **Puntos ganador** | `basePoints × min(1, N/threshold)` — escalan hacia abajo con pocos jugadores | `max(tier_floor, fsi)` — depende del nivel del campo |
+| **Tier** | Determina los puntos máximos | Solo fija el suelo mínimo |
+| **Campo de élite pequeño** | Penalizado por N bajo | Recompensado por FSI alto |
+| **Campo grande mediocre** | Bonus automático por N alto | Limitado por FSI bajo |
+
+### Selección del sistema
+
+El admin elige el sistema **al crear el torneo** (paso de configuración de ranking). La elección queda almacenada en `rankingConfig.scoringSystem`:
+
+```typescript
+type ScoringSystem = 'CLASSIC' | 'FSI';
+
+interface RankingConfig {
+  enabled: boolean;
+  tier?: TournamentTier;
+  scoringSystem?: ScoringSystem; // undefined → 'CLASSIC' (backward compatible)
+}
+```
+
+Todos los torneos existentes sin este campo usan automáticamente el sistema clásico.
+
+---
+
 ## Migración desde sistema anterior
 
 Los datos existentes en Firestore usan los nombres antiguos. La función `normalizeTier()` mapea:
@@ -99,7 +165,14 @@ Una Cloud Function `migrateTierNames` actualiza los documentos de Firestore para
 
 ## Implementación
 
+### Sistema Clásico
 - **Client-side**: `src/lib/algorithms/ranking.ts` → `calculateRankingPoints(position, tier, participantsCount, mode)` + `getNaturalThreshold(basePoints, mode)`
 - **Cloud Function**: `functions/src/index.ts` → misma lógica duplicada (deben estar sincronizadas)
 - **UI Preview**: Step 3 del wizard de creación de torneos muestra la tabla de distribución reactiva según serie, participantes y modo (singles/doubles)
 - **Compatibilidad**: La función `normalizeTier()` en `src/lib/types/tournament.ts` mapea valores legacy
+
+### Sistema FSI
+- **Client-side**: `src/lib/algorithms/rankingFsi.ts` → `calculateFsiWinnerPoints(participants, tier, mode)` + `calculateFsi(participants)`
+- **Cloud Function**: `functions/src/index.ts` → misma lógica duplicada (sincronizada con rankingFsi.ts)
+- **Dispatch**: `applyRankingUpdates()` comprueba `tournament.rankingConfig.scoringSystem` y llama al algoritmo correspondiente
+- **UI Preview**: mismo wizard, nueva vista previa FSI cuando el sistema FSI está seleccionado
