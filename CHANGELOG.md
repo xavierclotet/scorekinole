@@ -2,6 +2,10 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.42] - 2026-06-03
+- Fix (registration): a player who self-registered (or was promoted from the waitlist) while an admin had the edit wizard open — or while a tournament was being started — could be silently dropped, because `participants`/`waitlist` were read outside the transaction and written back wholesale. Now reconciled transactionally on edit-save, applied by identity during ranking sync, and protected by a roster guard that aborts + retries the start if the roster changed mid-start (both group-stage and one-phase bracket). A late registrant can no longer vanish or become a bracket "ghost". Registration remains correctly blocked once the tournament starts or the deadline/tournament date passes
+- Tests: pure merge/roster helpers, the transactional save/start functions via the concurrency mock (including an interleaved race and a contrast proving the old overwrite lost data), and tournament-date registration-window coverage
+
 ## [2.5.41] - 2026-06-03
 - Feat (ranking): new **FSI (Field Strength Index)** scoring system coexisting with the classic tier system — admins pick per tournament at creation. Points become dynamic, driven by the strength of the registered field (`0.6·avg top-10 + 0.3·avg all + 0.1·size bonus`), with the tier acting only as a guaranteed minimum (floors 12/18/25 for SERIES_15/25/35). Inspired by the NCA "Field of Strength" model
 - Feat (wizard): FSI/Classic selector in the ranking step, live **estimated FSI** of the current field (captures each registered player's real ranking on add/duplicate), and an estimated points-distribution table
