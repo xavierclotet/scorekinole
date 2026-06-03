@@ -275,6 +275,29 @@ export function calculateUserRanking(
 }
 
 /**
+ * Estimate a participant's ranking snapshot for FSI preview / seeding.
+ *
+ * Uses the stored rankingDelta values (cheap, no Firestore reads) via calculateUserRanking,
+ * with a fallback to the previous year when the current year has no results — mirroring the
+ * behaviour of syncParticipantRankings() so the wizard estimate matches what gets synced at start.
+ *
+ * @param tournaments - User's tournament records (from their profile)
+ * @param year - Reference year (defaults to current year)
+ * @param bestOfN - Number of best results to count (defaults to 2)
+ * @returns Estimated ranking points (0 for guests / users with no records)
+ */
+export function estimateParticipantRanking(
+  tournaments: TournamentRecord[] | undefined,
+  year: number = new Date().getFullYear(),
+  bestOfN: number = 2
+): number {
+  const current = calculateUserRanking(tournaments, year, bestOfN);
+  if (current > 0) return current;
+  // Fallback to previous year (a player whose current season hasn't started yet still has a level)
+  return calculateUserRanking(tournaments, year - 1, bestOfN);
+}
+
+/**
  * Recalculate a user's ranking using the current ranking algorithm.
  * Unlike calculateUserRanking() which reads stored rankingDelta values,
  * this function recalculates points from scratch using calculateRankingPoints()

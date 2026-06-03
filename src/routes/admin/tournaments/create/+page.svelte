@@ -18,8 +18,9 @@
   import { buildRegistrationConfig, adminPromoteFromWaitlist, adminRemoveFromWaitlist, validateRegistrationDeadline } from '$lib/firebase/tournamentRegistration';
   import type { TournamentParticipant, WaitlistEntry, RankingConfig, TournamentTier, ScoringSystem } from '$lib/types/tournament';
   import { normalizeTier } from '$lib/types/tournament';
-  import { getTierInfo, getPointsDistribution, calculateRankingPoints, getNaturalThreshold } from '$lib/algorithms/ranking';
-  import { getFsiTierFloor } from '$lib/algorithms/rankingFsi';
+  import { getTierInfo, getPointsDistribution, calculateRankingPoints, getNaturalThreshold, distributeRankingPoints } from '$lib/algorithms/ranking';
+  import { getFsiTierFloor, calculateFsi, calculateFsiWinnerPoints } from '$lib/algorithms/rankingFsi';
+  import { estimateParticipantRanking } from '$lib/firebase/rankings';
   import { TIER_COLORS } from '$lib/constants';
   import { getUserProfileById, createGuestUserProfile } from '$lib/firebase/userProfile';
   import { DEFAULT_TIME_CONFIG } from '$lib/firebase/timeConfig';
@@ -184,6 +185,24 @@
 
   // Participant count (replaces participantCount)
   let participantCount = $derived(participants.length);
+
+  // Live FSI estimate from currently-added participants (registered players carry their ranking).
+  // This is an estimate: only registered players have a ranking; the real FSI is fixed at tournament close.
+  let fsiEstimate = $derived.by(() => {
+    const field = participants.map(p => ({ rankingSnapshot: p.rankingSnapshot || 0 }));
+    const fsi = calculateFsi(field);
+    const floor = getFsiTierFloor(selectedTier);
+    const winnerPoints = calculateFsiWinnerPoints(field, selectedTier);
+    const rankedCount = field.filter(p => p.rankingSnapshot > 0).length;
+    return {
+      fsi: Math.round(fsi * 10) / 10,
+      winnerPoints,
+      floor,
+      // true when the FSI is below the tier floor, so the winner gets the guaranteed minimum
+      floorActive: winnerPoints <= floor,
+      rankedCount
+    };
+  });
 
   // Excluded names derived from participants array (for filtering search results)
   let excludedNames = $derived.by(() => {
@@ -878,21 +897,25 @@
       participants = await Promise.all(tournament.participants.map(async (p) => {
         let photoURL = p.photoURL;
         let partnerPhotoURL = p.partner?.photoURL;
+        let rankingSnapshot = 0;
+        let partnerRankingSnapshot = 0;
 
-        // For singles or first member of doubles, refresh photo from profile
+        // For singles or first member of doubles, refresh photo + ranking from profile
         if (p.userId && p.type === 'REGISTERED') {
           const profile = await getUserProfileById(p.userId);
           if (profile?.photoURL) {
             photoURL = profile.photoURL;
           }
+          rankingSnapshot = estimateParticipantRanking(profile?.tournaments);
         }
 
-        // For doubles with partner, refresh partner photo
+        // For doubles with partner, refresh partner photo + ranking
         if (p.partner?.userId && p.partner.type === 'REGISTERED') {
           const partnerProfile = await getUserProfileById(p.partner.userId);
           if (partnerProfile?.photoURL) {
             partnerPhotoURL = partnerProfile.photoURL;
           }
+          partnerRankingSnapshot = estimateParticipantRanking(partnerProfile?.tournaments);
         }
 
         // MIGRATION: Convert old pair format to new format
@@ -920,19 +943,22 @@
           email: p.email,
           partner: p.partner ? {
             ...p.partner,
-            photoURL: partnerPhotoURL
+            photoURL: partnerPhotoURL,
+            rankingSnapshot: partnerRankingSnapshot
           } : undefined,
-          photoURL
+          photoURL,
+          rankingSnapshot
         };
       }));
 
       // participants array is already populated from the map above — no conversion needed
 
       // Assign IDs to duplicated participants (they need new unique IDs)
+      // rankingSnapshot is preserved from the profile fetch above (estimate for FSI preview)
       participants = participants.map(p => ({
         ...p,
         id: crypto.randomUUID(),
-        rankingSnapshot: 0,
+        rankingSnapshot: p.rankingSnapshot ?? 0,
         status: 'ACTIVE' as const
       }));
 
@@ -2940,7 +2966,7 @@
                     </div>
                     <div class="tier-desc">{m.wizard_seriesThirtyFiveDesc()}</div>
                     <div class="tier-min">{m.wizard_tierMinRecommended({ n: getNaturalThreshold(35, gameType), unit: gameType === 'singles' ? m.wizard_nPlayers({ n: getNaturalThreshold(35, gameType) }) : m.wizard_nTeams({ n: getNaturalThreshold(35, gameType) }) })}</div>
-                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'SERIES_35', participantCount || getNaturalThreshold(35, gameType), gameType)} pts al 1º</div>
+                    <div class="tier-points">🥇 {selectedScoringSystem === 'FSI' ? `≥ ${getFsiTierFloor('SERIES_35')}` : calculateRankingPoints(1, 'SERIES_35', participantCount || getNaturalThreshold(35, gameType), gameType)} pts al 1º</div>
                   </div>
                 </label>
 
@@ -2953,7 +2979,7 @@
                     </div>
                     <div class="tier-desc">{m.wizard_seriesTwentyFiveDesc()}</div>
                     <div class="tier-min">{m.wizard_tierMinRecommended({ n: getNaturalThreshold(25, gameType), unit: gameType === 'singles' ? m.wizard_nPlayers({ n: getNaturalThreshold(25, gameType) }) : m.wizard_nTeams({ n: getNaturalThreshold(25, gameType) }) })}</div>
-                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'SERIES_25', participantCount || getNaturalThreshold(25, gameType), gameType)} pts al 1º</div>
+                    <div class="tier-points">🥇 {selectedScoringSystem === 'FSI' ? `≥ ${getFsiTierFloor('SERIES_25')}` : calculateRankingPoints(1, 'SERIES_25', participantCount || getNaturalThreshold(25, gameType), gameType)} pts al 1º</div>
                   </div>
                 </label>
 
@@ -2966,7 +2992,7 @@
                     </div>
                     <div class="tier-desc">{m.wizard_seriesFifteenDesc()}</div>
                     <div class="tier-min">{m.wizard_tierMinRecommended({ n: getNaturalThreshold(15, gameType), unit: gameType === 'singles' ? m.wizard_nPlayers({ n: getNaturalThreshold(15, gameType) }) : m.wizard_nTeams({ n: getNaturalThreshold(15, gameType) }) })}</div>
-                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'SERIES_15', participantCount || getNaturalThreshold(15, gameType), gameType)} pts al 1º</div>
+                    <div class="tier-points">🥇 {selectedScoringSystem === 'FSI' ? `≥ ${getFsiTierFloor('SERIES_15')}` : calculateRankingPoints(1, 'SERIES_15', participantCount || getNaturalThreshold(15, gameType), gameType)} pts al 1º</div>
                   </div>
                 </label>
               </div>
@@ -3014,8 +3040,53 @@
                   <p class="fsi-floor-label">
                     {m.wizard_fsiFloorLabel()} <strong>{getFsiTierFloor(selectedTier)} pts</strong>
                   </p>
+                  {#if fsiEstimate.rankedCount > 0}
+                    <p class="fsi-estimate">
+                      {m.wizard_fsiEstimated()} <strong>{fsiEstimate.fsi}</strong>
+                      <span class="fsi-estimate-winner" class:floor-active={fsiEstimate.floorActive}>
+                        {#if fsiEstimate.floorActive}
+                          {m.wizard_fsiWinnerFloor({ pts: fsiEstimate.winnerPoints })}
+                        {:else}
+                          {m.wizard_fsiWinnerField({ pts: fsiEstimate.winnerPoints })}
+                        {/if}
+                      </span>
+                    </p>
+                    {#if fsiEstimate.floorActive}
+                      <p class="fsi-estimate-note">{m.wizard_fsiFloorActiveNote({ floor: fsiEstimate.floor })}</p>
+                    {/if}
+                    <p class="fsi-estimate-note">{m.wizard_fsiEstimatedNote({ ranked: fsiEstimate.rankedCount, total: participantCount })}</p>
+                  {/if}
                   <p class="fsi-field-note">{m.wizard_fsiFieldNote()}</p>
                 </div>
+
+                <!-- Estimated distribution: uses estimated FSI winner points (floor when field has no rankings) -->
+                {#key participantCount}
+                {@const fsiCount = Math.max(2, participantCount || 16)}
+                {@const fsiWinner = fsiEstimate.winnerPoints}
+                <div class="points-distribution">
+                  <h4>📊 {fsiEstimate.rankedCount > 0 ? m.wizard_fsiEstDistribution({ tier: getTierInfo(selectedTier).name }) : m.wizard_fsiMinDistribution({ tier: getTierInfo(selectedTier).name })}</h4>
+                  <table class="points-table">
+                    <thead>
+                      <tr>
+                        <th>{m.wizard_position()}</th>
+                        {#each Array.from({ length: fsiCount }, (_, i) => i + 1) as pos}
+                          <th>{pos}º</th>
+                        {/each}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>{m.scoring_points()}</td>
+                        {#each Array.from({ length: fsiCount }, (_, i) => i + 1) as pos}
+                          <td class="points">{distributeRankingPoints(pos, fsiWinner, fsiCount, gameType)}</td>
+                        {/each}
+                      </tr>
+                    </tbody>
+                  </table>
+                  <small class="help-text note-dynamic">{fsiEstimate.rankedCount > 0 ? m.wizard_fsiEstDistributionNote() : m.wizard_fsiMinDistributionNote()}</small>
+                  <small class="help-text">{m.wizard_pointsNote()}</small>
+                </div>
+                {/key}
               {/if}
             </div>
           {/if}
@@ -4724,6 +4795,30 @@
     font-size: 0.88rem;
     margin: 0 0 4px;
     color: var(--foreground);
+  }
+
+  .fsi-estimate {
+    font-size: 0.95rem;
+    margin: 8px 0 2px;
+    color: var(--foreground);
+  }
+
+  .fsi-estimate strong {
+    color: var(--primary);
+    font-size: 1.05rem;
+  }
+
+  .fsi-estimate-winner {
+    margin-left: 6px;
+    font-size: 0.82rem;
+    color: var(--muted-foreground);
+  }
+
+  .fsi-estimate-note {
+    font-size: 0.74rem;
+    color: var(--muted-foreground);
+    margin: 0 0 6px;
+    font-style: italic;
   }
 
   .fsi-field-note {

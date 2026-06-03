@@ -5,6 +5,7 @@
   import * as Popover from '$lib/components/ui/popover';
   import { Button } from '$lib/components/ui/button';
   import { searchUsers } from '$lib/firebase/tournaments';
+  import { estimateParticipantRanking } from '$lib/firebase/rankings';
   import type { UserProfile } from '$lib/firebase/userProfile';
   import type { TournamentParticipant } from '$lib/types/tournament';
   import * as m from '$lib/paraglide/messages.js';
@@ -22,10 +23,10 @@
     userKey?: string;
     name: string;
     photoURL?: string;
+    ranking?: number;
   }
 
-  // Extended type to include ranking from search results
-  type UserWithRanking = UserProfile & { userId: string; ranking?: number };
+  type UserWithRanking = UserProfile & { userId: string };
 
   let { onadd, existingParticipants = [], excludedUserIds = [], excludedNames = new Set() }: Props = $props();
 
@@ -102,7 +103,8 @@
       userId: user.userId,
       userKey: user.key || undefined,
       name: user.playerName,
-      photoURL: user.photoURL || undefined
+      photoURL: user.photoURL || undefined,
+      ranking: estimateParticipantRanking(user.tournaments)
     };
     p1Query = '';
     p1RawResults = [];
@@ -115,7 +117,8 @@
       userId: user.userId,
       userKey: user.key || undefined,
       name: user.playerName,
-      photoURL: user.photoURL || undefined
+      photoURL: user.photoURL || undefined,
+      ranking: estimateParticipantRanking(user.tournaments)
     };
     p2Query = '';
     p2RawResults = [];
@@ -193,9 +196,11 @@
         userId: p2Selected.userId,
         userKey: p2Selected.userKey,
         name: p2Selected.name,
-        photoURL: p2Selected.photoURL
+        photoURL: p2Selected.photoURL,
+        rankingSnapshot: p2Selected.ranking || 0
       },
-      rankingSnapshot: 0, // Calculated via syncParticipantRankings when tournament starts
+      // Initial estimate from search results; recalculated via syncParticipantRankings when tournament starts
+      rankingSnapshot: p1Selected.ranking || 0,
       status: 'ACTIVE'
     };
 

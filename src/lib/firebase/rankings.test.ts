@@ -37,6 +37,7 @@ vi.mock('$lib/algorithms/ranking', () => ({
 
 import {
 	calculateUserRanking,
+	estimateParticipantRanking,
 	recalculateUserRanking,
 	calculateRankings,
 	getAvailableCountries,
@@ -143,6 +144,65 @@ describe('calculateUserRanking', () => {
 		];
 		// Top 1 should be 99 (not 10, the first in array order)
 		expect(calculateUserRanking(records, 2025, 1)).toBe(99);
+	});
+});
+
+// ─────────────────────────────────────────────────
+// estimateParticipantRanking (FSI preview / seeding)
+// ─────────────────────────────────────────────────
+describe('estimateParticipantRanking', () => {
+	it('returns 0 for undefined tournaments (guest / no history)', () => {
+		expect(estimateParticipantRanking(undefined, 2025)).toBe(0);
+	});
+
+	it('returns 0 for empty tournaments array', () => {
+		expect(estimateParticipantRanking([], 2025)).toBe(0);
+	});
+
+	it('sums top 2 results of the reference year', () => {
+		const records = [
+			makeRecord({ rankingDelta: 40, tournamentDate: new Date('2025-02-01').getTime() }),
+			makeRecord({ rankingDelta: 70, tournamentDate: new Date('2025-05-01').getTime() }),
+			makeRecord({ rankingDelta: 20, tournamentDate: new Date('2025-08-01').getTime() })
+		];
+		// Top 2 of 2025: 70 + 40 = 110
+		expect(estimateParticipantRanking(records, 2025)).toBe(110);
+	});
+
+	it('falls back to previous year when the reference year has no results', () => {
+		const records = [
+			makeRecord({ rankingDelta: 60, tournamentDate: new Date('2024-03-01').getTime() }),
+			makeRecord({ rankingDelta: 30, tournamentDate: new Date('2024-09-01').getTime() })
+		];
+		// 2025 has none → fall back to 2024: 60 + 30 = 90
+		expect(estimateParticipantRanking(records, 2025)).toBe(90);
+	});
+
+	it('prefers the current year over the previous year when both exist', () => {
+		const records = [
+			makeRecord({ rankingDelta: 100, tournamentDate: new Date('2024-06-01').getTime() }),
+			makeRecord({ rankingDelta: 25, tournamentDate: new Date('2025-06-01').getTime() })
+		];
+		// 2025 present → use it (25), do NOT fall back to 2024 (100)
+		expect(estimateParticipantRanking(records, 2025)).toBe(25);
+	});
+
+	it('does not look two years back', () => {
+		const records = [
+			makeRecord({ rankingDelta: 80, tournamentDate: new Date('2023-06-01').getTime() })
+		];
+		// Neither 2025 nor 2024 → 0 (only previous-year fallback, not 2023)
+		expect(estimateParticipantRanking(records, 2025)).toBe(0);
+	});
+
+	it('respects bestOfN parameter', () => {
+		const records = [
+			makeRecord({ rankingDelta: 50, tournamentDate: new Date('2025-01-01').getTime() }),
+			makeRecord({ rankingDelta: 40, tournamentDate: new Date('2025-02-01').getTime() }),
+			makeRecord({ rankingDelta: 30, tournamentDate: new Date('2025-03-01').getTime() })
+		];
+		// bestOfN=3 → 50 + 40 + 30 = 120
+		expect(estimateParticipantRanking(records, 2025, 3)).toBe(120);
 	});
 });
 

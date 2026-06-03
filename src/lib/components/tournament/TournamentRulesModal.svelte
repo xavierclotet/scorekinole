@@ -1,7 +1,8 @@
 <script lang="ts">
   import { type Tournament, normalizeTier } from '$lib/types/tournament';
   import { formatDuration, calculateTimeBreakdown } from '$lib/utils/tournamentTime';
-  import { getPointsDistribution } from '$lib/algorithms/ranking';
+  import { getPointsDistribution, distributeRankingPoints } from '$lib/algorithms/ranking';
+  import { calculateFsi, calculateFsiWinnerPoints } from '$lib/algorithms/rankingFsi';
   import * as m from '$lib/paraglide/messages.js';
   import { getLocale } from '$lib/paraglide/runtime';
 
@@ -162,13 +163,35 @@
     return tierMap[normalized];
   })());
 
-  // Points distribution for ranking section
+  // FSI info: real field strength (only meaningful once rankingSnapshot is synced at tournament start)
+  let fsiInfo = $derived((() => {
+    if (!tournament.rankingConfig?.enabled) return null;
+    if ((tournament.rankingConfig.scoringSystem ?? 'CLASSIC') !== 'FSI') return null;
+    const normalized = normalizeTier(tournament.rankingConfig.tier);
+    const field = tournament.participants
+      .filter(p => p.status === 'ACTIVE' || !p.status)
+      .map(p => ({ rankingSnapshot: p.rankingSnapshot || 0 }));
+    const fsi = calculateFsi(field);
+    return {
+      fsi: Math.round(fsi * 10) / 10,
+      winnerPoints: calculateFsiWinnerPoints(field, normalized),
+      rankedCount: field.filter(p => p.rankingSnapshot > 0).length
+    };
+  })());
+
+  // Points distribution for ranking section (CLASSIC or FSI)
   let pointsDistribution = $derived((() => {
     if (!tournament.rankingConfig?.enabled) return null;
     const normalized = normalizeTier(tournament.rankingConfig.tier);
     const mode = tournament.gameType === 'doubles' ? 'doubles' : 'singles';
     const count = tournament.participants.length;
     if (count < 2) return null;
+    if (fsiInfo) {
+      return Array.from({ length: count }, (_, i) => ({
+        position: i + 1,
+        points: distributeRankingPoints(i + 1, fsiInfo.winnerPoints, count, mode)
+      }));
+    }
     return getPointsDistribution(normalized as 'SERIES_35' | 'SERIES_25' | 'SERIES_15', count, mode);
   })());
 
@@ -472,6 +495,13 @@
             <!-- eslint-disable-next-line svelte/no-at-html-tags -->
             {@html formatText(m.rules_rankingPoints({ tier: rankingInfo.name, maxPoints: pointsDistribution?.[0]?.points ?? rankingInfo.maxPoints }))}
           </p>
+          {#if fsiInfo && fsiInfo.rankedCount > 0}
+            <div class="fsi-strength">
+              <span class="fsi-strength-label">{m.rules_fieldStrength()}</span>
+              <span class="fsi-strength-value">{fsiInfo.fsi}</span>
+              <span class="fsi-strength-winner">{m.rules_fieldStrengthWinner({ pts: fsiInfo.winnerPoints })}</span>
+            </div>
+          {/if}
           {#if pointsDistribution}
             <div class="points-distribution">
               <table class="points-table">
@@ -800,6 +830,42 @@
   }
 
   /* Points distribution table */
+  .fsi-strength {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-left: 3px solid var(--primary);
+    border-radius: 0 6px 6px 0;
+  }
+
+  .fsi-strength-label {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.75);
+  }
+
+  .fsi-strength-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--primary);
+  }
+
+  .fsi-strength-winner {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  .modal-backdrop[data-theme='light'] .fsi-strength-label {
+    color: rgba(0, 0, 0, 0.7);
+  }
+
+  .modal-backdrop[data-theme='light'] .fsi-strength-winner {
+    color: rgba(0, 0, 0, 0.55);
+  }
+
   .points-distribution {
     margin-top: 0.75rem;
     overflow-x: auto;

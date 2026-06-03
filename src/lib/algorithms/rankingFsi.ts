@@ -2,9 +2,9 @@ import type { TournamentTier } from '$lib/types/tournament';
 import { distributeRankingPoints } from './ranking';
 
 const FSI_TIER_FLOORS: Record<TournamentTier, number> = {
-  SERIES_35: 40,
-  SERIES_25: 30,
-  SERIES_15: 20,
+  SERIES_35: 25,
+  SERIES_25: 18,
+  SERIES_15: 12,
 };
 
 export function getFsiTierFloor(tier: TournamentTier): number {

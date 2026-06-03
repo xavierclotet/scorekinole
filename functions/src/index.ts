@@ -41,9 +41,9 @@ type TournamentTier = "SERIES_35" | "SERIES_25" | "SERIES_15";
 type ScoringSystem = "CLASSIC" | "FSI";
 
 const FSI_TIER_FLOORS: Record<TournamentTier, number> = {
-  SERIES_35: 40,
-  SERIES_25: 30,
-  SERIES_15: 20,
+  SERIES_35: 25,
+  SERIES_25: 18,
+  SERIES_15: 12,
 };
 
 /**

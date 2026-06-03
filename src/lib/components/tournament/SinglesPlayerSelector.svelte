@@ -5,6 +5,7 @@
   import * as Popover from '$lib/components/ui/popover';
   import { Button } from '$lib/components/ui/button';
   import { searchUsers } from '$lib/firebase/tournaments';
+  import { estimateParticipantRanking } from '$lib/firebase/rankings';
   import type { UserProfile } from '$lib/firebase/userProfile';
   import type { TournamentParticipant } from '$lib/types/tournament';
   import * as m from '$lib/paraglide/messages.js';
@@ -15,7 +16,7 @@
     excludedUserIds?: string[];
   }
 
-  type UserWithRanking = UserProfile & { userId: string; ranking?: number };
+  type UserWithRanking = UserProfile & { userId: string };
 
   let { onadd, excludedNames = new Set(), excludedUserIds = [] }: Props = $props();
 
@@ -57,7 +58,7 @@
       userId: user.userId,
       userKey: user.key || undefined,
       photoURL: isGuest ? undefined : (user.photoURL || undefined),
-      rankingSnapshot: 0,
+      rankingSnapshot: isGuest ? 0 : estimateParticipantRanking(user.tournaments),
       status: 'ACTIVE'
     };
     onadd(participant);

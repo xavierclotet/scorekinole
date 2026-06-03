@@ -101,8 +101,11 @@ El tier sigue existiendo, pero solo como **suelo mínimo** garantizado para el g
 
 | Tier | Puntos mínimos ganador |
 |------|----------------------|
-| Tier 2 (Series 25) | 30 pts |
-| Tier 3 (Series 15) | 20 pts |
+| Tier 1 (Series 35) | 25 pts |
+| Tier 2 (Series 25) | 18 pts |
+| Tier 3 (Series 15) | 12 pts |
+
+Los suelos se han calibrado por debajo de los puntos máximos del sistema clásico (35/25/15) para que un campo flojo otorgue menos que el clásico y solo los campos fuertes (FSI alto) superen esos máximos.
 
 Si el FSI del torneo es alto (campo competitivo), el ganador puede superar ese mínimo. Si es bajo, el suelo actúa de garantía.
 
