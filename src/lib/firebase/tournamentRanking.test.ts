@@ -41,6 +41,16 @@ vi.mock('./tournaments', () => ({
 		mockUpdatedParticipants = updates.participants || null;
 		return true;
 	},
+	applyParticipantRankingSnapshots: async (_id: string, updatedByKey: Map<string, any>) => {
+		// Mirror the real transactional merge: apply the snapshot map over the
+		// current participants by identity, preserving any not in the map.
+		const current = (mockTournamentData?.participants ?? []) as any[];
+		mockUpdatedParticipants = current.map((p: any) => {
+			const key = p.userId ? `u:${p.userId}` : `n:${(p.name ?? '').trim().toLowerCase()}`;
+			return updatedByKey.get(key) ?? p;
+		});
+		return true;
+	},
 	parseTournamentData: (data: unknown) => data
 }));
 

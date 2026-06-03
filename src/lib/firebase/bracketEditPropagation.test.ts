@@ -64,6 +64,13 @@ vi.mock('$lib/firebase/tournaments', () => ({
     mockStore.setDocument(`tournaments/${id}`, { ...current, ...updates });
     return true;
   },
+  commitTournamentStartIfRosterUnchanged: async (id: string, _keys: string[], updates: Record<string, unknown>) => {
+    const doc = mockStore.getDocument(`tournaments/${id}`);
+    if (!doc) return { success: false, reason: 'not_found' };
+    mockStore.setDocument(`tournaments/${id}`, { ...(doc.data as Record<string, unknown>), ...updates });
+    return { success: true };
+  },
+  applyParticipantRankingSnapshots: async () => true,
   parseTournamentData: (data: unknown) => data
 }));
 

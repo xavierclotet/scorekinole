@@ -1145,6 +1145,36 @@ describe('config field effects: deadline controls the registration window', () =
   });
 });
 
+// Defense-in-depth: once the tournament's scheduled date arrives, registration
+// closes even if no explicit deadline was configured and the admin hasn't
+// started it yet. (validateRegistration line: now >= tournamentDate.)
+describe('config field effects: tournament date closes registration', () => {
+  const now = Date.now();
+  const reg = { enabled: true, notifyOnRegistration: false, showParticipantList: true };
+
+  it('tournament date in the past → blocked, even with no deadline set', () => {
+    const result = validateRegistration('DRAFT', reg, [], [], 'u1', now, [], undefined, now - 60_000);
+    expect(result).toEqual({ canRegister: false, reason: 'deadline_passed' });
+  });
+
+  it('tournament date exactly now → blocked (now >= tournamentDate)', () => {
+    const result = validateRegistration('DRAFT', reg, [], [], 'u1', now, [], undefined, now);
+    expect(result.canRegister).toBe(false);
+    expect(result.reason).toBe('deadline_passed');
+  });
+
+  it('tournament date in the future → allowed', () => {
+    const result = validateRegistration('DRAFT', reg, [], [], 'u1', now, [], undefined, now + 86_400_000);
+    expect(result.canRegister).toBe(true);
+  });
+
+  it('a started tournament is blocked regardless of dates (status wins)', () => {
+    // The status guard fires before the date guard.
+    const result = validateRegistration('GROUP_STAGE', reg, [], [], 'u1', now, [], undefined, now + 86_400_000);
+    expect(result).toEqual({ canRegister: false, reason: 'not_draft' });
+  });
+});
+
 describe('config field effects: maxParticipants controls capacity routing', () => {
   const now = Date.now();
   const userId = 'u99';

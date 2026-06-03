@@ -3,7 +3,8 @@
  */
 
 import { isFirebaseEnabled } from './config';
-import { getTournament, updateTournament, updateTournamentPublic } from './tournaments';
+import { getTournament, updateTournament, updateTournamentPublic, applyParticipantRankingSnapshots } from './tournaments';
+import { participantIdentityKey } from './tournamentRegistration';
 import { calculateRankingPoints, distributeRankingPoints } from '$lib/algorithms/ranking';
 import { calculateFsiWinnerPoints } from '$lib/algorithms/rankingFsi';
 import { calculateConsolationPositions } from '$lib/algorithms/bracket';
@@ -125,11 +126,11 @@ export async function syncParticipantRankings(tournamentId: string): Promise<boo
       };
     });
 
-    await updateTournament(tournamentId, {
-      participants: updatedParticipants
-    });
-
-    return true;
+    // Apply transactionally, keyed by participant identity, so a player who
+    // self-registers while the tournament is being started is preserved instead
+    // of being clobbered by this (now stale) snapshot.
+    const updatedByKey = new Map(updatedParticipants.map(p => [participantIdentityKey(p), p]));
+    return await applyParticipantRankingSnapshots(tournamentId, updatedByKey);
   } catch (error) {
     console.error('Error syncing participant rankings:', error);
     return false;

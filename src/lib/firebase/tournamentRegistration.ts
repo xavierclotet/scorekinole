@@ -356,6 +356,117 @@ export function detachUserFromPartnerSlots(
   return { participants: newParticipants, waitlist: newWaitlist, detached };
 }
 
+/**
+ * Snapshot of the registration state at the moment the admin opened the edit wizard.
+ * Used to distinguish "rows the admin saw and chose to keep/remove" from
+ * "rows that appeared concurrently (new self-registrations / promotions)".
+ */
+export interface EditBaseline {
+  /** participant.id values present when the wizard loaded */
+  participantIds: string[];
+  /** waitlist entry userId values present when the wizard loaded */
+  waitlistUserIds: string[];
+}
+
+/**
+ * Reconcile an admin's edited participant/waitlist lists (built from a stale
+ * snapshot taken when the edit wizard opened) against the CURRENT Firestore
+ * state, so that registrations / waitlist entries / promotions that happened
+ * while the wizard was open are NOT clobbered by a blind overwrite.
+ *
+ * Semantics (safe default — never silently lose a real registration):
+ *  - `edited` wins for every row the admin saw at open time: kept rows stay
+ *    with the admin's edits; rows the admin removed (present in `baseline`,
+ *    absent from `edited`) are dropped, honouring the explicit removal.
+ *  - Rows present in `current` but NOT in `baseline` and NOT in `edited` are
+ *    treated as concurrent additions (a player self-registered / joined the
+ *    waitlist / was promoted after the wizard opened) and are PRESERVED.
+ *  - De-dup: a user who is now a primary participant is removed from the
+ *    waitlist (covers the concurrent unregister→promotion case where the
+ *    promoted user would otherwise appear in both lists).
+ *
+ * Identity: participants by `id`, waitlist entries by `userId`.
+ *
+ * Pure function — no Firebase side effects. The caller MUST run it inside the
+ * same transaction that reads `current` and writes the result, so the
+ * read-merge-write is atomic.
+ */
+export function reconcileEditedRegistration(
+  baseline: EditBaseline,
+  edited: { participants: TournamentParticipant[]; waitlist: WaitlistEntry[] },
+  current: { participants: TournamentParticipant[]; waitlist: WaitlistEntry[] }
+): { participants: TournamentParticipant[]; waitlist: WaitlistEntry[] } {
+  const baselineParticipantIds = new Set(baseline.participantIds);
+  const baselineWaitlistUserIds = new Set(baseline.waitlistUserIds);
+  const editedParticipantIds = new Set(edited.participants.map(p => p.id));
+  const editedWaitlistUserIds = new Set(edited.waitlist.map(w => w.userId));
+
+  // Participants added concurrently: in Firestore now, unknown to the wizard,
+  // and not already represented in the edited list.
+  const concurrentParticipants = current.participants.filter(
+    p => !baselineParticipantIds.has(p.id) && !editedParticipantIds.has(p.id)
+  );
+  const participants = [...edited.participants, ...concurrentParticipants];
+
+  // Waitlist entries added concurrently.
+  const concurrentWaitlist = current.waitlist.filter(
+    w => !baselineWaitlistUserIds.has(w.userId) && !editedWaitlistUserIds.has(w.userId)
+  );
+  let waitlist = [...edited.waitlist, ...concurrentWaitlist];
+
+  // A user promoted to a primary slot must not linger on the waitlist.
+  const primaryUserIds = new Set(
+    participants.map(p => p.userId).filter((id): id is string => !!id)
+  );
+  waitlist = waitlist.filter(w => !primaryUserIds.has(w.userId));
+
+  return { participants, waitlist };
+}
+
+/**
+ * Stable identity key for a participant / registrant, robust to the participant
+ * `id` being (re)generated during tournament start. Prefers `userId`; falls back
+ * to a normalized name for legacy/guest rows that never had one.
+ */
+export function participantIdentityKey(p: { userId?: string; name?: string }): string {
+  return p.userId ? `u:${p.userId}` : `n:${(p.name ?? '').trim().toLowerCase()}`;
+}
+
+/**
+ * True if the set of participant identities in `current` differs from
+ * `expectedKeys` — i.e. someone self-registered, unregistered, or was promoted
+ * from the waitlist between the moment the roster was snapshotted and now.
+ *
+ * Used at tournament start: the schedule/bracket is built from a fixed roster,
+ * so if the roster changed under us we must abort the start (and let the admin
+ * retry with the new roster) rather than silently drop the new registration.
+ */
+export function rosterChanged(
+  expectedKeys: string[],
+  current: { userId?: string; name?: string }[]
+): boolean {
+  if (expectedKeys.length !== current.length) return true;
+  const expected = [...expectedKeys].sort();
+  const actual = current.map(participantIdentityKey).sort();
+  return expected.some((k, i) => k !== actual[i]);
+}
+
+/**
+ * Apply pre-computed participant updates (e.g. ranking snapshots, fetched from
+ * user profiles outside the transaction) onto the CURRENT participant list,
+ * matched by identity. Rows present in `current` but absent from `updatedByKey`
+ * (a player who registered concurrently) are preserved untouched instead of
+ * being clobbered.
+ *
+ * Pure function — the caller runs it inside the transaction that read `current`.
+ */
+export function applyRankingSnapshots(
+  current: TournamentParticipant[],
+  updatedByKey: Map<string, TournamentParticipant>
+): TournamentParticipant[] {
+  return current.map(p => updatedByKey.get(participantIdentityKey(p)) ?? p);
+}
+
 // --- Firestore operations ---
 
 interface PartnerData {

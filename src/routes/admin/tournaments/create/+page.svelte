@@ -13,7 +13,7 @@
   import { adminTheme } from '$lib/stores/theme';
   import { adminState } from '$lib/stores/admin';
   import { goto } from '$app/navigation';
-  import { createTournament, getTournament, updateTournament, searchTournamentNames, checkTournamentKeyExists, checkTournamentQuota, type TournamentNameInfo } from '$lib/firebase/tournaments';
+  import { createTournament, getTournament, updateTournament, updateDraftTournamentMergingRegistration, searchTournamentNames, checkTournamentKeyExists, checkTournamentQuota, type TournamentNameInfo } from '$lib/firebase/tournaments';
   import { addParticipants } from '$lib/firebase/tournamentParticipants';
   import { buildRegistrationConfig, adminPromoteFromWaitlist, adminRemoveFromWaitlist, validateRegistrationDeadline } from '$lib/firebase/tournamentRegistration';
   import type { TournamentParticipant, WaitlistEntry, RankingConfig, TournamentTier, ScoringSystem } from '$lib/types/tournament';
@@ -32,6 +32,10 @@
   // Edit mode
   let editMode = $state(false);
   let editTournamentId = $state<string | null>(null);
+  // Snapshot of the registration state when the wizard opened (edit mode only).
+  // Lets the save merge concurrent registrations instead of clobbering them.
+  let editBaselineParticipantIds = $state<string[]>([]);
+  let editBaselineWaitlistUserIds = $state<string[]>([]);
 
   // Duplicate mode
   let duplicateMode = $state(false);
@@ -628,6 +632,11 @@
 
       // Step 3: Waitlist (from registration)
       waitlist = tournament.waitlist || [];
+
+      // Capture the registration baseline at open time so the save can merge
+      // concurrent self-registrations / promotions instead of overwriting them.
+      editBaselineParticipantIds = tournament.participants.map(p => p.id);
+      editBaselineWaitlistUserIds = (tournament.waitlist || []).map(w => w.userId);
 
       // Step 3: Participants - Load directly into array (preserves userId links)
       participants = await Promise.all(tournament.participants.map(async (p) => {
@@ -1774,8 +1783,19 @@
       const cleanedData = cleanObject(tournamentData);
 
       if (editMode && editTournamentId) {
-        // UPDATE MODE
-        const success = await updateTournament(editTournamentId, cleanedData);
+        // UPDATE MODE — merge participants/waitlist against live Firestore state
+        // inside the transaction so registrations that arrived while the wizard
+        // was open are preserved instead of clobbered by this stale snapshot.
+        const success = await updateDraftTournamentMergingRegistration(
+          editTournamentId,
+          cleanedData,
+          {
+            participantIds: editBaselineParticipantIds,
+            waitlistUserIds: editBaselineWaitlistUserIds
+          },
+          participantsWithIds as TournamentParticipant[],
+          waitlist
+        );
 
         if (!success) {
           creating = false;

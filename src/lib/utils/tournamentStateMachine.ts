@@ -3,7 +3,8 @@
  * Manages tournament lifecycle transitions
  */
 
-import { getTournament, updateTournament } from '$lib/firebase/tournaments';
+import { getTournament, updateTournament, commitTournamentStartIfRosterUnchanged } from '$lib/firebase/tournaments';
+import { participantIdentityKey } from '$lib/firebase/tournamentRegistration';
 import { generateBracket } from '$lib/firebase/tournamentBracket';
 import { calculateFinalPositions, calculateFinalPositionsForTournament, syncParticipantRankings } from '$lib/firebase/tournamentRanking';
 import type { TournamentStatus } from '$lib/types/tournament';
@@ -267,14 +268,23 @@ async function startGroupStage(tournamentId: string): Promise<boolean> {
     ? { ...tournament.registration, enabled: false }
     : undefined;
 
-  // Single update with all changes
-  return await updateTournament(tournamentId, {
+  // Commit atomically, but ONLY if the roster still matches what the schedule
+  // was built from. If someone (un)registered while we were generating the
+  // schedule, abort instead of silently dropping them — the caller re-runs
+  // start, which rebuilds the schedule with the new roster included.
+  const expectedRosterKeys = tournament.participants.map(participantIdentityKey);
+  const result = await commitTournamentStartIfRosterUnchanged(tournamentId, expectedRosterKeys, {
     participants: updatedParticipants,
     groupStage,
     status: 'GROUP_STAGE',
     startedAt: Date.now(),
     ...(registrationUpdate ? { registration: registrationUpdate } : {})
   });
+
+  if (!result.success && result.reason === 'roster_changed') {
+    console.warn('⚠️ Tournament start aborted: a registration changed the roster mid-start. Re-run start to include it.');
+  }
+  return result.success;
 }
 
 /**
@@ -351,6 +361,11 @@ async function startFinalStage(tournamentId: string): Promise<boolean> {
   let tournament = await getTournament(tournamentId);
   if (!tournament) return false;
 
+  // ONE_PHASE bracket tournaments start straight from DRAFT, so registration may
+  // still be open. TWO_PHASE reaches FINAL_STAGE from TRANSITION (registration
+  // long closed). Only the from-DRAFT path needs the roster guard.
+  const startedFromDraft = tournament.status === 'DRAFT';
+
   // For ONE_PHASE tournaments, sync rankings here
   // (For TWO_PHASE, this is done in startGroupStage)
   if (tournament.phaseType === 'ONE_PHASE' && tournament.rankingConfig?.enabled) {
@@ -374,7 +389,26 @@ async function startFinalStage(tournamentId: string): Promise<boolean> {
     return false;
   }
 
-  // Update status
+  // From-DRAFT (ONE_PHASE) start: the bracket was just built from a fixed roster.
+  // If a player (un)registered while we were generating it, abort instead of
+  // leaving them in `participants` but absent from the bracket (a ghost player).
+  // The caller re-runs start, which rebuilds the bracket with the new roster.
+  if (startedFromDraft) {
+    const registrationUpdate = tournament.registration
+      ? { ...tournament.registration, enabled: false }
+      : undefined;
+    const expectedRosterKeys = tournament.participants.map(participantIdentityKey);
+    const result = await commitTournamentStartIfRosterUnchanged(tournamentId, expectedRosterKeys, {
+      status: 'FINAL_STAGE',
+      ...(registrationUpdate ? { registration: registrationUpdate } : {})
+    });
+    if (!result.success && result.reason === 'roster_changed') {
+      console.warn('⚠️ Bracket start aborted: a registration changed the roster mid-start. Re-run start to rebuild the bracket.');
+    }
+    return result.success;
+  }
+
+  // TWO_PHASE (from TRANSITION): roster already frozen, just flip status.
   return await updateTournament(tournamentId, {
     status: 'FINAL_STAGE'
   });

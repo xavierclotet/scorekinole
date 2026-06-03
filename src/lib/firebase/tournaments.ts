@@ -6,7 +6,8 @@
 import { db, isFirebaseEnabled } from './config';
 import { currentUser } from './auth';
 import { isAdmin, isSuperAdmin } from './admin';
-import type { Tournament, TournamentStatus, TournamentParticipant, BracketMatch } from '$lib/types/tournament';
+import type { Tournament, TournamentStatus, TournamentParticipant, BracketMatch, WaitlistEntry } from '$lib/types/tournament';
+import { reconcileEditedRegistration, rosterChanged, applyRankingSnapshots, type EditBaseline } from './tournamentRegistration';
 import { getUserProfile, type UserProfile } from './userProfile';
 import { getQuotaForYear, getQuotaEntryForYear, type QuotaEntry } from '$lib/types/quota';
 import {
@@ -761,6 +762,210 @@ export async function updateTournament(
   } catch (error) {
     console.error('❌ Error updating tournament:', error);
     return false;
+  }
+}
+
+/**
+ * Update a DRAFT tournament from the edit wizard, MERGING the participant and
+ * waitlist arrays against the live Firestore state inside the transaction.
+ *
+ * Why this exists: the wizard builds `editedParticipants` / `editedWaitlist`
+ * from a snapshot taken when it opened. A plain `updateTournament({ participants })`
+ * blindly overwrites the arrays, silently destroying any self-registration,
+ * waitlist join, or promotion that happened while the wizard was open. This
+ * function re-reads the current arrays inside the transaction and reconciles
+ * (see `reconcileEditedRegistration`) so concurrent registrations survive.
+ *
+ * `configUpdates` MUST NOT contain `participants` or `waitlist` — those are
+ * computed here from baseline + edited + current.
+ *
+ * @returns true if successful
+ */
+export async function updateDraftTournamentMergingRegistration(
+  id: string,
+  configUpdates: Partial<Tournament>,
+  baseline: EditBaseline,
+  editedParticipants: TournamentParticipant[],
+  editedWaitlist: WaitlistEntry[]
+): Promise<boolean> {
+  if (!browser || !isFirebaseEnabled()) {
+    console.warn('Firebase disabled');
+    return false;
+  }
+
+  const user = get(currentUser);
+  if (!user) {
+    console.warn('No user authenticated');
+    return false;
+  }
+
+  const adminStatus = await isAdmin();
+  if (!adminStatus) {
+    console.error('Unauthorized: User is not admin');
+    return false;
+  }
+
+  // Defensive: never let participants/waitlist sneak in via configUpdates and
+  // re-introduce the blind overwrite this function exists to prevent.
+  const { participants: _p, waitlist: _w, ...safeConfig } = configUpdates as Record<string, unknown>;
+
+  try {
+    const tournamentRef = doc(db!, 'tournaments', id);
+
+    await runTransaction(db!, async (transaction) => {
+      const snapshot = await transaction.get(tournamentRef);
+      if (!snapshot.exists()) {
+        throw new Error('Tournament not found: ' + id);
+      }
+
+      const current = parseTournamentData(snapshot.data());
+
+      const hasPermission = await canManageTournament(current, user.id);
+      if (!hasPermission) {
+        throw new Error('Unauthorized: User cannot edit this tournament');
+      }
+
+      // Only DRAFT tournaments accept participant edits. If it auto-started
+      // (DRAFT → GROUP_STAGE) while the wizard was open, abort rather than
+      // corrupt a running tournament's roster.
+      if (current.status !== 'DRAFT') {
+        throw new Error('Cannot edit participants: tournament is no longer in DRAFT status');
+      }
+
+      const merged = reconcileEditedRegistration(
+        baseline,
+        { participants: editedParticipants, waitlist: editedWaitlist },
+        { participants: current.participants || [], waitlist: current.waitlist || [] }
+      );
+
+      const cleanUpdates = cleanUndefined({
+        ...safeConfig,
+        participants: merged.participants,
+        waitlist: merged.waitlist
+      });
+
+      transaction.update(tournamentRef, {
+        ...cleanUpdates,
+        updatedAt: serverTimestamp()
+      });
+    });
+
+    console.log('✅ Tournament updated (registration merged):', id);
+    return true;
+  } catch (error) {
+    console.error('❌ Error updating tournament (registration merge):', error);
+    return false;
+  }
+}
+
+/**
+ * Apply pre-computed participant updates (ranking snapshots) onto a DRAFT
+ * tournament transactionally, preserving any participant that registered
+ * concurrently. Replaces the old read-outside / blind-overwrite pattern in
+ * `syncParticipantRankings`, which dropped last-second registrations made while
+ * the tournament was being started.
+ *
+ * @param updatedByKey participant identity key → fully-updated participant row
+ */
+export async function applyParticipantRankingSnapshots(
+  id: string,
+  updatedByKey: Map<string, TournamentParticipant>
+): Promise<boolean> {
+  if (!browser || !isFirebaseEnabled()) {
+    console.warn('Firebase disabled');
+    return false;
+  }
+
+  try {
+    const tournamentRef = doc(db!, 'tournaments', id);
+
+    await runTransaction(db!, async (transaction) => {
+      const snapshot = await transaction.get(tournamentRef);
+      if (!snapshot.exists()) throw new Error('Tournament not found: ' + id);
+
+      const current = parseTournamentData(snapshot.data());
+      const merged = applyRankingSnapshots(current.participants || [], updatedByKey);
+
+      transaction.update(tournamentRef, {
+        participants: cleanUndefined(merged),
+        updatedAt: serverTimestamp()
+      });
+    });
+
+    return true;
+  } catch (error) {
+    console.error('❌ Error applying ranking snapshots:', error);
+    return false;
+  }
+}
+
+export type StartCommitReason = 'roster_changed' | 'not_draft' | 'not_found' | 'error';
+
+export interface StartCommitResult {
+  success: boolean;
+  reason?: StartCommitReason;
+}
+
+/**
+ * Commit a tournament-start write (status → GROUP_STAGE, generated schedule,
+ * frozen participants, closed registration) ONLY if the participant roster is
+ * still exactly what the schedule was built from.
+ *
+ * If a player self-registered / unregistered / was promoted between the moment
+ * the roster was snapshotted and this commit, the write is aborted with
+ * `roster_changed` instead of silently dropping that registration. The caller
+ * re-runs the start, which rebuilds the schedule including the new roster.
+ *
+ * @param expectedRosterKeys identity keys (see `participantIdentityKey`) of the
+ *   roster the `updates` were built from. `updates.participants` must align with it.
+ */
+export async function commitTournamentStartIfRosterUnchanged(
+  id: string,
+  expectedRosterKeys: string[],
+  updates: Partial<Tournament>
+): Promise<StartCommitResult> {
+  if (!browser || !isFirebaseEnabled()) {
+    console.warn('Firebase disabled');
+    return { success: false, reason: 'error' };
+  }
+
+  let reason: StartCommitReason | undefined;
+  try {
+    const tournamentRef = doc(db!, 'tournaments', id);
+
+    await runTransaction(db!, async (transaction) => {
+      const snapshot = await transaction.get(tournamentRef);
+      if (!snapshot.exists()) {
+        reason = 'not_found';
+        throw new Error('Tournament not found: ' + id);
+      }
+
+      const current = parseTournamentData(snapshot.data());
+
+      if (current.status !== 'DRAFT') {
+        reason = 'not_draft';
+        throw new Error('Tournament is no longer in DRAFT status');
+      }
+
+      if (rosterChanged(expectedRosterKeys, current.participants || [])) {
+        reason = 'roster_changed';
+        throw new Error('Participant roster changed while starting the tournament');
+      }
+
+      transaction.update(tournamentRef, {
+        ...cleanUndefined(updates),
+        updatedAt: serverTimestamp()
+      });
+    });
+
+    return { success: true };
+  } catch (error) {
+    if (reason) {
+      console.warn(`⚠️ Tournament start aborted (${reason}):`, id);
+      return { success: false, reason };
+    }
+    console.error('❌ Error committing tournament start:', error);
+    return { success: false, reason: 'error' };
   }
 }
 

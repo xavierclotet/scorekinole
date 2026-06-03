@@ -3,7 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Mock Firebase modules that tournamentStateMachine.ts imports transitively
 vi.mock('$lib/firebase/tournaments', () => ({
 	getTournament: vi.fn(),
-	updateTournament: vi.fn()
+	updateTournament: vi.fn(),
+	commitTournamentStartIfRosterUnchanged: vi.fn()
 }));
 vi.mock('$lib/firebase/tournamentBracket', () => ({
 	generateBracket: vi.fn()
@@ -21,7 +22,7 @@ import {
 	transitionTournament
 } from './tournamentStateMachine';
 import type { TournamentStatus, Tournament } from '$lib/types/tournament';
-import { getTournament, updateTournament } from '$lib/firebase/tournaments';
+import { getTournament, updateTournament, commitTournamentStartIfRosterUnchanged } from '$lib/firebase/tournaments';
 import { generateBracket } from '$lib/firebase/tournamentBracket';
 import { calculateFinalPositions, calculateFinalPositionsForTournament } from '$lib/firebase/tournamentRanking';
 
@@ -193,9 +194,47 @@ describe('transitionTournament', () => {
 	const mockGenerateBracket = vi.mocked(generateBracket);
 	const mockCalculateFinalPositions = vi.mocked(calculateFinalPositions);
 	const mockCalculateFinalPositionsForTournament = vi.mocked(calculateFinalPositionsForTournament);
+	const mockCommitStart = vi.mocked(commitTournamentStartIfRosterUnchanged);
 
 	beforeEach(() => {
 		vi.clearAllMocks();
+	});
+
+	// ── ONE_PHASE bracket start (DRAFT → FINAL_STAGE) must use the roster guard ──
+	const oneePhaseDraft = {
+		id: 't1',
+		status: 'DRAFT',
+		phaseType: 'ONE_PHASE',
+		participants: [
+			{ id: 'p1', userId: 'u1', name: 'A' },
+			{ id: 'p2', userId: 'u2', name: 'B' }
+		],
+		finalStage: { goldBracket: { config: {} } }
+	} as unknown as Tournament;
+
+	it('DRAFT → FINAL_STAGE (ONE_PHASE) commits via the roster guard, not a blind update', async () => {
+		mockGetTournament.mockResolvedValue(oneePhaseDraft);
+		mockGenerateBracket.mockResolvedValue(true);
+		mockCommitStart.mockResolvedValue({ success: true });
+
+		const result = await transitionTournament('t1', 'FINAL_STAGE');
+
+		expect(result).toBe(true);
+		expect(mockCommitStart).toHaveBeenCalledTimes(1);
+		const updates = mockCommitStart.mock.calls[0][2] as Record<string, unknown>;
+		expect(updates.status).toBe('FINAL_STAGE');
+		// The status flip must NOT go through the unguarded updateTournament path.
+		expect(mockUpdateTournament).not.toHaveBeenCalledWith('t1', { status: 'FINAL_STAGE' });
+	});
+
+	it('DRAFT → FINAL_STAGE aborts (returns false) when a registration changed the roster mid-start', async () => {
+		mockGetTournament.mockResolvedValue(oneePhaseDraft);
+		mockGenerateBracket.mockResolvedValue(true);
+		mockCommitStart.mockResolvedValue({ success: false, reason: 'roster_changed' });
+
+		const result = await transitionTournament('t1', 'FINAL_STAGE');
+
+		expect(result).toBe(false);
 	});
 
 	it('returns false when tournament not found', async () => {
