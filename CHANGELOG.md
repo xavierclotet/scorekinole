@@ -2,6 +2,13 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.41] - 2026-06-03
+- Feat (ranking): new **FSI (Field Strength Index)** scoring system coexisting with the classic tier system — admins pick per tournament at creation. Points become dynamic, driven by the strength of the registered field (`0.6·avg top-10 + 0.3·avg all + 0.1·size bonus`), with the tier acting only as a guaranteed minimum (floors 12/18/25 for SERIES_15/25/35). Inspired by the NCA "Field of Strength" model
+- Feat (wizard): FSI/Classic selector in the ranking step, live **estimated FSI** of the current field (captures each registered player's real ranking on add/duplicate), and an estimated points-distribution table
+- Feat (tournament rules modal): shows the **real FSI** and the FSI-driven points distribution once participant rankings are synced
+- Feat (functions): FSI ranking logic in `onTournamentComplete` so points awarded at tournament close honour the selected scoring system
+- Tests: +63 unit tests (FSI algorithm formula/rounding/floor/calibration, `estimateParticipantRanking`, `distributeRankingPoints`)
+
 ## [2.5.40] - 2026-05-18
 - Fix (bracket cross-seeding): when split-divisions sent K groups × Q qualifiers to gold, the old "reverse pos-2" logic produced same-group R1 rematches (e.g. 4×3=12 paired all four R1 matches with group-mates). Extracted `crossSeedQualifiers` to `bracket.ts` with K/2 rotation on odd position bands; same-group R1 collisions eliminated across K∈{2..5,8}, Q∈{1..6}. 93 bracket tests passing
 - Fix (public tournament page): live reload via Firestore `onSnapshot` was stalling when the tab sat in background (Chrome freezes the websocket). Added `visibilitychange` / `online` handlers that refetch the tournament when the tab comes back, so rounds/matches catch up without a manual reload
