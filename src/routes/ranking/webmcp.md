@@ -1,7 +1,7 @@
 ---
 route: "/ranking"
 title: "Player Rankings & Leaderboard"
-description: "Ranking global de jugadores basado en resultados de torneos completados, con filtros por año, país y best-of-N."
+description: "Ranking global de jugadores basado en resultados de torneos completados, con filtro por año y modo (Ranking = 2 mejores torneos / Liga anual = todos)."
 ---
 
 ## Contexto de Agente (WebMCP)
@@ -12,10 +12,9 @@ description: "Ranking global de jugadores basado en resultados de torneos comple
 - **Header**: `AppMenu` (con `showHome` y `homeHref="/"`), título con badge de conteo de jugadores, `ThemeToggle`.
 - **PullToRefresh**: Envuelve todo el contenido debajo del header. Llama a `loadData()` al tirar hacia abajo.
 - **Controls Section**: Controles de filtrado:
-  - **Filter Tabs**: "Todos" (`filterType='all'`) / "Por País" (`filterType='country'`).
-  - **Year Select**: Dropdown con años disponibles extraídos de torneos.
-  - **Country Select**: Condicional, solo visible cuando `filterType='country'`.
-  - **Best-of-N**: Selector de cuántos mejores torneos considerar (2-10).
+  - **Year Select** (`.year-filter`): Dropdown controlado con años disponibles extraídos de torneos (obligatorio; los rankings son siempre por año). Se refleja en la URL (`?year=2025`).
+  - **Mode Toggle** (`.mode-tabs`): Alterna entre "Ranking" (2 mejores torneos, por defecto) y "Liga anual" (todos los torneos del año). Se refleja en la URL (`?mode=league`).
+  - **URL params (en inglés)**: `?year=2025&mode=league`. Ambos params se combinan y son compartibles/bookmarkables. Sin param → modo Ranking y año por defecto (actual, o el más reciente con torneos).
 - **Rankings Table**: Tabla con scroll infinito dentro de `.table-container`.
   - Columnas: Posición (#), Jugador, Puntos, Mejor Resultado, Torneos.
   - Top 3 con colores especiales (gold, silver, bronze).
@@ -27,10 +26,8 @@ description: "Ranking global de jugadores basado en resultados de torneos comple
 ## Acciones Clave
 | Acción | UI / Función | Resultado |
 | :--- | :--- | :--- |
-| **Cambiar filtro tipo** | Click en `.filter-tab` | Alterna entre `all` y `country`, recalcula rankings. |
-| **Cambiar año** | `<select class="year-filter">` | Actualiza `selectedYear`, recalcula vía `$effect`. |
-| **Cambiar país** | `<select>` condicional (solo en modo `country`) | Actualiza `selectedCountry`, recalcula vía `$effect`. |
-| **Cambiar best-of** | `<select id="bestof-select">` | Actualiza `bestOfN` (2-10), recalcula vía `$effect`. |
+| **Cambiar año** | `<select class="year-filter">` → `setYear()` | Actualiza la URL (`?year=2025`), de la que deriva `selectedYear`; recalcula vía `$effect`. |
+| **Cambiar modo** | Click en toggle `.mode-tabs` (Ranking / Liga anual) → `setMode()` | Actualiza la URL (`?mode=league` o sin parámetro). De ella derivan `rankingMode` y `bestOfN` (2 o 0); recalcula vía `$effect`. |
 | **Ver detalle jugador** | Click en `.player-row` | Abre `RankingDetailModal` con datos del `RankedPlayer`. |
 | **Cerrar modal** | `closeModal()` | Cierra modal, limpia `selectedPlayer`. |
 | **Scroll infinito** | Scroll en `.table-container` | Carga más jugadores (`loadMore()`) al acercarse al fondo (<100px). |
@@ -43,12 +40,10 @@ description: "Ranking global de jugadores basado en resultados de torneos comple
 | `users` | UserWithId[] | Todos los usuarios con torneos |
 | `tournamentsMap` | Map<string, TournamentInfo> | Torneos completados indexados por ID |
 | `rankedPlayers` | RankedPlayer[] | Resultado del cálculo de ranking (filtrado) |
-| `selectedYear` | number | Año seleccionado (default: año actual) |
+| `selectedYear` | number | `$derived.by` de la URL (`?year=2025`). Default: año actual, o el más reciente con torneos |
 | `availableYears` | number[] | Años con torneos disponibles |
-| `bestOfN` | number | Cuántos mejores torneos considerar (default: 2) |
-| `filterType` | 'all' \| 'country' | Tipo de filtro activo |
-| `selectedCountry` | string | País seleccionado (si `filterType='country'`) |
-| `availableCountries` | string[] | Países disponibles en torneos |
+| `rankingMode` | 'ranking' \| 'league' | `$derived` de la URL (`?mode=league`). 'ranking'=2 mejores (default), 'league'=todos los torneos |
+| `bestOfN` | number | `$derived` de `rankingMode`: 2 en modo Ranking, 0 (todos) en modo Liga anual |
 | `selectedPlayer` | RankedPlayer \| null | Jugador seleccionado para modal |
 | `showDetailModal` | boolean | Visibilidad del modal de detalle |
 | `visibleCount` | number | Cantidad de filas visibles (infinite scroll) |
@@ -56,7 +51,7 @@ description: "Ranking global de jugadores basado en resultados de torneos comple
 | `hasMore` | boolean | `$derived`: si hay más jugadores por mostrar |
 
 ## Dependencias
-- `$lib/firebase/rankings.ts`: `getAllUsersWithTournaments`, `getCompletedTournaments`, `getAvailableCountries`, `getAvailableYears`, `calculateRankings`
+- `$lib/firebase/rankings.ts`: `getAllUsersWithTournaments`, `getCompletedTournaments`, `getAvailableYears`, `calculateRankings`
 - `$lib/firebase/rankings.ts` (types): `UserWithId`, `TournamentInfo`, `RankedPlayer`, `RankingFilters`
 - `$lib/components/RankingDetailModal.svelte`: Modal de detalle de jugador
 - `$lib/components/AppMenu.svelte`: Menú de navegación

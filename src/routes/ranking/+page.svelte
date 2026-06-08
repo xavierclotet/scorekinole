@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import * as m from '$lib/paraglide/messages.js';
 	import {
 		getAllUsersWithTournaments,
 		getCompletedTournaments,
-		getAvailableCountries,
 		getAvailableYears,
 		calculateRankings,
 		type UserWithId,
@@ -18,10 +18,9 @@
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import PullToRefresh from '$lib/components/PullToRefresh.svelte';
 	import { getFlagUrl } from '$lib/utils/countryFlags';
-	import { getCountryName } from '$lib/utils/countryNames';
 	import { theme } from '$lib/stores/theme';
 	import SEO from '$lib/components/SEO.svelte';
-	import { ChevronRight } from '@lucide/svelte';
+	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 
 	// Data state
 	let isLoading = $state(true);
@@ -29,21 +28,25 @@
 	let tournamentsMap = $state<Map<string, TournamentInfo>>(new Map());
 	let rankedPlayers = $state<RankedPlayer[]>([]);
 
-	// Filter state
-	let selectedYear = $state(new Date().getFullYear());
+	// Filter state — year and mode both live in the URL so any view is shareable/bookmarkable.
 	let availableYears = $state<number[]>([]);
-	let bestOfN = $state(2);
-	let filterType = $state<'all' | 'country'>('all');
-	let selectedCountry = $state('');
-	let availableCountries = $derived(
-		users.length > 0 ? getAvailableCountries(users, tournamentsMap, selectedYear) : []
+	// Mode: ?mode=league → all tournaments of the year · default (no param) → best 2 tournaments.
+	let rankingMode = $derived<'ranking' | 'league'>(
+		page.url.searchParams.get('mode') === 'league' ? 'league' : 'ranking'
 	);
-	// Country options sorted by translated name (e.g. "España", "Países Bajos") instead of ISO code
-	let countryOptions = $derived(
-		availableCountries
-			.map(code => ({ code, name: getCountryName(code) }))
-			.sort((a, b) => a.name.localeCompare(b.name))
-	);
+	let bestOfN = $derived(rankingMode === 'league' ? 0 : 2);
+	// Year: ?year=2025 → that year · default → current year, or the most recent year
+	// with tournaments if the current one has none.
+	let selectedYear = $derived.by(() => {
+		const param = page.url.searchParams.get('year');
+		const parsed = param ? parseInt(param, 10) : NaN;
+		if (!Number.isNaN(parsed)) return parsed;
+		const currentYear = new Date().getFullYear();
+		if (availableYears.length > 0 && !availableYears.includes(currentYear)) {
+			return availableYears[0];
+		}
+		return currentYear;
+	});
 
 	// Modal state
 	let selectedPlayer = $state<RankedPlayer | null>(null);
@@ -92,18 +95,8 @@
 			users = loadedUsers;
 			tournamentsMap = loadedTournaments;
 
-			// Extract available years
+			// Extract available years (selectedYear is $derived and self-defaults)
 			availableYears = getAvailableYears(tournamentsMap);
-
-			// Set default year to most recent if current year has no tournaments
-			if (availableYears.length > 0 && !availableYears.includes(selectedYear)) {
-				selectedYear = availableYears[0];
-			}
-
-			// Set default country if available (availableCountries is $derived)
-			if (availableCountries.length > 0 && !selectedCountry) {
-				selectedCountry = availableCountries[0];
-			}
 
 			// Rankings will be calculated by the $effect when isLoading becomes false
 		} catch (error) {
@@ -118,8 +111,8 @@
 	function recalculateRankings() {
 		const filters: RankingFilters = {
 			year: selectedYear,
-			filterType,
-			countryValue: filterType === 'country' ? selectedCountry : undefined,
+			filterType: 'all',
+			countryValue: undefined,
 			bestOfN
 		};
 
@@ -141,16 +134,9 @@
 		}
 	}
 
-	// Reset country selection when available countries change and current selection is invalid
+	// Reactive recalculation when filters change (year or ranking mode)
 	$effect(() => {
-		if (selectedCountry && availableCountries.length > 0 && !availableCountries.includes(selectedCountry)) {
-			selectedCountry = availableCountries[0] || '';
-		}
-	});
-
-	// Reactive recalculation when filters change
-	$effect(() => {
-		if (!isLoading && (selectedYear || filterType || selectedCountry || bestOfN)) {
+		if (!isLoading && (selectedYear || bestOfN)) {
 			recalculateRankings();
 		}
 	});
@@ -210,6 +196,22 @@
 		showDetailModal = false;
 		selectedPlayer = null;
 	}
+
+	function setMode(mode: 'ranking' | 'league') {
+		const url = new URL(page.url);
+		if (mode === 'league') {
+			url.searchParams.set('mode', 'league');
+		} else {
+			url.searchParams.delete('mode');
+		}
+		goto(url, { replaceState: true, keepFocus: true, noScroll: true });
+	}
+
+	function setYear(year: number) {
+		const url = new URL(page.url);
+		url.searchParams.set('year', String(year));
+		goto(url, { replaceState: true, keepFocus: true, noScroll: true });
+	}
 </script>
 
 <SEO
@@ -227,7 +229,7 @@
 			</div>
 			<div class="header-center">
 				<div class="title-section">
-					<h1>{m.ranking_publicRankings()}</h1>
+					<h1>{rankingMode === 'league' ? m.ranking_titleLeague({ year: String(selectedYear) }) : m.ranking_titleRanking({ year: String(selectedYear) })}</h1>
 					<span class="count-badge">{rankedPlayers.length}</span>
 				</div>
 			</div>
@@ -239,25 +241,12 @@
 
 	<PullToRefresh onrefresh={loadData}>
 	<div class="controls-section">
-		<div class="filter-tabs">
-			<button
-				class="filter-tab"
-				class:active={filterType === 'all'}
-				onclick={() => (filterType = 'all')}
-			>
-				{m.ranking_allCountries()}
-			</button>
-			<button
-				class="filter-tab"
-				class:active={filterType === 'country'}
-				onclick={() => (filterType = 'country')}
-			>
-				{m.ranking_byCountry()}
-			</button>
-		</div>
-
 		<div class="filter-selects">
-			<select class="filter-select year-filter" bind:value={selectedYear}>
+			<select
+				class="filter-select year-filter"
+				value={selectedYear}
+				onchange={(e) => setYear(parseInt(e.currentTarget.value, 10))}
+			>
 				{#each availableYears as year}
 					<option value={year}>{year}</option>
 				{/each}
@@ -265,25 +254,28 @@
 					<option value={selectedYear}>{selectedYear}</option>
 				{/if}
 			</select>
-
-			{#if filterType === 'country'}
-				<select class="filter-select" bind:value={selectedCountry}>
-					{#each countryOptions as option}
-						<option value={option.code}>{option.name}</option>
-					{/each}
-				</select>
-			{/if}
 		</div>
 
-		<div class="bestof-control">
-			<label for="bestof-select">{m.ranking_bestOf()}</label>
-			<select id="bestof-select" class="bestof-select" bind:value={bestOfN}>
-				<option value={0}>{m.ranking_allTournaments()}</option>
-				{#each [2, 3, 4, 5] as n}
-					<option value={n}>{n}</option>
-				{/each}
-			</select>
-			<span class="bestof-suffix">{m.ranking_bestOfTournaments()}</span>
+		<div class="mode-control">
+			<div class="mode-tabs">
+				<button
+					class="filter-tab"
+					class:active={rankingMode === 'ranking'}
+					onclick={() => setMode('ranking')}
+				>
+					{m.ranking_modeRanking()}
+				</button>
+				<button
+					class="filter-tab"
+					class:active={rankingMode === 'league'}
+					onclick={() => setMode('league')}
+				>
+					{m.ranking_modeLeague()}
+				</button>
+			</div>
+			<span class="mode-hint">
+				{rankingMode === 'league' ? m.ranking_modeLeagueHint() : m.ranking_modeRankingHint()}
+			</span>
 		</div>
 	</div>
 
@@ -471,11 +463,6 @@
 		align-items: center;
 	}
 
-	.filter-tabs {
-		display: flex;
-		gap: 0.25rem;
-	}
-
 	.filter-selects {
 		display: flex;
 		gap: 0.5rem;
@@ -530,48 +517,24 @@
 		color: #e1e8ed;
 	}
 
-	.bestof-control {
+	.mode-control {
 		display: flex;
-		align-items: center;
-		gap: 0.5rem;
+		flex-direction: column;
+		align-items: flex-end;
+		gap: 0.3rem;
 		margin-left: auto;
 	}
 
-	.bestof-control label,
-	.bestof-suffix {
-		color: #8b9bb3;
-		font-size: 0.8rem;
+	.mode-tabs {
+		display: flex;
+		gap: 0.25rem;
+	}
+
+	.mode-hint {
+		color: #6b7a94;
+		font-size: 0.7rem;
 		font-weight: 500;
 		white-space: nowrap;
-	}
-
-	.bestof-select {
-		padding: 0.35rem 1.8rem 0.35rem 0.5rem;
-		background-color: #1a2332;
-		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%238b9bb3' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-		background-repeat: no-repeat;
-		background-position: right 0.4rem center;
-		border: 1px solid #2d3748;
-		border-radius: 4px;
-		color: #e1e8ed;
-		max-width: 5rem;
-		font-size: 0.85rem;
-		font-weight: 600;
-		cursor: pointer;
-		appearance: none;
-		-webkit-appearance: none;
-		-moz-appearance: none;
-		min-width: 50px;
-	}
-
-	.bestof-select:focus {
-		outline: none;
-		border-color: #667eea;
-	}
-
-	.bestof-select option {
-		background: #1a2332;
-		color: #e1e8ed;
 	}
 
 	/* Results info */
@@ -891,12 +854,11 @@
 			padding: 0.75rem 1rem;
 		}
 
-		.filter-tabs,
 		.filter-selects {
 			display: contents;
 		}
 
-		.bestof-control {
+		.mode-control {
 			margin-left: auto;
 		}
 
@@ -934,20 +896,8 @@
 			background-position: right 0.2rem center;
 		}
 
-		.bestof-control {
-			font-size: 0.7rem;
-			gap: 0.3rem;
-		}
-
-		.bestof-control label,
-		.bestof-suffix {
-			font-size: 0.65rem;
-		}
-
-		.bestof-select {
-			padding: 0.3rem 1.2rem 0.3rem 0.4rem;
-			font-size: 0.7rem;
-			min-width: 40px;
+		.mode-hint {
+			font-size: 0.62rem;
 		}
 
 		.rankings-table th,
@@ -1037,23 +987,20 @@
 		border-color: #667eea;
 	}
 
-	.rankings-container[data-theme='light'] .filter-select,
-	.rankings-container[data-theme='light'] .bestof-select {
+	.rankings-container[data-theme='light'] .filter-select {
 		background-color: #ffffff;
 		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%234a5568' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
 		border-color: #e2e8f0;
 		color: #1a202c;
 	}
 
-	.rankings-container[data-theme='light'] .filter-select option,
-	.rankings-container[data-theme='light'] .bestof-select option {
+	.rankings-container[data-theme='light'] .filter-select option {
 		background: #ffffff;
 		color: #1a202c;
 	}
 
-	.rankings-container[data-theme='light'] .bestof-control label,
-	.rankings-container[data-theme='light'] .bestof-suffix {
-		color: #4a5568;
+	.rankings-container[data-theme='light'] .mode-hint {
+		color: #718096;
 	}
 
 	.rankings-container[data-theme='light'] .results-info {
