@@ -1707,6 +1707,6 @@
   "ranking_modeLeagueHint": "All tournaments of the year",
   "ranking_modeRanking": "Ranking",
   "ranking_modeRankingHint": "The 2 best tournaments of the year",
-  "ranking_titleLeague": "Annual League",
-  "ranking_titleRanking": "Annual ranking"
+  "ranking_titleLeague": "Annual League {year}",
+  "ranking_titleRanking": "Ranking {year}"
 }

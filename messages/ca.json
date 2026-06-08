@@ -1707,6 +1707,6 @@
   "ranking_modeLeagueHint": "Tots els tornejos de l´any",
   "ranking_modeRanking": "Rànquing",
   "ranking_modeRankingHint": "Els 2 millors tornejos de l´any",
-  "ranking_titleLeague": "Lliga anual",
-  "ranking_titleRanking": "Rànquing anual"
+  "ranking_titleLeague": "Lliga anual de {year}",
+  "ranking_titleRanking": "Rànquing de {year}"
 }
