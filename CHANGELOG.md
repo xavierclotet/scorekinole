@@ -2,6 +2,11 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.43] - 2026-06-08
+- Feat (ranking): the public rankings page now has two modes — **Ranking** (best 2 tournaments) and **Liga anual** (all tournaments of the year) — replacing the best-of-N dropdown. Mode and year live in the URL (`?mode=league&year=2025`) so any view is shareable, the page title reflects the active mode and year, and the country filter was removed
+- Feat (ranking): the equal-points tie-breaker is now Olympic-style over the scoring tournaments — more singles medals (gold → silver → bronze → …), then more doubles medals, then name; singles outrank doubles. +15 unit tests (72 passing)
+- Perf (dev): per-icon lucide imports and a prod-only service worker for faster local dev
+
 ## [2.5.42] - 2026-06-03
 - Fix (registration): a player who self-registered (or was promoted from the waitlist) while an admin had the edit wizard open — or while a tournament was being started — could be silently dropped, because `participants`/`waitlist` were read outside the transaction and written back wholesale. Now reconciled transactionally on edit-save, applied by identity during ranking sync, and protected by a roster guard that aborts + retries the start if the roster changed mid-start (both group-stage and one-phase bracket). A late registrant can no longer vanish or become a bracket "ghost". Registration remains correctly blocked once the tournament starts or the deadline/tournament date passes
 - Tests: pure merge/roster helpers, the transactional save/start functions via the concurrency mock (including an interleaved race and a contrast proving the old overwrite lost data), and tournament-date registration-window coverage
