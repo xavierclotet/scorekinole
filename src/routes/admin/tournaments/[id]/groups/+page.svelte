@@ -25,7 +25,9 @@
   import { disqualifyParticipant } from '$lib/firebase/tournamentParticipants';
   import type { Tournament, GroupMatch } from '$lib/types/tournament';
   import { useProbabilities } from '$lib/utils/useProbabilities.svelte';
-  import { Check, X, Timer } from '@lucide/svelte';
+  import Check from '@lucide/svelte/icons/check';
+  import X from '@lucide/svelte/icons/x';
+  import Timer from '@lucide/svelte/icons/timer';
 
   let tournament: Tournament | null = $state(null);
   const probabilityState = useProbabilities(() => tournament);

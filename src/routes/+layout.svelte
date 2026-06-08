@@ -2,7 +2,7 @@
 	import { onMount, type Snippet } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { browser } from '$app/environment';
+	import { browser, dev } from '$app/environment';
 	import { loadMatchState } from '$lib/stores/matchState';
 	import { loadTeams } from '$lib/stores/teams';
 	import { gameSettings } from '$lib/stores/gameSettings';
@@ -91,8 +91,15 @@
 			});
 		}
 
-		// Register service worker and auto-update
-		if ('serviceWorker' in navigator) {
+		// Register service worker and auto-update — PRODUCTION ONLY.
+		// In dev SvelteKit serves the SW as an ES module, but it's registered as a
+		// classic script → "Cannot use import statement outside a module" and the
+		// registration fails. A leftover SW from a previous session also keeps
+		// controlling localhost and intercepts navigations (its install caches `/`,
+		// forcing a cold SSR). So in dev we unregister any SW instead of installing one.
+		if (dev && 'serviceWorker' in navigator) {
+			navigator.serviceWorker.getRegistrations().then((regs) => regs.forEach((r) => r.unregister()));
+		} else if ('serviceWorker' in navigator) {
 			navigator.serviceWorker.register('/service-worker.js').then((registration) => {
 				// Check for updates immediately, then every 10 minutes
 				registration.update().catch(() => {});

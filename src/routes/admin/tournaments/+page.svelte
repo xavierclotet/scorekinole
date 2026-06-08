@@ -13,7 +13,10 @@
   import { isSuperAdminUser, adminCheckLoading, canAccessAdmin } from '$lib/stores/admin';
   import type { Tournament } from '$lib/types/tournament';
   import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
-  import { Plus, Download, ArrowUpFromLine, Sparkles } from '@lucide/svelte';
+  import Plus from '@lucide/svelte/icons/plus';
+  import Download from '@lucide/svelte/icons/download';
+  import ArrowUpFromLine from '@lucide/svelte/icons/arrow-up-from-line';
+  import Sparkles from '@lucide/svelte/icons/sparkles';
 
   let tournaments: Tournament[] = $state([]);
   let filteredTournaments: Tournament[] = $state([]);

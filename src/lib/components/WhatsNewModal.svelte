@@ -6,7 +6,7 @@
 	import { getLocale } from '$lib/paraglide/runtime.js';
 	import { browser } from '$app/environment';
 	import { Button } from '$lib/components/ui/button';
-	import { LoaderCircle } from '@lucide/svelte';
+	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 
 	interface Props {
 		isOpen: boolean;

@@ -2,7 +2,14 @@
   import { browser } from '$app/environment';
   import { untrack } from 'svelte';
   import { vibratePattern } from '$lib/utils/vibration';
-  import { Play, Pause, RotateCcw, GripVertical, Maximize, Minimize, X, Pencil } from '@lucide/svelte';
+  import Play from '@lucide/svelte/icons/play';
+  import Pause from '@lucide/svelte/icons/pause';
+  import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
+  import GripVertical from '@lucide/svelte/icons/grip-vertical';
+  import Maximize from '@lucide/svelte/icons/maximize';
+  import Minimize from '@lucide/svelte/icons/minimize';
+  import X from '@lucide/svelte/icons/x';
+  import Pencil from '@lucide/svelte/icons/pencil';
   import * as m from '$lib/paraglide/messages.js';
   import { updateTournament } from '$lib/firebase/tournaments';
   import { theme } from '$lib/stores/theme';

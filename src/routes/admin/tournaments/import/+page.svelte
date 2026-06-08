@@ -26,7 +26,9 @@
   import type { UserProfile } from '$lib/firebase/userProfile';
   import type { TournamentTier, TournamentParticipant, Tournament, TiebreakerCriterion } from '$lib/types/tournament';
   import { getParticipantDisplayName, normalizeTier } from '$lib/types/tournament';
-  import { RotateCcw, ChevronUp, ChevronDown } from '@lucide/svelte';
+  import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
+  import ChevronUp from '@lucide/svelte/icons/chevron-up';
+  import ChevronDown from '@lucide/svelte/icons/chevron-down';
   import PairSelector from '$lib/components/tournament/PairSelector.svelte';
   import CountrySelect from '$lib/components/CountrySelect.svelte';
   import VenueSelector from '$lib/components/tournament/VenueSelector.svelte';

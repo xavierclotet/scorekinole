@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import * as m from '$lib/paraglide/messages.js';
-	import { Home } from '@lucide/svelte';
+	import Home from '@lucide/svelte/icons/home';
 </script>
 
 <div class="error-page">

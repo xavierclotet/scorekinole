@@ -3,7 +3,10 @@
 	import * as m from '$lib/paraglide/messages.js';
 	import { resendVerificationEmail, signOut, emailVerificationPending } from '$lib/firebase/auth';
 	import { auth } from '$lib/firebase/config';
-	import { Mail, RefreshCw, LogOut, CheckCircle2 } from '@lucide/svelte';
+	import Mail from '@lucide/svelte/icons/mail';
+	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
+	import LogOut from '@lucide/svelte/icons/log-out';
+	import CheckCircle2 from '@lucide/svelte/icons/check-circle-2';
 
 	let resending = $state(false);
 	let resent = $state(false);

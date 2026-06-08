@@ -2,7 +2,8 @@
 	import { currentMatch } from '$lib/stores/history';
 	import { team1, team2 } from '$lib/stores/teams';
 	import { gameSettings } from '$lib/stores/gameSettings';
-	import { ChevronDown, ChevronUp } from '@lucide/svelte';
+	import ChevronDown from '@lucide/svelte/icons/chevron-down';
+	import ChevronUp from '@lucide/svelte/icons/chevron-up';
 	import * as m from '$lib/paraglide/messages.js';
 	import { browser } from '$app/environment';
 

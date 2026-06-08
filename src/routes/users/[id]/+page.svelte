@@ -10,7 +10,7 @@
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import PullToRefresh from '$lib/components/PullToRefresh.svelte';
 	import { theme } from '$lib/stores/theme';
-	import { CircleAlert } from '@lucide/svelte';
+	import CircleAlert from '@lucide/svelte/icons/circle-alert';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import SEO from '$lib/components/SEO.svelte';
 	import PlayerStatsContent from '$lib/components/PlayerStatsContent.svelte';

@@ -6,7 +6,14 @@
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { goto } from '$app/navigation';
 	import { adminTheme } from '$lib/stores/theme';
-	import { ChevronLeft, Download, Upload, LoaderCircle, CircleCheck, CircleAlert, Eye, X } from '@lucide/svelte';
+	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
+	import Download from '@lucide/svelte/icons/download';
+	import Upload from '@lucide/svelte/icons/upload';
+	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
+	import CircleCheck from '@lucide/svelte/icons/circle-check';
+	import CircleAlert from '@lucide/svelte/icons/circle-alert';
+	import Eye from '@lucide/svelte/icons/eye';
+	import X from '@lucide/svelte/icons/x';
 	import {
 		FIRESTORE_COLLECTIONS,
 		exportCollections,

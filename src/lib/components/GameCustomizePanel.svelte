@@ -1,5 +1,8 @@
 <script lang="ts">
-	import { Settings, ArrowLeftRight, RefreshCw, Check } from '@lucide/svelte';
+	import Settings from '@lucide/svelte/icons/settings';
+	import ArrowLeftRight from '@lucide/svelte/icons/arrow-left-right';
+	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
+	import Check from '@lucide/svelte/icons/check';
 	import Modal from './Modal.svelte';
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { team1, team2, switchSides, switchColors } from '$lib/stores/teams';

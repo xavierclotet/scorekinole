@@ -1,6 +1,9 @@
 <script lang="ts">
 	import QRCode from 'qrcode';
-	import { QrCode, X, Copy, Check } from '@lucide/svelte';
+	import QrCode from '@lucide/svelte/icons/qr-code';
+	import X from '@lucide/svelte/icons/x';
+	import Copy from '@lucide/svelte/icons/copy';
+	import Check from '@lucide/svelte/icons/check';
 	import * as m from '$lib/paraglide/messages.js';
 	import { PRODUCTION_URL } from '$lib/constants';
 

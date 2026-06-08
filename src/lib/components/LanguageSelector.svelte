@@ -5,7 +5,8 @@
 	import * as m from '$lib/paraglide/messages.js';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { Button } from '$lib/components/ui/button';
-	import { Globe, Check } from '@lucide/svelte';
+	import Globe from '@lucide/svelte/icons/globe';
+	import Check from '@lucide/svelte/icons/check';
 
 	const languages = [
 		{ code: 'es' as const, label: 'Español', short: 'ES' },

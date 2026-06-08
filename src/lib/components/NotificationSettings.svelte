@@ -1,6 +1,7 @@
 <script lang="ts">
 	import * as m from '$lib/paraglide/messages.js';
-	import { Bell, BellOff } from '@lucide/svelte';
+	import Bell from '@lucide/svelte/icons/bell';
+	import BellOff from '@lucide/svelte/icons/bell-off';
 	import { isFirebaseEnabled } from '$lib/firebase/config';
 	import { currentUser } from '$lib/firebase/auth';
 	import { getUserProfile, saveNotificationPreferences } from '$lib/firebase/userProfile';

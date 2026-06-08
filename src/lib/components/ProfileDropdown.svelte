@@ -3,7 +3,10 @@
 	import { currentUser, signOut } from '$lib/firebase/auth';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import * as Avatar from '$lib/components/ui/avatar';
-	import { User, LogOut, LogIn, ChevronRight } from '@lucide/svelte';
+	import User from '@lucide/svelte/icons/user';
+	import LogOut from '@lucide/svelte/icons/log-out';
+	import LogIn from '@lucide/svelte/icons/log-in';
+	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 
 	interface Props {
 		onlogin?: () => void;

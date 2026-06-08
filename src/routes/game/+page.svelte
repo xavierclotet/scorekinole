@@ -24,7 +24,12 @@
 	import OfflineIndicator from '$lib/components/OfflineIndicator.svelte';
 	import AppMenu from '$lib/components/AppMenu.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-	import { Settings, User, Users, Trophy, Play, Menu } from '@lucide/svelte';
+	import Settings from '@lucide/svelte/icons/settings';
+	import User from '@lucide/svelte/icons/user';
+	import Users from '@lucide/svelte/icons/users';
+	import Trophy from '@lucide/svelte/icons/trophy';
+	import Play from '@lucide/svelte/icons/play';
+	import Menu from '@lucide/svelte/icons/menu';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import FullscreenToggle from '$lib/components/FullscreenToggle.svelte';
 	import { theme } from '$lib/stores/theme';
@@ -57,10 +62,10 @@
 	} from '$lib/firebase/tournamentMatches';
 	import { currentUser, authInitialized } from '$lib/firebase/auth';
 	import { getPlayerName } from '$lib/firebase/userProfile';
-	import { LoaderCircle } from '@lucide/svelte';
+	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import InvitePlayerModal from '$lib/components/InvitePlayerModal.svelte';
 	import QRScanner from '$lib/components/QRScanner.svelte';
-	import { QrCode } from '@lucide/svelte';
+	import QrCode from '@lucide/svelte/icons/qr-code';
 	import { requestWakeLock, releaseWakeLock } from '$lib/utils/wakeLock';
 	import { resolveIsUserSideA } from '$lib/utils/tournamentSideMapping';
 	import { goto, replaceState } from '$app/navigation';

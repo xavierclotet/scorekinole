@@ -10,7 +10,12 @@
   import { getMatchesPaginated, adminDeleteMatch } from '$lib/firebase/admin';
   import type { MatchHistory } from '$lib/types/history';
   import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
-  import { ArrowLeft, Search, Crown, Trash2, CircleAlert, Target } from '@lucide/svelte';
+  import ArrowLeft from '@lucide/svelte/icons/arrow-left';
+  import Search from '@lucide/svelte/icons/search';
+  import Crown from '@lucide/svelte/icons/crown';
+  import Trash2 from '@lucide/svelte/icons/trash-2';
+  import CircleAlert from '@lucide/svelte/icons/circle-alert';
+  import Target from '@lucide/svelte/icons/target';
 
   let matches: MatchHistory[] = $state([]);
   let isLoading = $state(true);

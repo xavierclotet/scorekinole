@@ -1,7 +1,9 @@
 <script lang="ts">
   import type { Tournament } from '$lib/types/tournament';
   import { exportTournamentText, type ExportLevel } from '$lib/utils/tournamentExport';
-  import { Copy, Download, Check } from '@lucide/svelte';
+  import Copy from '@lucide/svelte/icons/copy';
+  import Download from '@lucide/svelte/icons/download';
+  import Check from '@lucide/svelte/icons/check';
   import * as m from '$lib/paraglide/messages.js';
 
   interface Props {

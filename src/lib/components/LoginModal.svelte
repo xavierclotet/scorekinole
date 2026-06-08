@@ -7,7 +7,11 @@
 		resetPassword,
 		resendVerificationEmail
 	} from '$lib/firebase/auth';
-	import { Eye, EyeOff, Mail, ArrowLeft, CheckCircle2 } from '@lucide/svelte';
+	import Eye from '@lucide/svelte/icons/eye';
+	import EyeOff from '@lucide/svelte/icons/eye-off';
+	import Mail from '@lucide/svelte/icons/mail';
+	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
+	import CheckCircle2 from '@lucide/svelte/icons/check-circle-2';
 	import Button from './Button.svelte';
 
 	type View = 'providers' | 'email-signin' | 'email-signup' | 'verify-email' | 'reset-password' | 'reset-sent';

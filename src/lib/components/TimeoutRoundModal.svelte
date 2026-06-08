@@ -1,6 +1,8 @@
 <script lang="ts">
 	import * as m from '$lib/paraglide/messages.js';
-	import { Clock, Minus, Plus } from '@lucide/svelte';
+	import Clock from '@lucide/svelte/icons/clock';
+	import Minus from '@lucide/svelte/icons/minus';
+	import Plus from '@lucide/svelte/icons/plus';
 
 	interface Props {
 		team1Name: string;

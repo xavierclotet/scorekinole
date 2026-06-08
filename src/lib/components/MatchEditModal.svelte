@@ -3,7 +3,9 @@
   import { adminTheme } from '$lib/stores/theme';
   import type { MatchHistory, MatchGame } from '$lib/types/history';
   import { updateMatch } from '$lib/firebase/admin';
-  import { X, Save, Calculator } from '@lucide/svelte';
+  import X from '@lucide/svelte/icons/x';
+  import Save from '@lucide/svelte/icons/save';
+  import Calculator from '@lucide/svelte/icons/calculator';
 
   interface Props {
     match: MatchHistory;

@@ -1,7 +1,11 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode';
-	import { X, Camera, CameraOff, SwitchCamera, Flashlight } from '@lucide/svelte';
+	import X from '@lucide/svelte/icons/x';
+	import Camera from '@lucide/svelte/icons/camera';
+	import CameraOff from '@lucide/svelte/icons/camera-off';
+	import SwitchCamera from '@lucide/svelte/icons/switch-camera';
+	import Flashlight from '@lucide/svelte/icons/flashlight';
 	import * as m from '$lib/paraglide/messages.js';
 	import { theme } from '$lib/stores/theme';
 

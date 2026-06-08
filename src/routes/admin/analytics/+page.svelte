@@ -27,15 +27,13 @@
     Filler,
     type Plugin
   } from 'chart.js';
-  import {
-    ArrowLeft,
-    Eye,
-    Monitor,
-    Smartphone,
-    Tablet,
-    Globe,
-    CircleAlert
-  } from '@lucide/svelte';
+  import ArrowLeft from '@lucide/svelte/icons/arrow-left';
+  import Eye from '@lucide/svelte/icons/eye';
+  import Monitor from '@lucide/svelte/icons/monitor';
+  import Smartphone from '@lucide/svelte/icons/smartphone';
+  import Tablet from '@lucide/svelte/icons/tablet';
+  import Globe from '@lucide/svelte/icons/globe';
+  import CircleAlert from '@lucide/svelte/icons/circle-alert';
 
   Chart.register(
     ArcElement, Tooltip, Legend, DoughnutController,

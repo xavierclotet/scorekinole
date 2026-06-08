@@ -6,16 +6,14 @@
   import { adminTheme } from '$lib/stores/theme';
   import { isSuperAdminUser } from '$lib/stores/admin';
   import { goto } from '$app/navigation';
-  import {
-    ChevronLeft,
-    ChevronRight,
-    Users,
-    Swords,
-    Trophy,
-    BarChart3,
-    HardDrive,
-    MapPin
-  } from '@lucide/svelte';
+  import ChevronLeft from '@lucide/svelte/icons/chevron-left';
+  import ChevronRight from '@lucide/svelte/icons/chevron-right';
+  import Users from '@lucide/svelte/icons/users';
+  import Swords from '@lucide/svelte/icons/swords';
+  import Trophy from '@lucide/svelte/icons/trophy';
+  import BarChart3 from '@lucide/svelte/icons/bar-chart-3';
+  import HardDrive from '@lucide/svelte/icons/hard-drive';
+  import MapPin from '@lucide/svelte/icons/map-pin';
 
   const allAdminSections = [
     {

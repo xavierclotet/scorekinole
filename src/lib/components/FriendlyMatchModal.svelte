@@ -4,7 +4,7 @@
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { team1, team2, updateTeam } from '$lib/stores/teams';
 	import * as m from '$lib/paraglide/messages.js';
-	import { Play } from '@lucide/svelte';
+	import Play from '@lucide/svelte/icons/play';
 	import { PRESET_COLORS } from '$lib/constants';
 
 	interface Props {

@@ -2,7 +2,6 @@ import { initializeApp, type FirebaseApp } from 'firebase/app';
 import { getAuth, type Auth } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
-import { getAnalytics, type Analytics } from 'firebase/analytics';
 import { getMessaging, type Messaging } from 'firebase/messaging';
 import { browser } from '$app/environment';
 
@@ -27,7 +26,6 @@ let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
 let storage: FirebaseStorage | null = null;
-let analytics: Analytics | null = null;
 
 if (browser && isFirebaseEnabled()) {
   try {
@@ -35,7 +33,6 @@ if (browser && isFirebaseEnabled()) {
     auth = getAuth(app);
     db = getFirestore(app);
     storage = getStorage(app);
-    analytics = getAnalytics(app);
     // Firebase initialized (errors are logged below)
   } catch (error) {
     console.error('❌ Firebase initialization error:', error);
@@ -61,4 +58,4 @@ export function getFirebaseMessaging(): Messaging | null {
   return messaging;
 }
 
-export { app, auth, db, storage, analytics };
+export { app, auth, db, storage };

@@ -4,7 +4,7 @@
   import type { WinProbability } from '$lib/algorithms/probability';
   import { probabilityColor } from '$lib/algorithms/probability';
   import * as m from '$lib/paraglide/messages.js';
-  import { Timer } from '@lucide/svelte';
+  import Timer from '@lucide/svelte/icons/timer';
   import * as Popover from '$lib/components/ui/popover';
 
   interface Props {

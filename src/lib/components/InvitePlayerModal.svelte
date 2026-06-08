@@ -1,6 +1,11 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
-	import { Copy, Check, LoaderCircle, UserCheck, UserX, Clock } from '@lucide/svelte';
+	import Copy from '@lucide/svelte/icons/copy';
+	import Check from '@lucide/svelte/icons/check';
+	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
+	import UserCheck from '@lucide/svelte/icons/user-check';
+	import UserX from '@lucide/svelte/icons/user-x';
+	import Clock from '@lucide/svelte/icons/clock';
 	import QRCode from 'qrcode';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Button } from '$lib/components/ui/button';

@@ -1,7 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
-	import { LoaderCircle, CircleCheck, CircleX, CircleAlert, LogIn } from '@lucide/svelte';
+	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
+	import CircleCheck from '@lucide/svelte/icons/circle-check';
+	import CircleX from '@lucide/svelte/icons/circle-x';
+	import CircleAlert from '@lucide/svelte/icons/circle-alert';
+	import LogIn from '@lucide/svelte/icons/log-in';
 	import { Button } from '$lib/components/ui/button';
 	import ScorekinoleLogo from '$lib/components/ScorekinoleLogo.svelte';
 	import * as m from '$lib/paraglide/messages.js';

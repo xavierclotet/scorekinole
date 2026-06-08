@@ -9,7 +9,7 @@
 	import PullToRefresh from '$lib/components/PullToRefresh.svelte';
 	import { theme } from '$lib/stores/theme';
 	import { gameSettings } from '$lib/stores/gameSettings';
-	import { User } from '@lucide/svelte';
+	import User from '@lucide/svelte/icons/user';
 	import SEO from '$lib/components/SEO.svelte';
 	import { getUserProfile } from '$lib/firebase/userProfile';
 	import type { TournamentRecord } from '$lib/types/tournament';

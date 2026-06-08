@@ -3,7 +3,10 @@
 	import type { MatchHistory } from '$lib/types/history';
 	import type { TournamentRecord } from '$lib/types/tournament';
 	import { PAGE_SIZE } from '$lib/constants';
-	import { ChevronRight, Trophy, Users, User } from '@lucide/svelte';
+	import ChevronRight from '@lucide/svelte/icons/chevron-right';
+	import Trophy from '@lucide/svelte/icons/trophy';
+	import Users from '@lucide/svelte/icons/users';
+	import User from '@lucide/svelte/icons/user';
 	import { SvelteSet } from 'svelte/reactivity';
 	import WinLossDonut from '$lib/components/charts/WinLossDonut.svelte';
 	import ChartWrapper from '$lib/components/charts/ChartWrapper.svelte';

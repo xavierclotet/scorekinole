@@ -8,7 +8,14 @@
   import PairSelector from '$lib/components/tournament/PairSelector.svelte';
   import SinglesPlayerSelector from '$lib/components/tournament/SinglesPlayerSelector.svelte';
   import VenueSelector from '$lib/components/tournament/VenueSelector.svelte';
-  import { Trash2, Pencil, CircleCheck, X, User, UserPlus, Clock, Info } from '@lucide/svelte';
+  import Trash2 from '@lucide/svelte/icons/trash-2';
+  import Pencil from '@lucide/svelte/icons/pencil';
+  import CircleCheck from '@lucide/svelte/icons/circle-check';
+  import X from '@lucide/svelte/icons/x';
+  import User from '@lucide/svelte/icons/user';
+  import UserPlus from '@lucide/svelte/icons/user-plus';
+  import Clock from '@lucide/svelte/icons/clock';
+  import Info from '@lucide/svelte/icons/info';
   import * as Popover from '$lib/components/ui/popover';
   import { adminTheme } from '$lib/stores/theme';
   import { adminState } from '$lib/stores/admin';

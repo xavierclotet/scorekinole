@@ -5,7 +5,18 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { APP_VERSION } from '$lib/constants';
 
-	import { Home, ChevronDown, Globe, Check, Trophy, BarChart3, ChartLine, CirclePlus, Shield, User, Users, Swords } from '@lucide/svelte';
+	import Home from '@lucide/svelte/icons/home';
+	import ChevronDown from '@lucide/svelte/icons/chevron-down';
+	import Globe from '@lucide/svelte/icons/globe';
+	import Check from '@lucide/svelte/icons/check';
+	import Trophy from '@lucide/svelte/icons/trophy';
+	import BarChart3 from '@lucide/svelte/icons/bar-chart-3';
+	import ChartLine from '@lucide/svelte/icons/chart-line';
+	import CirclePlus from '@lucide/svelte/icons/circle-plus';
+	import Shield from '@lucide/svelte/icons/shield';
+	import User from '@lucide/svelte/icons/user';
+	import Users from '@lucide/svelte/icons/users';
+	import Swords from '@lucide/svelte/icons/swords';
 	import { setLocale, getLocale } from '$lib/paraglide/runtime.js';
 	import { currentUser } from '$lib/firebase/auth';
 	import { saveUserLanguage } from '$lib/firebase/userProfile';

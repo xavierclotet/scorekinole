@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { tick } from 'svelte';
-	import { QrCode } from '@lucide/svelte';
+	import QrCode from '@lucide/svelte/icons/qr-code';
 	import * as m from '$lib/paraglide/messages.js';
 	import { theme } from '$lib/stores/theme';
 	import { currentUser } from '$lib/firebase/auth';

@@ -15,7 +15,10 @@
 	import SEO from '$lib/components/SEO.svelte';
 	import PoweredByBadge from '$lib/components/PoweredByBadge.svelte';
 	import { Button } from '$lib/components/ui/button';
-	import { Play, BarChart3, Download, X } from '@lucide/svelte';
+	import Play from '@lucide/svelte/icons/play';
+	import BarChart3 from '@lucide/svelte/icons/bar-chart-3';
+	import Download from '@lucide/svelte/icons/download';
+	import X from '@lucide/svelte/icons/x';
 	import { canInstall, triggerInstall, showIOSInstallBanner, dismissIOSInstallBanner } from '$lib/stores/pwaInstall';
 	import * as Carousel from '$lib/components/ui/carousel/index.js';
 	import WhatsNewModal from '$lib/components/WhatsNewModal.svelte';

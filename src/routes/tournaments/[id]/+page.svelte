@@ -27,7 +27,11 @@
 	import * as Command from '$lib/components/ui/command';
 	import * as Popover from '$lib/components/ui/popover';
 	import { Button } from '$lib/components/ui/button';
-	import { Check, ChevronsUpDown, Share2, Users, Timer } from '@lucide/svelte';
+	import Check from '@lucide/svelte/icons/check';
+	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
+	import Share2 from '@lucide/svelte/icons/share-2';
+	import Users from '@lucide/svelte/icons/users';
+	import Timer from '@lucide/svelte/icons/timer';
 	import { PRODUCTION_URL } from '$lib/constants';
 	import BumpChart from '$lib/components/charts/BumpChart.svelte';
 	import TwentiesBarChart from '$lib/components/charts/TwentiesBarChart.svelte';

@@ -6,7 +6,8 @@
 	import { getContrastColor } from '$lib/utils/colors';
 	import { getHammerFromStarter } from '$lib/utils/matchStartOptions';
 	import { getInitials, getPartnerInitials, getScorerWarningName } from '$lib/utils/matchPreviewHelpers';
-	import { Dices, LoaderCircle } from '@lucide/svelte';
+	import Dices from '@lucide/svelte/icons/dices';
+	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 
 	const presetColors: string[] = [
 		'#E6BD80', '#1B100E', '#DADADA', '#BB484D', '#D06249',

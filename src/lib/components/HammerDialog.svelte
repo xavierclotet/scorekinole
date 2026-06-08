@@ -4,7 +4,7 @@
 	import * as m from '$lib/paraglide/messages.js';
 	import { setCurrentGameStartHammer } from '$lib/stores/matchState';
 	import { randomizeHammerStart } from '$lib/utils/matchStartOptions';
-	import { Dices } from '@lucide/svelte';
+	import Dices from '@lucide/svelte/icons/dices';
 
 	interface Props {
 		isOpen?: boolean;

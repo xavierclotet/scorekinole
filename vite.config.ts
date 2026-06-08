@@ -10,7 +10,10 @@ export default defineConfig({
 		sveltekit()
 	],
 
-	// Pre-bundle heavy dependencies so Vite doesn't re-process them on every page load
+	// Pre-bundle heavy dependencies so Vite doesn't re-process them on every page load.
+	// NOTE: `@lucide/svelte` (the barrel) is intentionally NOT included — importing it
+	// pulls a ~4.9 MB bundle into every page in dev. Always import icons per-file via
+	// `@lucide/svelte/icons/<name>` (e.g. `import Play from '@lucide/svelte/icons/play'`).
 	optimizeDeps: {
 		include: [
 			'firebase/app',
@@ -20,7 +23,9 @@ export default defineConfig({
 			'firebase/messaging',
 			'firebase/analytics',
 			'chart.js',
-			'@lucide/svelte',
+			'bits-ui',
+			'embla-carousel-svelte',
+			'svelte5-chartjs',
 		],
 	},
 
