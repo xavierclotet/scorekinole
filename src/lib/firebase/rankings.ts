@@ -64,6 +64,13 @@ export interface RankedPlayer {
   bestResult: number | null;
   bestSinglesResult: number | null;
   bestDoublesResult: number | null;
+  /**
+   * Olympic-style medal tables over the COUNTED tournaments (the ones that sum into totalPoints):
+   * `medals[pos]` = how many counted tournaments the player finished in position `pos`.
+   * Split by discipline because singles medals outrank doubles ones in the tie-break.
+   */
+  singlesMedals: number[];
+  doublesMedals: number[];
   tournaments: TournamentRecordWithDetails[];
   otherTournaments: TournamentRecordWithDetails[];
 }
@@ -336,6 +343,21 @@ export function recalculateUserRanking(
 }
 
 /**
+ * Olympic-style medal comparison for breaking ties between players on equal points.
+ * `counts[pos]` = how many (counted) tournaments the player finished in position `pos`.
+ * The player with more 1st places ranks first; ties cascade to 2nd places, then 3rd, etc.
+ * Returns a negative number when `a` should rank ahead of `b` (Array.prototype.sort convention).
+ */
+export function compareMedalCounts(a: number[], b: number[]): number {
+  const maxPos = Math.max(a.length, b.length);
+  for (let pos = 1; pos < maxPos; pos++) {
+    const diff = (b[pos] || 0) - (a[pos] || 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+/**
  * Calculate rankings based on Best-of-N system
  * Only counts the N best tournament results for each player
  */
@@ -393,12 +415,18 @@ export function calculateRankings(
     // 3. Take top N results (0 = all)
     const topCount = filters.bestOfN === 0 ? scored.length : Math.min(filters.bestOfN, scored.length);
 
-    // 4. Sum points and build detail objects only for included tournaments
+    // 4. Sum points and build detail objects only for included tournaments.
+    //    Build the medal tables from the counted tournaments only (the ones that sum into the
+    //    score), split by discipline so singles results outrank doubles ones in the tie-break.
     let totalPoints = 0;
+    const singlesMedals: number[] = [];
+    const doublesMedals: number[] = [];
     const tournamentsWithDetails: TournamentRecordWithDetails[] = [];
     for (let i = 0; i < topCount; i++) {
       const { record, points, info } = scored[i];
       totalPoints += points;
+      const medals = info.gameType === 'doubles' ? doublesMedals : singlesMedals;
+      medals[record.finalPosition] = (medals[record.finalPosition] || 0) + 1;
       tournamentsWithDetails.push({
         ...record,
         rankingDelta: points,
@@ -435,17 +463,19 @@ export function calculateRankings(
       bestResult: bestPosition === Infinity ? null : bestPosition,
       bestSinglesResult: bestSingles === Infinity ? null : bestSingles,
       bestDoublesResult: bestDoubles === Infinity ? null : bestDoubles,
+      singlesMedals,
+      doublesMedals,
       tournaments: tournamentsWithDetails,
       otherTournaments
     });
   }
 
-  // 7. Sort by total points descending, then tiebreakers:
-  // best singles position (lower wins), best doubles position (lower wins), name
+  // 7. Sort by total points descending, then Olympic-style tie-breakers over the counted tournaments:
+  //    more singles medals (gold → silver → bronze → …), then more doubles medals, then name.
   result.sort((a, b) =>
     b.totalPoints - a.totalPoints
-    || (a.bestSinglesResult ?? Infinity) - (b.bestSinglesResult ?? Infinity)
-    || (a.bestDoublesResult ?? Infinity) - (b.bestDoublesResult ?? Infinity)
+    || compareMedalCounts(a.singlesMedals, b.singlesMedals)
+    || compareMedalCounts(a.doublesMedals, b.doublesMedals)
     || a.playerName.localeCompare(b.playerName)
   );
 

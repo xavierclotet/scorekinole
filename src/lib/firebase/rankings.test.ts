@@ -40,6 +40,7 @@ import {
 	estimateParticipantRanking,
 	recalculateUserRanking,
 	calculateRankings,
+	compareMedalCounts,
 	getAvailableCountries,
 	getAvailableYears
 } from './rankings';
@@ -1008,5 +1009,147 @@ describe('calculateRankings — doubles tournaments', () => {
 		expect(ranked[0].tournamentsCount).toBe(2);
 		// Points from both doubles tournaments are summed
 		expect(ranked[0].totalPoints).toBeGreaterThan(0);
+	});
+});
+
+// ─────────────────────────────────────────────────
+// compareMedalCounts — Olympic medal comparison
+// ─────────────────────────────────────────────────
+describe('compareMedalCounts', () => {
+	// Build a medal vector: medals[pos] = count (index 0 unused).
+	const v = (counts: Record<number, number>): number[] => {
+		const arr: number[] = [];
+		for (const [pos, n] of Object.entries(counts)) arr[Number(pos)] = n;
+		return arr;
+	};
+
+	it('more golds wins regardless of any number of lesser medals', () => {
+		// 1 gold beats 5 silvers
+		expect(compareMedalCounts(v({ 1: 1 }), v({ 2: 5 }))).toBeLessThan(0);
+		expect(compareMedalCounts(v({ 2: 5 }), v({ 1: 1 }))).toBeGreaterThan(0);
+	});
+
+	it('equal golds → more silvers wins', () => {
+		expect(compareMedalCounts(v({ 1: 1, 2: 2 }), v({ 1: 1, 2: 1 }))).toBeLessThan(0);
+	});
+
+	it('equal golds and silvers → more bronzes wins', () => {
+		expect(compareMedalCounts(v({ 1: 1, 2: 1, 3: 2 }), v({ 1: 1, 2: 1, 3: 1 }))).toBeLessThan(0);
+	});
+
+	it('cascades to lower positions ("etc")', () => {
+		// Identical down to 4th place, where `a` has one more.
+		expect(compareMedalCounts(v({ 1: 1, 4: 1 }), v({ 1: 1 }))).toBeLessThan(0);
+	});
+
+	it('identical vectors tie (returns 0)', () => {
+		expect(compareMedalCounts(v({ 1: 2, 3: 1 }), v({ 1: 2, 3: 1 }))).toBe(0);
+	});
+
+	it('two empty vectors tie', () => {
+		expect(compareMedalCounts([], [])).toBe(0);
+	});
+
+	it('any medal beats none', () => {
+		expect(compareMedalCounts(v({ 5: 1 }), [])).toBeLessThan(0);
+	});
+});
+
+// ─────────────────────────────────────────────────
+// calculateRankings — Olympic medal tiebreaker
+// (singles before doubles; medals only over the COUNTED tournaments)
+// ─────────────────────────────────────────────────
+describe('calculateRankings — Olympic medal tiebreaker', () => {
+	// 2025 tournaments. Mock points: pos1→100, 2→80, 3→60, 4→40, 5→20, 6+→0.
+	const map = new Map<string, TournamentInfo>([
+		['s1', makeTournamentInfo({ id: 's1', gameType: 'singles', completedAt: new Date('2025-01-15').getTime() })],
+		['s2', makeTournamentInfo({ id: 's2', gameType: 'singles', completedAt: new Date('2025-02-15').getTime() })],
+		['s3', makeTournamentInfo({ id: 's3', gameType: 'singles', completedAt: new Date('2025-03-15').getTime() })],
+		['d1', makeTournamentInfo({ id: 'd1', gameType: 'doubles', completedAt: new Date('2025-04-15').getTime() })],
+		['d2', makeTournamentInfo({ id: 'd2', gameType: 'doubles', completedAt: new Date('2025-05-15').getTime() })]
+	]);
+	// A 2025 record for tournament `id` finishing in position `pos`.
+	const rec = (id: string, pos: number) => makeRecord({ tournamentId: id, finalPosition: pos });
+	const ALL: RankingFilters = { year: 2025, filterType: 'all', bestOfN: 0 };
+	const BEST2: RankingFilters = { year: 2025, filterType: 'all', bestOfN: 2 };
+
+	it('points are the primary order — more points beats more golds', () => {
+		// A: one singles gold → 100 pts (1 gold). B: two singles silvers → 160 pts (0 golds).
+		const a = makeUser({ odId: 'a', playerName: 'A_Gold', tournaments: [rec('s1', 1)] });
+		const b = makeUser({ odId: 'b', playerName: 'B_Silvers', tournaments: [rec('s2', 2), rec('s3', 2)] });
+		const ranked = calculateRankings([a, b], map, ALL);
+		expect(ranked[0].playerName).toBe('B_Silvers');
+		expect(ranked[0].totalPoints).toBe(160);
+		expect(ranked[1].totalPoints).toBe(100);
+	});
+
+	it('equal points → player with more singles golds ranks first', () => {
+		// Both 100 pts. Zoe: gold + 6th (100+0). Bob: silver + 5th (80+20). Zoe 1 gold, Bob 0.
+		const zoe = makeUser({ odId: 'z', playerName: 'Zoe', tournaments: [rec('s1', 1), rec('s2', 6)] });
+		const bob = makeUser({ odId: 'b', playerName: 'Bob', tournaments: [rec('s1', 2), rec('s2', 5)] });
+		const ranked = calculateRankings([bob, zoe], map, ALL);
+		expect(ranked[0].totalPoints).toBe(ranked[1].totalPoints);
+		expect(ranked[0].playerName).toBe('Zoe');
+	});
+
+	it('singles medals outrank doubles medals, even against alphabetical order', () => {
+		// Equal points (80). Zoe: singles silver. Bob: doubles silver.
+		// Combined would tie (1 silver each) → name (Bob first). Singles-first → Zoe first.
+		const zoe = makeUser({ odId: 'z', playerName: 'Zoe', tournaments: [rec('s1', 2)] });
+		const bob = makeUser({ odId: 'b', playerName: 'Bob', tournaments: [rec('d1', 2)] });
+		const ranked = calculateRankings([bob, zoe], map, ALL);
+		expect(ranked[0].totalPoints).toBe(ranked[1].totalPoints);
+		expect(ranked[0].playerName).toBe('Zoe');
+	});
+
+	it('doubles medals break the tie only when points and singles medals are identical', () => {
+		// Both 240 pts, both exactly one singles gold. Doubles sum 140 each, but Zoe has the doubles gold.
+		// Zoe doubles: gold(100) + 4th(40). Ann doubles: silver(80) + bronze(60).
+		const zoe = makeUser({ odId: 'z', playerName: 'Zoe', tournaments: [rec('s1', 1), rec('d1', 1), rec('d2', 4)] });
+		const ann = makeUser({ odId: 'a', playerName: 'Ann', tournaments: [rec('s2', 1), rec('d1', 2), rec('d2', 3)] });
+		const ranked = calculateRankings([ann, zoe], map, ALL);
+		expect(ranked[0].totalPoints).toBe(240);
+		expect(ranked[1].totalPoints).toBe(240);
+		expect(ranked[0].playerName).toBe('Zoe'); // doubles gold wins despite Ann < Zoe
+	});
+
+	it('best-2 mode: medals only count the 2 scoring tournaments (a medal in a non-counted tournament is ignored)', () => {
+		// Both score two singles golds (200). Zoe also has a singles silver in a 3rd, non-counted tournament.
+		// Counted scope → that silver is ignored → medals tie → alphabetical (Bob < Zoe).
+		const zoe = makeUser({ odId: 'z', playerName: 'Zoe', tournaments: [rec('s1', 1), rec('s2', 1), rec('s3', 2)] });
+		const bob = makeUser({ odId: 'b', playerName: 'Bob', tournaments: [rec('s1', 1), rec('s2', 1)] });
+		const ranked = calculateRankings([zoe, bob], map, BEST2);
+		expect(ranked[0].totalPoints).toBe(200);
+		expect(ranked[1].totalPoints).toBe(200);
+		expect(ranked[0].tournamentsCount).toBe(2);
+		expect(ranked[0].playerName).toBe('Bob');
+	});
+
+	it('league mode (bestOfN=0): every tournament scores, so the extra result changes points', () => {
+		// Same two players as above, but now Zoe's 3rd tournament counts → Zoe leads on POINTS.
+		const zoe = makeUser({ odId: 'z', playerName: 'Zoe', tournaments: [rec('s1', 1), rec('s2', 1), rec('s3', 2)] });
+		const bob = makeUser({ odId: 'b', playerName: 'Bob', tournaments: [rec('s1', 1), rec('s2', 1)] });
+		const ranked = calculateRankings([bob, zoe], map, ALL);
+		expect(ranked[0].playerName).toBe('Zoe');
+		expect(ranked[0].totalPoints).toBe(280); // 100 + 100 + 80
+		expect(ranked[1].totalPoints).toBe(200);
+	});
+
+	it('exposes per-discipline medal tables over the counted tournaments', () => {
+		const u = makeUser({ odId: 'u', playerName: 'U', tournaments: [rec('s1', 1), rec('d1', 1), rec('d2', 3)] });
+		const ranked = calculateRankings([u], map, ALL);
+		expect(ranked[0].singlesMedals[1]).toBe(1); // one singles gold
+		expect(ranked[0].doublesMedals[1]).toBe(1); // one doubles gold
+		expect(ranked[0].doublesMedals[3]).toBe(1); // one doubles bronze
+	});
+
+	it('Ranking (best-2) vs Liga (all) produce different totals for the same player', () => {
+		const u = makeUser({ odId: 'u', playerName: 'U', tournaments: [rec('s1', 1), rec('s2', 1), rec('s3', 1)] });
+		const best2 = calculateRankings([u], map, BEST2);
+		const all = calculateRankings([u], map, ALL);
+		expect(best2[0].totalPoints).toBe(200);
+		expect(best2[0].tournamentsCount).toBe(2);
+		expect(all[0].totalPoints).toBe(300);
+		expect(all[0].tournamentsCount).toBe(3);
 	});
 });
