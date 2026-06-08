@@ -2,6 +2,9 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.44] - 2026-06-08
+- Fix (i18n): the English and Catalan ranking page titles now include the `{year}` placeholder, so the active year shows correctly in those locales
+
 ## [2.5.43] - 2026-06-08
 - Feat (ranking): the public rankings page now has two modes — **Ranking** (best 2 tournaments) and **Liga anual** (all tournaments of the year) — replacing the best-of-N dropdown. Mode and year live in the URL (`?mode=league&year=2025`) so any view is shareable, the page title reflects the active mode and year, and the country filter was removed
 - Feat (ranking): the equal-points tie-breaker is now Olympic-style over the scoring tournaments — more singles medals (gold → silver → bronze → …), then more doubles medals, then name; singles outrank doubles. +15 unit tests (72 passing)
