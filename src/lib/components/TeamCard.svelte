@@ -4,7 +4,8 @@
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { team1, team2, updateTeam, updatePartnerName } from '$lib/stores/teams';
 	import * as m from '$lib/paraglide/messages.js';
-	import { buildCompletedMatch, currentMatch, addGameToCurrentMatch } from '$lib/stores/history';
+	import { buildCompletedMatch, currentMatch, addGameToCurrentMatch, countTotalRounds } from '$lib/stores/history';
+	import { canDecrementScore } from '$lib/utils/scoreGuards';
 	import { saveFriendlyMatchToFirestore, savePendingFriendlyMatch, removePendingFriendlyMatch } from '$lib/firebase/firestore';
 	import { lastRoundPoints, completeRound, roundsPlayed, resetGameOnly, currentMatchGames, currentMatchRounds, currentGameRounds, currentGameStartHammer, setCurrentGameStartHammer, undoLastRound } from '$lib/stores/matchState';
 	import { gameTournamentContext } from '$lib/stores/tournamentContext';
@@ -415,6 +416,14 @@
 			return;
 		}
 
+		// Points from completed rounds can only be reverted by undoing the
+		// round (boundary case above), never by partial decrements. Going
+		// below the baseline desynced round detection and produced rounds
+		// with negative points that were synced verbatim to Firestore.
+		const myPoints = teamNumber === 1 ? t1.points : t2.points;
+		const myBaseline = teamNumber === 1 ? previousT1 : previousT2;
+		if (!canDecrementScore(myPoints, myBaseline)) return;
+
 		isProcessingScoreChange = true;
 		queueMicrotask(() => { isProcessingScoreChange = false; });
 
@@ -694,7 +703,9 @@
 			team2Color: t2.color,
 			team1Score: current.games.reduce((sum, g) => sum + g.team1Points, 0),
 			team2Score: current.games.reduce((sum, g) => sum + g.team2Points, 0),
-			totalRounds: get(roundsPlayed),
+			// roundsPlayed resets per game — sum the rounds of every game so
+			// Bo-N matches don't report only the last game's rounds
+			totalRounds: countTotalRounds(current.games),
 			matchesToWin: settings.matchesToWin ?? 1,
 			winner: matchWinner,
 			gameMode: settings.gameMode,

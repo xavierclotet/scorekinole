@@ -5,7 +5,9 @@
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { team1, team2, loadTeams, saveTeams, resetTeams, switchSides, updateTeam } from '$lib/stores/teams';
 	import { timeRemaining, resetTimer, cleanupTimer, startTimer, stopTimer } from '$lib/stores/timer';
-	import { loadMatchState, resetMatchState, saveMatchState, roundsPlayed, twentyDialogPending, setTwentyDialogPending, currentGameRounds, currentMatchRounds, currentMatchGames, lastRoundPoints, matchState, setCurrentGameStartHammer } from '$lib/stores/matchState';
+	import { loadMatchState, resetMatchState, saveMatchState, roundsPlayed, twentyDialogPending, setTwentyDialogPending, currentGameRounds, currentMatchRounds, currentMatchGames, lastRoundPoints, matchState, setCurrentGameStartHammer, updateRoundTwenties } from '$lib/stores/matchState';
+	import { reconstructPendingRound } from '$lib/utils/pendingRound';
+	import { deriveHammerState } from '$lib/utils/hammerRestore';
 	import { startCurrentMatch, currentMatch, updateCurrentMatchRound } from '$lib/stores/history';
 	import TeamCard from '$lib/components/TeamCard.svelte';
 	import Timer from '$lib/components/Timer.svelte';
@@ -1350,6 +1352,34 @@
 						})
 				}))
 			}));
+
+			// Restore hammer state from the round history. hasHammer and
+			// currentGameStartHammer only live in localStorage, so resuming on a
+			// different device (or reloading after a game ended and the context
+			// auto-advanced) left them stale/default and the hammer indicator was
+			// lost. Both are deterministic: hammer rotates every round and the
+			// starting hammer alternates between games.
+			if (config.showHammer ?? true) {
+				const hammerRounds = context.existingRounds.map(r => {
+					let hammerTeam: 1 | 2 | null = null;
+					const hammerPid = r.hammer ?? null;
+					if (hammerPid) {
+						const hammerIsA = hammerPid === context.participantAId;
+						hammerTeam = (hammerIsA === isUserSideA) ? 1 : 2;
+					}
+					return { gameNumber: r.gameNumber, hammerTeam };
+				});
+
+				const derived = deriveHammerState(hammerRounds, currentGameNumber);
+				if (derived.currentHolder) {
+					team1.update(t => ({ ...t, hasHammer: derived.currentHolder === 1 }));
+					team2.update(t => ({ ...t, hasHammer: derived.currentHolder === 2 }));
+					saveTeams();
+				}
+				if (derived.gameStartHammer) {
+					setCurrentGameStartHammer(derived.gameStartHammer);
+				}
+			}
 		}
 
 		// Reset timer for tournament match (start is deferred if hammer dialog will be shown)
@@ -2307,17 +2337,11 @@
 				team2Twenty: team2Value
 			});
 
-			// Also update currentGameRounds (separate store used by saveTournamentProgressToLocalStorage)
-			currentGameRounds.update(rounds => {
-				if (!rounds[editing20sRoundIndex]) return rounds;
-				const updated = [...rounds];
-				updated[editing20sRoundIndex] = {
-					...updated[editing20sRoundIndex],
-					team1Twenty: team1Value,
-					team2Twenty: team2Value
-				};
-				return updated;
-			});
+			// Also update the matchState stores (currentGameRounds is used by
+			// saveTournamentProgressToLocalStorage; currentMatchRounds is used by
+			// saveGameAndCheckMatchComplete for the game's 20s totals) and persist
+			// so the edit survives a reload.
+			updateRoundTwenties(editing20sRoundIndex, team1Value, team2Value);
 
 			// Sync edited 20s to Firebase so tournament admin page sees the update
 			if (inTournamentMode && !tournamentMatchCompletedSent) {
@@ -2332,9 +2356,15 @@
 	}
 
 	async function finalizeRoundWithData() {
-		if (!pendingRoundData) return;
+		// pendingRoundData is in-memory only; after a reload while the 20s dialog
+		// was pending (twentyDialogPending IS persisted) it's gone. Reconstruct it
+		// from the score deltas so the round isn't lost — otherwise the baseline
+		// desyncs and no future round could ever complete.
+		const roundData = pendingRoundData
+			?? reconstructPendingRound($team1.points, $team2.points, get(lastRoundPoints));
+		if (!roundData) return;
 
-		const { winningTeam, team1Points, team2Points } = pendingRoundData;
+		const { winningTeam, team1Points, team2Points } = roundData;
 
 		// Call finalizeRound on one of the TeamCard components
 		// It doesn't matter which one since the function updates both teams

@@ -1,7 +1,7 @@
 import { writable, get } from 'svelte/store';
 import type { MatchState, GameData, RoundData } from '$lib/types/team';
 import { browser } from '$app/environment';
-import { resetCurrentMatch, addRoundToCurrentMatch, removeLastRoundFromCurrentMatch } from './history';
+import { resetCurrentMatch, addRoundToCurrentMatch, removeLastRoundFromCurrentMatch, swapTeamsInCurrentMatch } from './history';
 import type { MatchRound } from '$lib/types/history';
 
 const defaultMatchState: MatchState = {
@@ -78,6 +78,20 @@ export function loadMatchState() {
             }
 
             roundsPlayed.set(state.roundsPlayed ?? 0);
+
+            // Rebuild the lastRoundPoints baseline from the restored rounds.
+            // lastRoundPoints is not persisted; without this, a reload mid-game
+            // leaves the baseline at 0-0 while team points keep their restored
+            // values, so checkRoundCompletion (totalChange === 2) could never
+            // fire again and no further round would ever complete.
+            const baseline = state.currentGameRounds.reduce(
+                (acc, r) => ({
+                    team1: acc.team1 + (r.team1Points || 0),
+                    team2: acc.team2 + (r.team2Points || 0)
+                }),
+                { team1: 0, team2: 0 }
+            );
+            lastRoundPoints.set(baseline);
         } catch (e) {
             console.error('Error loading match state:', e);
         }
@@ -271,6 +285,93 @@ export function undoLastRound(): RoundData | null {
 
     saveMatchState();
     return popped;
+}
+
+/**
+ * Update the 20s of an already-completed round (RoundsPanel edit flow).
+ *
+ * Patches currentGameRounds, currentMatchRounds AND the matchState object,
+ * then persists. currentMatchRounds is what saveGameAndCheckMatchComplete
+ * reads to compute a game's 20s totals, and matchState is what survives a
+ * reload — editing only currentGameRounds (the old behaviour) produced stale
+ * game totals and lost the edit on refresh.
+ */
+export function updateRoundTwenties(roundIndex: number, team1Twenty: number, team2Twenty: number) {
+    const patch = (rounds: RoundData[]): RoundData[] => {
+        if (!rounds[roundIndex]) return rounds;
+        const updated = [...rounds];
+        updated[roundIndex] = { ...updated[roundIndex], team1Twenty, team2Twenty };
+        return updated;
+    };
+
+    currentGameRounds.update(patch);
+    currentMatchRounds.update(patch);
+    matchState.update(state => ({
+        ...state,
+        currentGameRounds: patch(state.currentGameRounds),
+        currentMatchRounds: patch(state.currentMatchRounds)
+    }));
+    saveMatchState();
+}
+
+function swapRoundTeams(round: RoundData): RoundData {
+    return {
+        ...round,
+        team1Points: round.team2Points,
+        team2Points: round.team1Points,
+        team1Twenty: round.team2Twenty,
+        team2Twenty: round.team1Twenty,
+        hammerTeam: round.hammerTeam === 1 ? 2 : round.hammerTeam === 2 ? 1 : null
+    };
+}
+
+function swapGameTeams(game: GameData): GameData {
+    return {
+        ...game,
+        winner: game.winner === 1 ? 2 : game.winner === 2 ? 1 : game.winner,
+        team1Points: game.team2Points,
+        team2Points: game.team1Points,
+        team1Rounds: game.team2Rounds,
+        team2Rounds: game.team1Rounds,
+        team1Twenty: game.team2Twenty,
+        team2Twenty: game.team1Twenty
+    };
+}
+
+function swapTeamNumber(n: number | null): number | null {
+    return n === 1 ? 2 : n === 2 ? 1 : n;
+}
+
+/**
+ * Mirror all team-coded match state when the teams swap sides (switchSides).
+ *
+ * The team stores are swapped by teams.switchSides(), but the round history,
+ * lastRoundPoints baseline and hammer tracking are keyed by team NUMBER
+ * (card position). Without this mirror, after a mid-game side switch:
+ * - checkRoundCompletion compares the new team1 points against the old
+ *   team1 baseline → rounds fire with wrong (even negative) points or never
+ * - in tournament mode the flipped currentUserSide remaps ALL previously
+ *   recorded rounds, swapping A/B scores in the Firestore sync
+ */
+export function swapTeamsInMatchState() {
+    currentGameRounds.update(rounds => rounds.map(swapRoundTeams));
+    currentMatchRounds.update(rounds => rounds.map(swapRoundTeams));
+    currentMatchGames.update(games => games.map(swapGameTeams));
+    lastRoundPoints.update(p => ({ team1: p.team2, team2: p.team1 }));
+    currentGameStartHammer.update(swapTeamNumber);
+    lastGameHammerTeam.update(swapTeamNumber);
+
+    matchState.update(state => ({
+        ...state,
+        currentGameRounds: state.currentGameRounds.map(swapRoundTeams),
+        currentMatchRounds: state.currentMatchRounds.map(swapRoundTeams),
+        currentMatchGames: state.currentMatchGames.map(swapGameTeams),
+        currentGameStartHammer: swapTeamNumber(state.currentGameStartHammer),
+        lastGameHammerTeam: swapTeamNumber(state.lastGameHammerTeam)
+    }));
+
+    swapTeamsInCurrentMatch();
+    saveMatchState();
 }
 
 // Update currentMatch with new round data

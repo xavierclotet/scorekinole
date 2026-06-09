@@ -48,7 +48,9 @@ const { mockAddRoundToCurrentMatch, mockResetCurrentMatch } = vi.hoisted(() => (
 vi.mock('./history', () => ({
 	resetCurrentMatch: mockResetCurrentMatch,
 	addRoundToCurrentMatch: mockAddRoundToCurrentMatch,
-	startCurrentMatch: vi.fn()
+	startCurrentMatch: vi.fn(),
+	removeLastRoundFromCurrentMatch: vi.fn(),
+	swapTeamsInCurrentMatch: vi.fn()
 }));
 
 // Mock localStorage

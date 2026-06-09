@@ -13,6 +13,8 @@ import {
 	addRoundToCurrentMatch,
 	clearCurrentMatchRounds,
 	updateCurrentMatchRound,
+	swapTeamsInCurrentMatch,
+	countTotalRounds,
 	buildCompletedMatch
 } from './history';
 import type { MatchRound, MatchGame } from '$lib/types/history';
@@ -324,5 +326,134 @@ describe('buildCompletedMatch', () => {
 		expect(result.startTime).toBe(2000000);
 		expect(result.endTime).toBe(2000000);
 		expect(result.duration).toBe(0);
+	});
+});
+
+describe('swapTeamsInCurrentMatch (switch sides mid-game)', () => {
+	it('is a no-op when there is no current match', () => {
+		expect(get(currentMatch)).toBeNull();
+		expect(() => swapTeamsInCurrentMatch()).not.toThrow();
+		expect(get(currentMatch)).toBeNull();
+	});
+
+	it('swaps team fields and hammer in current rounds', () => {
+		startCurrentMatch();
+		addRoundToCurrentMatch(makeRound({
+			roundNumber: 1,
+			team1Points: 2,
+			team2Points: 0,
+			team1Twenty: 1,
+			team2Twenty: 0,
+			hammerTeam: 1
+		}));
+		addRoundToCurrentMatch(makeRound({
+			roundNumber: 2,
+			team1Points: 1,
+			team2Points: 1,
+			team1Twenty: 0,
+			team2Twenty: 2,
+			hammerTeam: 2
+		}));
+
+		swapTeamsInCurrentMatch();
+
+		const match = get(currentMatch)!;
+		expect(match.rounds[0]).toMatchObject({
+			team1Points: 0,
+			team2Points: 2,
+			team1Twenty: 0,
+			team2Twenty: 1,
+			hammerTeam: 2
+		});
+		expect(match.rounds[1]).toMatchObject({
+			team1Points: 1,
+			team2Points: 1,
+			team1Twenty: 2,
+			team2Twenty: 0,
+			hammerTeam: 1
+		});
+	});
+
+	it('swaps completed games including their nested rounds and winner', () => {
+		startCurrentMatch();
+		addGameToCurrentMatch(makeGame({
+			gameNumber: 1,
+			winner: 1,
+			team1Points: 7,
+			team2Points: 3,
+			rounds: [
+				makeRound({ roundNumber: 1, team1Points: 2, team2Points: 0, hammerTeam: 1 })
+			]
+		}));
+
+		swapTeamsInCurrentMatch();
+
+		const game = get(currentMatch)!.games[0];
+		expect(game.winner).toBe(2);
+		expect(game.team1Points).toBe(3);
+		expect(game.team2Points).toBe(7);
+		expect(game.rounds[0].team1Points).toBe(0);
+		expect(game.rounds[0].team2Points).toBe(2);
+		expect(game.rounds[0].hammerTeam).toBe(2);
+	});
+
+	it('keeps a tied game winner as null and null hammer untouched', () => {
+		startCurrentMatch();
+		addGameToCurrentMatch(makeGame({ gameNumber: 1, winner: null }));
+		addRoundToCurrentMatch(makeRound({ hammerTeam: null }));
+
+		swapTeamsInCurrentMatch();
+
+		const match = get(currentMatch)!;
+		expect(match.games[0].winner).toBeNull();
+		expect(match.rounds[0].hammerTeam).toBeNull();
+	});
+
+	it('is an involution: swapping twice restores the original match', () => {
+		startCurrentMatch();
+		addGameToCurrentMatch(makeGame({
+			gameNumber: 1,
+			winner: 1,
+			rounds: [makeRound({ roundNumber: 1, team1Points: 2, team2Points: 0, hammerTeam: 1 })]
+		}));
+		addRoundToCurrentMatch(makeRound({ roundNumber: 1, team1Points: 1, team2Points: 1, hammerTeam: 2 }));
+
+		const before = get(currentMatch);
+
+		swapTeamsInCurrentMatch();
+		swapTeamsInCurrentMatch();
+
+		expect(get(currentMatch)).toEqual(before);
+	});
+});
+
+describe('countTotalRounds', () => {
+	it('sums the rounds of every game in a multi-game match', () => {
+		// Regression: the saved match's totalRounds used roundsPlayed, which
+		// resets on each game — a Bo3 only reported the LAST game's rounds.
+		const games = [
+			makeGame({ gameNumber: 1, rounds: [makeRound(), makeRound(), makeRound()] }),
+			makeGame({ gameNumber: 2, rounds: [makeRound(), makeRound()] }),
+			makeGame({ gameNumber: 3, rounds: [makeRound(), makeRound(), makeRound(), makeRound()] })
+		];
+
+		expect(countTotalRounds(games)).toBe(9);
+	});
+
+	it('counts a single-game match correctly', () => {
+		const games = [makeGame({ gameNumber: 1, rounds: [makeRound(), makeRound()] })];
+		expect(countTotalRounds(games)).toBe(2);
+	});
+
+	it('returns 0 for no games', () => {
+		expect(countTotalRounds([])).toBe(0);
+	});
+
+	it('tolerates games without a rounds array (imported/legacy data)', () => {
+		const games = [
+			makeGame({ gameNumber: 1, rounds: [makeRound()] }),
+			{ ...makeGame({ gameNumber: 2 }), rounds: undefined as any }
+		];
+		expect(countTotalRounds(games)).toBe(1);
 	});
 });

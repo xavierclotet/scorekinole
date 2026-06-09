@@ -6,15 +6,17 @@ vi.mock('$app/environment', () => ({
 }));
 
 // Mock history module — use vi.hoisted so fns are available when vi.mock factory runs
-const { mockAddRoundToCurrentMatch, mockResetCurrentMatch, mockRemoveLastRoundFromCurrentMatch } = vi.hoisted(() => ({
+const { mockAddRoundToCurrentMatch, mockResetCurrentMatch, mockRemoveLastRoundFromCurrentMatch, mockSwapTeamsInCurrentMatch } = vi.hoisted(() => ({
 	mockAddRoundToCurrentMatch: vi.fn(),
 	mockResetCurrentMatch: vi.fn(),
-	mockRemoveLastRoundFromCurrentMatch: vi.fn()
+	mockRemoveLastRoundFromCurrentMatch: vi.fn(),
+	mockSwapTeamsInCurrentMatch: vi.fn()
 }));
 vi.mock('./history', () => ({
 	resetCurrentMatch: mockResetCurrentMatch,
 	addRoundToCurrentMatch: mockAddRoundToCurrentMatch,
-	removeLastRoundFromCurrentMatch: mockRemoveLastRoundFromCurrentMatch
+	removeLastRoundFromCurrentMatch: mockRemoveLastRoundFromCurrentMatch,
+	swapTeamsInCurrentMatch: mockSwapTeamsInCurrentMatch
 }));
 
 // Mock localStorage
@@ -55,7 +57,9 @@ import {
 	addRound,
 	startMatch,
 	completeRound,
-	undoLastRound
+	undoLastRound,
+	updateRoundTwenties,
+	swapTeamsInMatchState
 } from './matchState';
 import type { GameData, RoundData } from '$lib/types/team';
 
@@ -501,6 +505,67 @@ describe('matchState', () => {
 			expect(state.roundsPlayed).toBe(3);
 		});
 
+		it('rebuilds lastRoundPoints baseline from restored currentGameRounds (mid-game reload bug)', () => {
+			// Regression: lastRoundPoints is NOT persisted. Before the fix, a page
+			// reload mid-game left the baseline at 0-0 while team points were
+			// restored, so checkRoundCompletion (totalChange === 2) could never
+			// fire again and the match was permanently stuck.
+			const savedState = {
+				matchStartedBy: null,
+				lastGameHammerTeam: null,
+				currentGameStartHammer: 1,
+				currentTwentyTeam: 0,
+				twentyDialogPending: false,
+				matchStartTime: 1000,
+				currentMatchGames: [],
+				currentMatchRounds: [],
+				currentGameRounds: [
+					makeRound({ roundNumber: 1, team1Points: 2, team2Points: 0 }),
+					makeRound({ roundNumber: 2, team1Points: 1, team2Points: 1 }),
+					makeRound({ roundNumber: 3, team1Points: 0, team2Points: 2 })
+				],
+				roundsPlayed: 3
+			};
+			localStorageMock.store['crokinoleMatchState'] = JSON.stringify(savedState);
+
+			loadMatchState();
+
+			// Baseline = accumulated points of the completed rounds (3-3)
+			expect(get(lastRoundPoints)).toEqual({ team1: 3, team2: 3 });
+		});
+
+		it('keeps lastRoundPoints at 0-0 when no rounds were played before the reload', () => {
+			const savedState = {
+				matchStartedBy: null,
+				currentMatchGames: [],
+				currentMatchRounds: [],
+				currentGameRounds: [],
+				roundsPlayed: 0
+			};
+			localStorageMock.store['crokinoleMatchState'] = JSON.stringify(savedState);
+
+			loadMatchState();
+
+			expect(get(lastRoundPoints)).toEqual({ team1: 0, team2: 0 });
+		});
+
+		it('rebuilds baseline from current-game rounds only (not previous games)', () => {
+			// In a multi-game match (Bo3), previous games' rounds live in
+			// currentMatchGames — only the in-progress game's rounds count.
+			const savedState = {
+				matchStartedBy: null,
+				currentMatchGames: [makeGame({ gameNumber: 1, team1Points: 7, team2Points: 3 })],
+				currentMatchRounds: [makeRound({ roundNumber: 1, team1Points: 2, team2Points: 0 })],
+				currentGameRounds: [makeRound({ roundNumber: 1, team1Points: 2, team2Points: 0 })],
+				roundsPlayed: 1
+			};
+			localStorageMock.store['crokinoleMatchState'] = JSON.stringify(savedState);
+
+			loadMatchState();
+
+			expect(get(lastRoundPoints)).toEqual({ team1: 2, team2: 0 });
+		});
+
 		it('handles missing data gracefully (no localStorage entry)', () => {
 			// localStorage is empty (no 'crokinoleMatchState' key)
 			loadMatchState();
@@ -772,6 +837,190 @@ describe('matchState', () => {
 
 			expect(undoLastRound()).not.toBeNull();
 			expect(undoLastRound()).toBeNull();
+		});
+	});
+
+	describe('updateRoundTwenties (20s edit from RoundsPanel)', () => {
+		it('updates the round in currentGameRounds AND currentMatchRounds', () => {
+			// Regression: the old page-level edit only patched currentGameRounds,
+			// so saveGameAndCheckMatchComplete (which sums currentMatchRounds)
+			// stored stale 20s totals for the game.
+			completeRound(2, 0, 1, 0, 1);
+			completeRound(0, 2, 0, 2, 2);
+
+			updateRoundTwenties(0, 3, 1);
+
+			expect(get(currentGameRounds)[0].team1Twenty).toBe(3);
+			expect(get(currentGameRounds)[0].team2Twenty).toBe(1);
+			expect(get(currentMatchRounds)[0].team1Twenty).toBe(3);
+			expect(get(currentMatchRounds)[0].team2Twenty).toBe(1);
+			// Other rounds untouched
+			expect(get(currentGameRounds)[1].team2Twenty).toBe(2);
+		});
+
+		it('does not modify points or hammer of the edited round', () => {
+			completeRound(2, 0, 1, 0, 1);
+
+			updateRoundTwenties(0, 5, 5);
+
+			const round = get(currentGameRounds)[0];
+			expect(round.team1Points).toBe(2);
+			expect(round.team2Points).toBe(0);
+			expect(round.hammerTeam).toBe(1);
+			expect(round.roundNumber).toBe(1);
+		});
+
+		it('persists the edit to localStorage (matchState object in sync)', () => {
+			// Regression: edits were lost on reload because matchState was never
+			// updated nor saved.
+			completeRound(2, 0, 1, 0, 1);
+
+			updateRoundTwenties(0, 4, 2);
+
+			const state = get(matchState);
+			expect(state.currentGameRounds[0].team1Twenty).toBe(4);
+			expect(state.currentMatchRounds[0].team2Twenty).toBe(2);
+
+			const stored = JSON.parse(localStorageMock.store['crokinoleMatchState']);
+			expect(stored.currentGameRounds[0].team1Twenty).toBe(4);
+			expect(stored.currentMatchRounds[0].team2Twenty).toBe(2);
+		});
+
+		it('is a no-op for an out-of-range index', () => {
+			completeRound(2, 0, 1, 0, 1);
+
+			updateRoundTwenties(5, 9, 9);
+			updateRoundTwenties(-1, 9, 9);
+
+			expect(get(currentGameRounds)).toHaveLength(1);
+			expect(get(currentGameRounds)[0].team1Twenty).toBe(1);
+			expect(get(currentGameRounds)[0].team2Twenty).toBe(0);
+		});
+	});
+
+	describe('swapTeamsInMatchState (switch sides mid-game)', () => {
+		it('swaps team1/team2 fields and hammer in every round', () => {
+			completeRound(2, 0, 1, 0, 1); // team1 wins round, team1 had hammer
+			completeRound(0, 2, 0, 2, 2); // team2 wins round, team2 had hammer
+
+			swapTeamsInMatchState();
+
+			const rounds = get(currentGameRounds);
+			expect(rounds[0]).toMatchObject({
+				team1Points: 0,
+				team2Points: 2,
+				team1Twenty: 0,
+				team2Twenty: 1,
+				hammerTeam: 2
+			});
+			expect(rounds[1]).toMatchObject({
+				team1Points: 2,
+				team2Points: 0,
+				team1Twenty: 2,
+				team2Twenty: 0,
+				hammerTeam: 1
+			});
+			// currentMatchRounds mirrors the same swap
+			expect(get(currentMatchRounds)[0].team2Points).toBe(2);
+		});
+
+		it('swaps lastRoundPoints baseline so round detection stays consistent', () => {
+			// Regression: after switchSides() the baseline kept the old card
+			// mapping. With score 2-0 swapped to 0-2 but baseline still {2,0},
+			// the next round's totalChange went negative/wrong and rounds fired
+			// with corrupted points (or never fired).
+			completeRound(2, 0, 0, 0, 1);
+			expect(get(lastRoundPoints)).toEqual({ team1: 2, team2: 0 });
+
+			swapTeamsInMatchState();
+
+			expect(get(lastRoundPoints)).toEqual({ team1: 0, team2: 2 });
+		});
+
+		it('swaps completed games (winner, points, rounds, twenties)', () => {
+			addGame(makeGame({
+				gameNumber: 1,
+				winner: 1,
+				team1Points: 7,
+				team2Points: 3,
+				team1Rounds: 3,
+				team2Rounds: 1,
+				team1Twenty: 2,
+				team2Twenty: 0
+			}));
+
+			swapTeamsInMatchState();
+
+			const game = get(currentMatchGames)[0];
+			expect(game.winner).toBe(2);
+			expect(game.team1Points).toBe(3);
+			expect(game.team2Points).toBe(7);
+			expect(game.team1Rounds).toBe(1);
+			expect(game.team2Rounds).toBe(3);
+			expect(game.team1Twenty).toBe(0);
+			expect(game.team2Twenty).toBe(2);
+		});
+
+		it('keeps a tied game winner as null', () => {
+			addGame(makeGame({ gameNumber: 1, winner: null, team1Points: 4, team2Points: 4 }));
+
+			swapTeamsInMatchState();
+
+			expect(get(currentMatchGames)[0].winner).toBeNull();
+		});
+
+		it('swaps hammer tracking (currentGameStartHammer, lastGameHammerTeam)', () => {
+			startMatch('user-1', 1);
+			lastGameHammerTeam.set(2);
+
+			swapTeamsInMatchState();
+
+			expect(get(currentGameStartHammer)).toBe(2);
+			expect(get(lastGameHammerTeam)).toBe(1);
+		});
+
+		it('leaves null hammer tracking untouched', () => {
+			swapTeamsInMatchState();
+
+			expect(get(currentGameStartHammer)).toBeNull();
+			expect(get(lastGameHammerTeam)).toBeNull();
+		});
+
+		it('keeps the matchState object and localStorage in sync', () => {
+			completeRound(2, 0, 1, 0, 1);
+
+			swapTeamsInMatchState();
+
+			const state = get(matchState);
+			expect(state.currentGameRounds[0].team2Points).toBe(2);
+			expect(state.currentMatchRounds[0].team2Twenty).toBe(1);
+
+			const stored = JSON.parse(localStorageMock.store['crokinoleMatchState']);
+			expect(stored.currentGameRounds[0].team2Points).toBe(2);
+		});
+
+		it('propagates the swap to the history store (currentMatch)', () => {
+			swapTeamsInMatchState();
+			expect(mockSwapTeamsInCurrentMatch).toHaveBeenCalledOnce();
+		});
+
+		it('is an involution: swapping twice restores the original state', () => {
+			completeRound(2, 0, 1, 0, 1);
+			completeRound(1, 1, 0, 1, 2);
+			addGame(makeGame({ gameNumber: 1 }));
+			startMatch('user-1', 2);
+
+			const roundsBefore = get(currentGameRounds);
+			const gamesBefore = get(currentMatchGames);
+			const baselineBefore = get(lastRoundPoints);
+
+			swapTeamsInMatchState();
+			swapTeamsInMatchState();
+
+			expect(get(currentGameRounds)).toEqual(roundsBefore);
+			expect(get(currentMatchGames)).toEqual(gamesBefore);
+			expect(get(lastRoundPoints)).toEqual(baselineBefore);
+			expect(get(currentGameStartHammer)).toBe(2);
 		});
 	});
 });

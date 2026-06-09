@@ -1,7 +1,7 @@
 import { writable } from 'svelte/store';
 import type { Team } from '$lib/types/team';
 import { browser } from '$app/environment';
-import { roundsPlayed, lastRoundPoints, matchState, saveMatchState } from './matchState';
+import { roundsPlayed, lastRoundPoints, matchState, saveMatchState, swapTeamsInMatchState } from './matchState';
 
 const defaultTeam: Team = {
     name: '',
@@ -184,6 +184,12 @@ export function switchSides() {
     team1.set(t2);
     team2.set(t1);
     saveTeams();
+
+    // Keep all team-coded match state (round history, lastRoundPoints
+    // baseline, hammer tracking) referring to the same physical player
+    // after the swap. Without this, a mid-game side switch desyncs round
+    // detection and flips past rounds in the tournament Firestore sync.
+    swapTeamsInMatchState();
 }
 
 // Helper to switch team colors only

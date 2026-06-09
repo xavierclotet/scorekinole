@@ -40,7 +40,9 @@ vi.mock('$lib/constants', () => ({
 vi.mock('./history', () => ({
 	resetCurrentMatch: vi.fn(),
 	addRoundToCurrentMatch: vi.fn(),
-	startCurrentMatch: vi.fn()
+	startCurrentMatch: vi.fn(),
+	removeLastRoundFromCurrentMatch: vi.fn(),
+	swapTeamsInCurrentMatch: vi.fn()
 }));
 
 const localStorageMock = {

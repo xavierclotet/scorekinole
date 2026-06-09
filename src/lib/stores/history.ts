@@ -1,5 +1,5 @@
 import { writable, get } from 'svelte/store';
-import type { MatchHistory, CurrentMatch, MatchRound } from '$lib/types/history';
+import type { MatchHistory, CurrentMatch, MatchRound, MatchGame } from '$lib/types/history';
 
 // Current match in progress (in-memory only, no localStorage)
 export const currentMatch = writable<CurrentMatch | null>(null);
@@ -93,6 +93,49 @@ export function updateCurrentMatchRound(roundIndex: number, updates: Partial<{ t
         return {
             ...match,
             rounds: updatedRounds
+        };
+    });
+}
+
+/**
+ * Total rounds played across ALL games of a match.
+ *
+ * `roundsPlayed` (matchState) resets on every game of a multi-game match, so
+ * using it for the saved match's totalRounds only counted the LAST game's
+ * rounds in Bo-N matches. Each completed game keeps its own rounds array.
+ */
+export function countTotalRounds(games: MatchGame[]): number {
+    return games.reduce((sum, game) => sum + (game.rounds?.length || 0), 0);
+}
+
+/**
+ * Mirror team1/team2 fields in the in-progress match when the teams swap
+ * sides (switchSides). Keeps RoundsPanel and the tournament progress sync
+ * (which reads currentMatch.games[].rounds) consistent with the swapped
+ * team stores.
+ */
+export function swapTeamsInCurrentMatch() {
+    const swapRound = (r: MatchRound): MatchRound => ({
+        ...r,
+        team1Points: r.team2Points,
+        team2Points: r.team1Points,
+        team1Twenty: r.team2Twenty,
+        team2Twenty: r.team1Twenty,
+        hammerTeam: r.hammerTeam === 1 ? 2 : r.hammerTeam === 2 ? 1 : null
+    });
+
+    currentMatch.update(match => {
+        if (!match) return match;
+        return {
+            ...match,
+            rounds: match.rounds.map(swapRound),
+            games: match.games.map(game => ({
+                ...game,
+                winner: game.winner === 1 ? 2 : game.winner === 2 ? 1 : game.winner,
+                team1Points: game.team2Points,
+                team2Points: game.team1Points,
+                rounds: (game.rounds || []).map(swapRound)
+            }))
         };
     });
 }

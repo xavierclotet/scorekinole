@@ -28,7 +28,8 @@ vi.mock('./matchState', () => ({
 			return () => {};
 		})
 	},
-	saveMatchState: vi.fn()
+	saveMatchState: vi.fn(),
+	swapTeamsInMatchState: vi.fn()
 }));
 
 // Mock localStorage
@@ -67,7 +68,7 @@ import {
 	clearUserAssignments,
 	clearPartnerAssignments
 } from './teams';
-import { roundsPlayed, lastRoundPoints, matchState, saveMatchState } from './matchState';
+import { roundsPlayed, lastRoundPoints, matchState, saveMatchState, swapTeamsInMatchState } from './matchState';
 
 const defaultTeam1 = {
 	name: 'Team 1',
@@ -365,6 +366,16 @@ describe('switchSides', () => {
 
 		expect(get(team1).partner).toBeUndefined();
 		expect(get(team2).partner).toEqual(partner1);
+	});
+
+	it('should mirror the team-coded match state (round history, baseline, hammer)', () => {
+		// Regression: switchSides() used to swap only the team stores. The round
+		// history and lastRoundPoints baseline stayed keyed to the old card
+		// positions, which desynced round detection (wrong/negative round points)
+		// and flipped past rounds' A/B mapping in the tournament Firestore sync.
+		switchSides();
+
+		expect(swapTeamsInMatchState).toHaveBeenCalledOnce();
 	});
 });
 
