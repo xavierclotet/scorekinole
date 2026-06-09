@@ -2,6 +2,16 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.45] - 2026-06-09
+- Fix (game): reloading mid-game in a friendly match no longer breaks round detection permanently (`lastRoundPoints` baseline is now rebuilt from the saved rounds)
+- Fix (game): reloading while the 20s dialog was open no longer drops the pending round — it is reconstructed from the score deltas
+- Fix (game): switching sides mid-game now mirrors the round history, baseline and hammer tracking; previously it corrupted round detection and flipped past rounds' A/B scores in the tournament Firestore sync
+- Fix (game): editing a round's 20s now updates the game totals and survives a reload
+- Fix (tournament): the hammer indicator is restored from the round history when resuming a match on another device or after a reload between games (Bo-N)
+- Fix (game): scores can no longer be decremented below the completed-rounds baseline (prevented negative round points from reaching Firestore)
+- Fix (history): Bo-N matches now save the total rounds of all games, not just the last one
+- Tests: ~55 new unit tests (matchState, history, teams, pendingRound, hammerRestore, scoreGuards)
+
 ## [2.5.44] - 2026-06-08
 - Fix (i18n): the English and Catalan ranking page titles now include the `{year}` placeholder, so the active year shows correctly in those locales
 
