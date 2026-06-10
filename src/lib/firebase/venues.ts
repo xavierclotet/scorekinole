@@ -233,6 +233,33 @@ export async function updateVenue(
 		});
 
 		console.log('✅ Venue updated:', venueId);
+
+		// Propagate the denormalized location to tournaments referencing this
+		// venue — they store their own address/city/country copy (mergeVenues
+		// already does this; without it here, edits left tournaments showing
+		// the old location forever). Non-fatal: the venue itself is saved.
+		const locationTouched = 'address' in updates || 'city' in updates || 'country' in updates;
+		if (locationTouched) {
+			try {
+				const tournamentsRef = collection(db!, 'tournaments');
+				const snapshot = await getDocs(query(tournamentsRef, where('venueId', '==', venueId)));
+				if (!snapshot.empty) {
+					const tournamentUpdates: Record<string, unknown> = {};
+					// Cleared address propagates as '' (same convention as mergeVenues)
+					if ('address' in updates) tournamentUpdates.address = updates.address ?? '';
+					if (updates.city !== undefined) tournamentUpdates.city = updates.city;
+					if (updates.country !== undefined) tournamentUpdates.country = updates.country;
+
+					const batch = writeBatch(db!);
+					snapshot.forEach((docSnap) => batch.update(docSnap.ref, tournamentUpdates));
+					await batch.commit();
+					console.log(`✅ Propagated venue location to ${snapshot.size} tournament(s)`);
+				}
+			} catch (propagationError) {
+				console.error('⚠️ Venue saved but location propagation to tournaments failed:', propagationError);
+			}
+		}
+
 		return true;
 	} catch (error) {
 		console.error('❌ Error updating venue:', error);

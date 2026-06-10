@@ -65,6 +65,20 @@
   let userToEnable: AdminUserInfo | null = $state(null);
   let isEnabling = $state(false);
 
+  // Toast (transient feedback for inline actions without a modal)
+  let showToast = $state(false);
+  let toastMessage = $state('');
+  let toastType = $state<'success' | 'error'>('success');
+  let toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function toast(message: string, type: 'success' | 'error') {
+    toastMessage = message;
+    toastType = type;
+    showToast = true;
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => (showToast = false), 3000);
+  }
+
   // Migration state
   let userToMigrate: AdminUserInfo | null = $state(null);
   let selectedTargetUserId: string = $state('');
@@ -411,6 +425,9 @@
           : u
       );
       allUsersCache = null;
+    } else {
+      // Surface the failure — this used to fail silently
+      toast(m.admin_enableUserError(), 'error');
     }
 
     isEnabling = false;
@@ -478,6 +495,14 @@
 
 
 </script>
+
+<!-- Escape closes modals regardless of focus: the overlay divs are not
+     focusable, so their own onkeydown rarely fires -->
+<svelte:window onkeydown={(e) => {
+  if (e.key !== 'Escape') return;
+  if (userToDisable && !isDisabling && !isDeleting) cancelDisable();
+  else if (userToMigrate && !isMigrating) cancelMigrate();
+}} />
 
 <SuperAdminGuard>
   <div class="users-container" data-theme={$adminTheme}>
@@ -685,6 +710,12 @@
       </div>
     {/if}
   </div>
+
+  {#if showToast}
+    <div class="toast-notification" class:toast-error={toastType === 'error'}>
+      {toastMessage}
+    </div>
+  {/if}
 
   {#if selectedUser}
     <UserEditModal
@@ -1693,6 +1724,32 @@
     background: #4d1f24;
     border-color: #7f1d1d;
     color: #fca5a5;
+  }
+
+  /* Toast (inline action feedback) */
+  .toast-notification {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #10b981;
+    color: white;
+    padding: 0.6rem 1.25rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    z-index: 1100;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    animation: toast-in 0.25s ease;
+  }
+
+  .toast-error {
+    background: #ef4444;
+  }
+
+  @keyframes toast-in {
+    from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0); }
   }
 
   .delete-forever-btn {

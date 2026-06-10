@@ -22,6 +22,7 @@ import {
 } from 'firebase/firestore';
 import { get } from 'svelte/store';
 import { browser } from '$app/environment';
+import { encodePathKey } from '$lib/utils/pageViewPaths';
 
 /**
  * Write a page view to Firestore + update daily aggregation
@@ -38,7 +39,7 @@ export async function writePageView(pageView: Omit<PageView, 'id'>): Promise<voi
 
 		// Update daily aggregation
 		const dateKey = new Date(pageView.timestamp).toISOString().split('T')[0];
-		const pathKey = pageView.normalizedPath.replace(/\//g, '_').replace(/[\[\]]/g, '') || '_root';
+		const pathKey = encodePathKey(pageView.normalizedPath);
 		const statsDocRef = doc(db, 'pageViewStats', dateKey);
 
 		// setDoc with merge creates/updates top-level fields (does NOT support dot-notation as field paths)

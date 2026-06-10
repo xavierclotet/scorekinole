@@ -9,6 +9,7 @@
   import { currentUser } from '$lib/firebase/auth';
   import { getPageViewsPaginated, getDailyStats } from '$lib/firebase/pageViews';
   import { TRACKED_ROUTES, type PageView, type PageViewDailyStats } from '$lib/types/pageView';
+  import { decodePathKey } from '$lib/utils/pageViewPaths';
   import { getChartColors, getBaseChartOptions } from '$lib/utils/chartTheme';
   import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
   import {
@@ -121,7 +122,9 @@
     for (const s of dailyStats) {
       if (s.viewsByPath) {
         for (const [pathKey, count] of Object.entries(s.viewsByPath)) {
-          const path = pathKey.replace(/_/g, '/').replace(/^\/\//, '/') || '/';
+          // decodePathKey restores tracked routes exactly ('[id]' included);
+          // the old inline replace() showed '/tournaments/id'
+          const path = decodePathKey(pathKey);
           totals[path] = (totals[path] || 0) + (count || 0);
         }
       }
@@ -183,22 +186,19 @@
   let platformChartKey = $derived(`platform-${$theme}-${JSON.stringify(platformTotals)}`);
   let usersChartKey = $derived(`users-${$theme}-${topUsersData.length}-${periodFilter}`);
 
-  // Auth-gated load
-  let initialLoadDone = false;
+  // Request generation: each loadData call invalidates the previous one, so
+  // a slow response from an old filter combination can never overwrite the
+  // data of the currently selected filters (or append stale loadMore rows).
+  let loadGeneration = 0;
 
+  // Single auth-gated load effect, re-runs when filters change. The previous
+  // two-effect setup double-loaded on mount when the user was already signed
+  // in, and raced filter changes against each other.
   $effect(() => {
-    if ($currentUser && !initialLoadDone) {
-      initialLoadDone = true;
-      loadData();
-    }
-  });
-
-  // Reload when filters change
-  $effect(() => {
-    // Access reactive values to trigger
+    // Access reactive values to trigger on filter changes
     const _period = periodFilter;
     const _route = routeFilter;
-    if (initialLoadDone) {
+    if ($currentUser) {
       loadData();
     }
   });
@@ -213,6 +213,7 @@
   });
 
   async function loadData() {
+    const generation = ++loadGeneration;
     isLoading = true;
     isLoadingCharts = true;
     errorMessage = '';
@@ -231,6 +232,9 @@
         getDailyStats(dateFromStr, dateToStr)
       ]);
 
+      // A newer load started while this one was in flight — discard
+      if (generation !== loadGeneration) return;
+
       totalCount = viewsResult.totalCount;
       hasMore = viewsResult.hasMore;
       lastDoc = viewsResult.lastDoc;
@@ -238,15 +242,20 @@
       dailyStats = statsResult;
     } catch (error) {
       console.error('Error loading analytics:', error);
-      errorMessage = 'Failed to load analytics data';
+      if (generation === loadGeneration) {
+        errorMessage = 'Failed to load analytics data';
+      }
     } finally {
-      isLoading = false;
-      isLoadingCharts = false;
+      if (generation === loadGeneration) {
+        isLoading = false;
+        isLoadingCharts = false;
+      }
     }
   }
 
   async function loadMore() {
     if (isLoadingMore || !hasMore) return;
+    const generation = loadGeneration;
     isLoadingMore = true;
     try {
       const filters = {
@@ -255,12 +264,19 @@
         normalizedPath: routeFilter !== 'all' ? routeFilter : undefined
       };
       const result = await getPageViewsPaginated(pageSize, lastDoc, filters);
+
+      // Filters changed while this page was loading — its rows belong to the
+      // previous filter combination, appending them would mix datasets
+      if (generation !== loadGeneration) return;
+
       hasMore = result.hasMore;
       lastDoc = result.lastDoc;
       pageViews = [...pageViews, ...result.pageViews];
     } catch (error) {
       console.error('Error loading more:', error);
     } finally {
+      // Always release the mutex — only one loadMore runs at a time, so a
+      // stale one releasing it cannot clobber a newer one
       isLoadingMore = false;
     }
   }

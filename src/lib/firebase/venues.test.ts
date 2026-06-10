@@ -245,6 +245,46 @@ describe('updateVenue', () => {
     expect(await updateVenue('v1', { name: 'Fixed by SA' })).toBe(true);
     expect(store.get('venues/v1')!.name).toBe('Fixed by SA');
   });
+
+  it('propagates location changes to tournaments referencing the venue', async () => {
+    seedVenue('v1', { address: 'Old St', city: 'OldTown', country: 'XX' });
+    seedTournament('t1', 'v1');
+    seedTournament('t2', 'v1');
+    seedTournament('t-other', 'v2');
+
+    const result = await updateVenue('v1', {
+      address: 'New Ave 7',
+      city: 'Barcelona',
+      country: 'ES'
+    });
+
+    expect(result).toBe(true);
+    for (const id of ['t1', 't2']) {
+      const t = store.get(`tournaments/${id}`)!;
+      expect(t.address).toBe('New Ave 7');
+      expect(t.city).toBe('Barcelona');
+      expect(t.country).toBe('ES');
+    }
+    // Tournaments of other venues untouched
+    expect(store.get('tournaments/t-other')!.city).toBe('OldCity');
+  });
+
+  it('clearing the address propagates an empty string to tournaments', async () => {
+    seedVenue('v1', { address: 'Old St' });
+    seedTournament('t1', 'v1', { address: 'Old St' });
+
+    expect(await updateVenue('v1', { address: undefined, city: 'Girona', country: 'ES' })).toBe(true);
+    expect(store.get('tournaments/t1')!.address).toBe('');
+    expect(store.get('tournaments/t1')!.city).toBe('Girona');
+  });
+
+  it('does not touch tournaments when only the name changes', async () => {
+    seedVenue('v1');
+    seedTournament('t1', 'v1', { city: 'KeepMe' });
+
+    expect(await updateVenue('v1', { name: 'Renamed Only' })).toBe(true);
+    expect(store.get('tournaments/t1')!.city).toBe('KeepMe');
+  });
 });
 
 // ─── mergeVenues ─────────────────────────────────────────────────────────────

@@ -4,6 +4,7 @@ import { currentUser } from '$lib/firebase/auth';
 import { APP_VERSION } from '$lib/constants';
 import { get } from 'svelte/store';
 import type { PageView } from '$lib/types/pageView';
+import { normalizePath } from './pageViewPaths';
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let lastTrackedPath = '';
@@ -17,12 +18,6 @@ function getSessionId(): string {
 		sessionStorage.setItem('scorekinole_session_id', sid);
 	}
 	return sid;
-}
-
-function normalizePath(path: string): string {
-	return path
-		.replace(/\/tournaments\/[^/]+/, '/tournaments/[id]')
-		.replace(/\/$/, '') || '/';
 }
 
 function getDeviceType(): 'mobile' | 'tablet' | 'desktop' {

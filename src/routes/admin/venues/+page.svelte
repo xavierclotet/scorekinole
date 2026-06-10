@@ -81,20 +81,32 @@
     }
   });
 
+  // Request generation: the load effect fires again when the admin state
+  // resolves ($adminCheckLoading → $isSuperAdminUser), so two loads can
+  // overlap (getMyVenues vs getAllVenues). Without this guard the slower
+  // (stale) response would overwrite the correct list.
+  let loadGeneration = 0;
+
   async function loadVenues() {
+    const generation = ++loadGeneration;
     isLoading = true;
     try {
-      venues = $isSuperAdminUser ? await getAllVenues() : await getMyVenues();
+      const result = $isSuperAdminUser ? await getAllVenues() : await getMyVenues();
+      if (generation !== loadGeneration) return; // stale response — discard
+
+      venues = result;
       // Load tournament counts in background
-      loadTournamentCounts();
+      loadTournamentCounts(generation);
     } catch (error) {
       console.error('Error loading venues:', error);
     } finally {
-      isLoading = false;
+      if (generation === loadGeneration) {
+        isLoading = false;
+      }
     }
   }
 
-  async function loadTournamentCounts() {
+  async function loadTournamentCounts(generation: number) {
     countsLoading = true;
     const counts = new Map<string, number>();
     try {
@@ -105,12 +117,16 @@
           return { id: v.id, count: deps.length };
         })
       );
+      if (generation !== loadGeneration) return; // venues list changed meanwhile
+
       results.forEach((r) => counts.set(r.id, r.count));
       venueTournamentCounts = counts;
     } catch (error) {
       console.error('Error loading tournament counts:', error);
     } finally {
-      countsLoading = false;
+      if (generation === loadGeneration) {
+        countsLoading = false;
+      }
     }
   }
 
@@ -148,7 +164,7 @@
         toast(m.admin_configurationUpdated(), 'success');
         closeEditModal();
       } else {
-        toast('Error al guardar', 'error');
+        toast(m.admin_venueSaveError(), 'error');
       }
     } finally {
       isSavingEdit = false;
@@ -203,6 +219,14 @@
     setTimeout(() => (showToast = false), 3000);
   }
 </script>
+
+<!-- Escape closes modals regardless of focus: the overlay divs are not
+     focusable, so their own onkeydown rarely fires -->
+<svelte:window onkeydown={(e) => {
+  if (e.key !== 'Escape') return;
+  if (venueToEdit && !isSavingEdit) closeEditModal();
+  else if (venueToMerge && !isMerging) closeMergeModal();
+}} />
 
 <AdminGuard>
   <div class="venues-container" data-theme={$adminTheme}>
