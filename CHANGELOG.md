@@ -2,6 +2,21 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.48] - 2026-06-10
+- Fix (wizard create): double-submit guard — a fast double-click no longer creates two tournaments with the same key
+- Fix (wizard create): an expired, untouched registration deadline no longer blocks edit-mode saves (roster edits on tournament morning)
+- Fix (wizard create): cleared optional fields (description, poster, date, edition…) are now deleted on edit instead of silently resurrecting; stale groupStage/finalStage removed when phaseType changes
+- Fix (wizard create): userKey/partner data preserved through edit; participants deduped by user identity when an admin add races a self-registration
+- Fix (wizard create): gameType/partner integrity and cleared numeric game-config inputs are validated; deadline UTC/local mix, lowercase key input, empty edition and FSI draft loss fixed
+- Fix (import): completeUpcomingTournament is transactional and merges registrations that arrive while the wizard is open (lost-update)
+- Fix (import): tournaments with BYE bracket matches can be edited and saved again; edit no longer wipes group schedules, H2H records, match stats or bracket round detail
+- Fix (import): no phantom BYE wins — real round count from SS/RR headers used for the BYE bonus and the WINS/POINTS toggle; unordered match lists scheduled via earliest-fit
+- Fix (import): tied knockout scores resolved by next-round presence (no wrong winner, no duplicate BYE match); transform-to-live aborts on unknown names and handles BYE on either side
+- Fix (import): doubles team names accepted in knockout text; accent-insensitive user auto-link that skips ambiguous duplicate names; group-only knockout imports possible again
+- Fix (import): saveBasicInfoOnly no longer throws on empty time nor creates a phantom groupStage; venueId and time saved in all flows; draft persists pasted text and wizard state
+- Fix (parser): matches separated from standings by a blank line are no longer silently dropped (serializer round-trip); warning for standings-like lines parsed as matches
+- Tests: 22 new unit tests covering all the above (2536 total)
+
 ## [2.5.47] - 2026-06-10
 - Fix (admin/users): mergeUsers rejects merging into an already-merged target (prevented dead-profile merges and A→B→A cycles that silently lost ranking data)
 - Fix (admin/users): disable-user modal no longer applies one user's dependencies to another (race could disable a tournament owner); dependency load errors are surfaced
