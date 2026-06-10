@@ -1711,5 +1711,7 @@
   "ranking_titleRanking": "Ranking {year}",
   "admin_dependenciesLoadError": "The user dependencies could not be loaded. Close the dialog and try again.",
   "admin_deleteMatchError": "The match could not be deleted. Check your browser console for more details.",
-  "admin_searchingAllMatches": "Looking at all the matches..."
+  "admin_searchingAllMatches": "Looking at all the matches...",
+  "admin_enableUserError": "Could not re-enable the user. Check the browser console for more details.",
+  "admin_venueSaveError": "Could not save the venue. Check the browser console for more details."
 }

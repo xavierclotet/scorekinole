@@ -17,6 +17,7 @@
 	import {
 		FIRESTORE_COLLECTIONS,
 		exportCollections,
+		previewCollectionDocs,
 		restoreDocuments,
 		downloadJson,
 		type BackupData
@@ -29,9 +30,11 @@
 	let selectedCollections = $state(new Set<string>(FIRESTORE_COLLECTIONS as unknown as string[]));
 	let isExporting = $state(false);
 	let exportResult: { docCount: number; collections: string[] } | null = $state(null);
+	let exportError = $state('');
 
 	// Preview state (browse live Firestore data)
 	let previewData: Record<string, Record<string, any>> = $state({});
+	let previewTotals: Record<string, number> = $state({});
 	let previewLoading = $state('');
 	let previewError = $state('');
 
@@ -74,8 +77,11 @@
 		previewLoading = name;
 		previewError = '';
 		try {
-			const result = await exportCollections([name]);
-			previewData = { ...previewData, [name]: result.data[name] };
+			// Capped preview: downloading the whole collection froze the tab
+			// on big ones (pageViews)
+			const result = await previewCollectionDocs(name, 50);
+			previewData = { ...previewData, [name]: result.docs };
+			previewTotals = { ...previewTotals, [name]: result.total };
 		} catch (err) {
 			console.error('Preview error:', err);
 			previewError = `Error al cargar ${name}`;
@@ -88,6 +94,7 @@
 		if (selectedCollections.size === 0) return;
 		isExporting = true;
 		exportResult = null;
+		exportError = '';
 		try {
 			const data = await exportCollections([...selectedCollections]);
 			const date = new Date().toISOString().split('T')[0];
@@ -98,6 +105,8 @@
 			};
 		} catch (err) {
 			console.error('Export error:', err);
+			// Was silent: a failed export looked like nothing happened
+			exportError = `Error al exportar: ${err instanceof Error ? err.message : err}`;
 		} finally {
 			isExporting = false;
 		}
@@ -117,11 +126,35 @@
 		reader.onload = (e) => {
 			try {
 				const parsed = JSON.parse(e.target?.result as string);
-				if (!parsed.metadata || !parsed.data) {
+				if (!parsed?.metadata || !parsed?.data || typeof parsed.data !== 'object') {
 					importError = 'Archivo de backup inválido: falta metadata o data';
 					return;
 				}
-				backupData = parsed as BackupData;
+
+				// Keep only known collections with valid document maps — a foreign
+				// or tampered file must not offer restore buttons into arbitrary
+				// collection paths (restoreDocuments re-validates server of this)
+				const validData: Record<string, Record<string, any>> = {};
+				const skipped: string[] = [];
+				for (const [name, docs] of Object.entries(parsed.data)) {
+					const isKnown = (FIRESTORE_COLLECTIONS as readonly string[]).includes(name);
+					const isDocMap = !!docs && typeof docs === 'object' && !Array.isArray(docs);
+					if (isKnown && isDocMap) {
+						validData[name] = docs as Record<string, any>;
+					} else {
+						skipped.push(name);
+					}
+				}
+
+				if (Object.keys(validData).length === 0) {
+					importError = 'El archivo no contiene ninguna colección reconocida';
+					return;
+				}
+				if (skipped.length > 0) {
+					importError = `Colecciones desconocidas o inválidas ignoradas: ${skipped.join(', ')}`;
+				}
+
+				backupData = { metadata: parsed.metadata, data: validData } as BackupData;
 			} catch {
 				importError = 'Error al leer el archivo JSON';
 			}
@@ -168,9 +201,12 @@
 			restoreResult = { collection: restoreTarget, count };
 		} catch (err) {
 			console.error('Restore error:', err);
-			importError = `Error al restaurar: ${err}`;
+			importError = `Error al restaurar: ${err instanceof Error ? err.message : err}`;
 		} finally {
 			isRestoring = false;
+			// Close the dialog so the success/error banner (rendered behind the
+			// modal) is actually visible
+			restoreDialogOpen = false;
 		}
 	}
 
@@ -283,7 +319,11 @@
 									{#if previewData[col]}
 										<div class="preview-tree">
 											<span class="preview-tree-label">
-												{Object.keys(previewData[col]).length} documentos
+												{#if (previewTotals[col] ?? 0) > Object.keys(previewData[col]).length}
+													Mostrando {Object.keys(previewData[col]).length} de {previewTotals[col]} documentos
+												{:else}
+													{Object.keys(previewData[col]).length} documentos
+												{/if}
 											</span>
 											<div class="tree-container">
 												<JsonTreeNode
@@ -328,6 +368,13 @@
 								Backup descargado: <strong>{exportResult.docCount}</strong> documentos
 								de <strong>{exportResult.collections.length}</strong> colecciones
 							</span>
+						</div>
+					{/if}
+
+					{#if exportError}
+						<div class="result-banner error">
+							<CircleAlert size={18} />
+							<span>{exportError}</span>
 						</div>
 					{/if}
 				</section>
