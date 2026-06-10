@@ -3,6 +3,7 @@
   import { adminTheme } from '$lib/stores/theme';
   import type { MatchHistory, MatchGame } from '$lib/types/history';
   import { updateMatch } from '$lib/firebase/admin';
+  import { recomputeMatchAggregates } from '$lib/utils/matchAggregates';
   import X from '@lucide/svelte/icons/x';
   import Save from '@lucide/svelte/icons/save';
   import Calculator from '@lucide/svelte/icons/calculator';
@@ -40,11 +41,26 @@
 
     try {
       const updates: Partial<MatchHistory> = {
-        team1Name,
-        team2Name,
-        gameType,
-        games: editableGames
+        team1Name: team1Name.trim(),
+        team2Name: team2Name.trim(),
+        gameType
       };
+
+      // team1Score/team2Score, winner and games[].points/winner are
+      // denormalized from games[].rounds — writing edited rounds without
+      // recomputing them desynchronizes the stored aggregates (the admin
+      // list and player stats read winner/scores, not the rounds).
+      if (editableGames.length > 0) {
+        const aggregates = recomputeMatchAggregates($state.snapshot(editableGames) as MatchGame[]);
+        updates.games = aggregates.games;
+        updates.team1Score = aggregates.team1Score;
+        updates.team2Score = aggregates.team2Score;
+        updates.winner = aggregates.winner;
+        // Imported matches have no round detail — don't wipe their stored total
+        if (aggregates.totalRounds > 0) {
+          updates.totalRounds = aggregates.totalRounds;
+        }
+      }
 
       const success = await updateMatch(match.id, updates);
       if (!success) {
@@ -73,6 +89,10 @@
     return (game.rounds || []).reduce((sum, r) => sum + (r[field] || 0), 0);
   }
 </script>
+
+<!-- Escape must work regardless of where focus is — the overlay's own
+     onkeydown only fires when focus is inside the dialog -->
+<svelte:window onkeydown={handleKeydown} />
 
 <div
   class="modal-overlay"

@@ -185,8 +185,10 @@ export async function checkTournamentQuota(): Promise<{
     let maxTournaments = getQuotaForYear(profile?.quotaEntries, currentYear);
     const quotaEntry = getQuotaEntryForYear(profile?.quotaEntries, currentYear);
 
-    // 2. Fallback to old system for backward compatibility
-    if (maxTournaments === 0 && profile?.maxTournamentsPerYear) {
+    // 2. Fallback to old system for backward compatibility — ONLY when there
+    //    is no entry for the year. An explicit 0 entry means the quota was
+    //    revoked and must not be overridden by the legacy field.
+    if (maxTournaments === 0 && !quotaEntry && profile?.maxTournamentsPerYear) {
       maxTournaments = profile.maxTournamentsPerYear;
     }
 

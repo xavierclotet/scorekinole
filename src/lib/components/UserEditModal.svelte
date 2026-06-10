@@ -56,11 +56,12 @@
   const currentYear = new Date().getFullYear();
   const nextYear = currentYear + 1;
 
-  // Initialize quota from new system, falling back to old system
+  // Initialize quota from new system, falling back to old system.
+  // Fallback ONLY when there is no entry for the year: an explicit 0 entry
+  // means "revoked" and must not be overridden by the legacy field.
   function getInitialQuotaForYear(year: number): number {
-    // Try new quota system first
-    const newSystemQuota = getQuotaForYear(user.quotaEntries, year);
-    if (newSystemQuota > 0) return newSystemQuota;
+    const entry = getQuotaEntryForYear(user.quotaEntries, year);
+    if (entry) return entry.maxLiveTournaments;
     // Fallback to old system for current year only
     if (year === currentYear && user.maxTournamentsPerYear) {
       return user.maxTournamentsPerYear;
@@ -69,7 +70,9 @@
   }
 
   // svelte-ignore state_referenced_locally - Intentional: initializing editable local state from props
-  let playerName = $state(user.playerName);
+  // ?? '' — guest profiles may lack playerName; calling .trim() on undefined
+  // in saveChanges crashed silently (unhandled rejection, no error shown)
+  let playerName = $state(user.playerName ?? '');
   // svelte-ignore state_referenced_locally
   let isAdmin = $state(user.isAdmin || false);
   // svelte-ignore state_referenced_locally
@@ -197,7 +200,7 @@
     errorMessage = '';
 
     try {
-      const updates: { playerName?: string; photoURL?: string | null; country?: string; quotaEntries?: QuotaEntry[]; canAutofill?: boolean; canImportTournaments?: boolean } = {};
+      const updates: { playerName?: string; photoURL?: string | null; country?: string; quotaEntries?: QuotaEntry[]; maxTournamentsPerYear?: number; canAutofill?: boolean; canImportTournaments?: boolean } = {};
 
       if (playerName !== user.playerName) {
         updates.playerName = playerName;
@@ -230,12 +233,22 @@
         // Update current year quota
         newEntries = setQuotaForYear(newEntries, currentYear, currentYearQuota, adminUserId, 'admin-assigned');
 
-        // Update next year quota if shown and > 0
-        if (showNextYear && nextYearQuota > 0) {
+        // Update next year quota when it changed — including revoking to 0.
+        // Gating on `nextYearQuota > 0` alone made it impossible to zero out
+        // an existing next-year entry.
+        if (nextYearQuota !== oldNextYearQuota || (showNextYear && nextYearQuota > 0)) {
           newEntries = setQuotaForYear(newEntries, nextYear, nextYearQuota, adminUserId, 'admin-assigned');
         }
 
         updates.quotaEntries = newEntries;
+
+        // Clear the legacy field: tournaments.ts falls back to it when the
+        // new-system quota is 0, which made quota revocation impossible while
+        // maxTournamentsPerYear existed (undefined → deleteField() in
+        // updateUserProfile).
+        if (user.maxTournamentsPerYear !== undefined) {
+          updates.maxTournamentsPerYear = undefined;
+        }
       }
 
       if (Object.keys(updates).length > 0) {

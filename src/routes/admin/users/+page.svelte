@@ -12,18 +12,18 @@
   import { getVenuesByOwner } from '$lib/firebase/venues';
   import type { Venue } from '$lib/types/venue';
   import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
-  import { getQuotaForYear } from '$lib/types/quota';
+  import { getQuotaEntryForYear } from '$lib/types/quota';
   import { COUNTRY_CODES } from '$lib/constants';
   import { getFlagUrl } from '$lib/utils/countryFlags';
 
   const currentYear = new Date().getFullYear();
 
-  // Get quota for current year from new system, fallback to old system
+  // Get quota for current year from new system, fallback to old system.
+  // Fallback ONLY when there is no entry for the year: an explicit 0 entry
+  // means "revoked" and must not be overridden by the legacy field.
   function getUserQuotaForCurrentYear(user: AdminUserInfo): number {
-    // Try new quota system first
-    const newSystemQuota = getQuotaForYear(user.quotaEntries, currentYear);
-    if (newSystemQuota > 0) return newSystemQuota;
-    // Fallback to old system
+    const entry = getQuotaEntryForYear(user.quotaEntries, currentYear);
+    if (entry) return entry.maxLiveTournaments;
     return user.maxTournamentsPerYear ?? 0;
   }
 
@@ -195,10 +195,15 @@
       totalCount = result.totalCount;
       hasMore = result.hasMore;
       lastDoc = result.lastDoc;
+
+      // Fetch counts BEFORE assigning to $state: loadTournamentCounts mutates
+      // the raw objects, which bypasses the $state proxy and never re-renders
+      await loadTournamentCounts(result.users);
       users = result.users;
 
-      // Fetch tournament counts for admin users
-      await loadTournamentCounts(result.users);
+      if (!result.hasMore) {
+        await appendUsersWithoutCreatedAt();
+      }
     } catch (error) {
       console.error('Error loading users:', error);
     } finally {
@@ -219,10 +224,35 @@
       await loadTournamentCounts(result.users);
 
       users = [...users, ...result.users];
+
+      if (!result.hasMore) {
+        await appendUsersWithoutCreatedAt();
+      }
     } catch (error) {
       console.error('Error loading more users:', error);
     } finally {
       isLoadingMore = false;
+    }
+  }
+
+  // Firestore's orderBy('createdAt') silently EXCLUDES documents that lack the
+  // field (guest profiles created by addTournamentRecord), so the paginated
+  // query can never reach them and they were only findable via search. Once
+  // the dated pages are exhausted, fetch the full collection and append the
+  // undated profiles at the end of the list.
+  async function appendUsersWithoutCreatedAt() {
+    try {
+      if (!allUsersCache) {
+        allUsersCache = await fetchAllUsers();
+      }
+      const loadedIds = new Set(users.map((u) => u.userId));
+      const undated = allUsersCache.filter((u) => !u.createdAt && !loadedIds.has(u.userId));
+      if (undated.length === 0) return;
+
+      await loadTournamentCounts(undated);
+      users = [...users, ...undated];
+    } catch (error) {
+      console.error('Error loading users without createdAt:', error);
     }
   }
 
@@ -267,15 +297,32 @@
     tournamentDependencies = null;
     userVenues = [];
 
-    // Load dependencies in parallel
-    const [tournaments, venues] = await Promise.all([
-      getUserTournamentDependencies(user.userId),
-      getVenuesByOwner(user.userId)
-    ]);
+    try {
+      // Load dependencies in parallel
+      const [tournaments, venues] = await Promise.all([
+        getUserTournamentDependencies(user.userId),
+        getVenuesByOwner(user.userId)
+      ]);
 
-    tournamentDependencies = tournaments;
-    userVenues = venues;
-    isLoadingDependencies = false;
+      // Discard stale responses: the modal may have been cancelled or reopened
+      // for another user while this fetch was in flight. Applying user A's
+      // dependencies to user B would let canDisableUser/canDeleteUser pass
+      // for a user who actually owns tournaments.
+      if (userToDisable?.userId !== user.userId) return;
+
+      tournamentDependencies = tournaments;
+      userVenues = venues;
+    } catch (error) {
+      console.error('Error loading user dependencies:', error);
+      if (userToDisable?.userId !== user.userId) return;
+      // Leave tournamentDependencies null so disable/delete stay blocked;
+      // surface the failure instead of spinning forever.
+      disableError = m.admin_dependenciesLoadError();
+    } finally {
+      if (userToDisable?.userId === user.userId) {
+        isLoadingDependencies = false;
+      }
+    }
   }
 
   function cancelDisable() {
@@ -294,10 +341,16 @@
 
     // 1. If user is a collaborator, remove from adminIds first
     if (tournamentDependencies?.asCollaborator.length) {
-      await removeUserFromTournamentCollaborators(
+      const removed = await removeUserFromTournamentCollaborators(
         userToDisable.userId,
         tournamentDependencies.asCollaborator.map((t) => t.id)
       );
+      // Abort: disabling anyway would leave a disabled user inside adminIds
+      if (!removed) {
+        disableError = m.admin_disableUserError();
+        isDisabling = false;
+        return;
+      }
     }
 
     // 2. Disable the user
@@ -776,7 +829,9 @@
         {/if}
 
         <div class="delete-actions">
-          <button class="cancel-btn" onclick={cancelDisable} disabled={isDisabling || isDeleting || isLoadingDependencies}>
+          <!-- Cancelling while dependencies load is safe: showDisableConfirm
+               discards stale responses once userToDisable changes -->
+          <button class="cancel-btn" onclick={cancelDisable} disabled={isDisabling || isDeleting}>
             {m.common_cancel()}
           </button>
           {#if canDeleteUser}

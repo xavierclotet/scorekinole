@@ -599,6 +599,44 @@ export async function getMatchesPaginated(
 }
 
 /**
+ * Fetch all matches for search (admin only).
+ * Same rationale as fetchAllUsers: searching must cover the entire
+ * collection, not just the pages loaded so far by the infinite scroll.
+ */
+export async function fetchAllMatches(): Promise<MatchHistory[]> {
+  if (!browser || !isFirebaseEnabled()) return [];
+
+  const user = get(currentUser);
+  if (!user) return [];
+
+  const adminStatus = await isAdmin();
+  if (!adminStatus) return [];
+
+  try {
+    const matchesRef = collection(db!, 'matches');
+    const snapshot = await getDocs(matchesRef);
+
+    const matches: MatchHistory[] = [];
+    snapshot.forEach((docSnap) => {
+      matches.push({
+        ...docSnap.data(),
+        // Doc id is authoritative (saveFriendlyMatchToFirestore keeps them
+        // in sync, but the doc id is what delete/update operate on)
+        id: docSnap.id
+      } as MatchHistory);
+    });
+
+    matches.sort((a, b) => (b.startTime ?? 0) - (a.startTime ?? 0));
+
+    console.log(`✅ Fetched all ${matches.length} matches for search`);
+    return matches;
+  } catch (error) {
+    console.error('❌ Error fetching all matches:', error);
+    return [];
+  }
+}
+
+/**
  * Update match (admin only)
  */
 export async function updateMatch(
@@ -732,6 +770,10 @@ export async function mergeUsers(
       targetData = targetSnap.data() as UserProfile;
 
       if (sourceData.mergedTo) throw new Error('already_merged');
+      // A merged-away profile is dead: rankings skip mergedTo docs, so
+      // tournaments moved onto it would be silently lost. This also blocks
+      // cycles (A→B then B→A) where both profiles end up merged-away.
+      if (targetData.mergedTo) throw new Error('target_already_merged');
 
       // Merge tournaments (deduplicate by tournamentId — target wins on conflict)
       const sourceTournaments = sourceData.tournaments || [];
@@ -758,6 +800,7 @@ export async function mergeUsers(
     if (error.message === 'source_not_found') return { success: false, error: 'Source user not found' };
     if (error.message === 'target_not_found') return { success: false, error: 'Target user not found' };
     if (error.message === 'already_merged') return { success: false, error: 'Source user was already merged' };
+    if (error.message === 'target_already_merged') return { success: false, error: 'Target user was already merged into another user' };
     console.error('❌ Error in merge transaction:', error);
     return { success: false, error: 'Error during merge operation' };
   }

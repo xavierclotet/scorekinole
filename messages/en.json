@@ -1708,5 +1708,8 @@
   "ranking_modeRanking": "Ranking",
   "ranking_modeRankingHint": "The 2 best tournaments of the year",
   "ranking_titleLeague": "Annual League {year}",
-  "ranking_titleRanking": "Ranking {year}"
+  "ranking_titleRanking": "Ranking {year}",
+  "admin_dependenciesLoadError": "The user dependencies could not be loaded. Close the dialog and try again.",
+  "admin_deleteMatchError": "The match could not be deleted. Check your browser console for more details.",
+  "admin_searchingAllMatches": "Looking at all the matches..."
 }

@@ -7,7 +7,7 @@
   import { goto } from '$app/navigation';
   import { adminTheme } from '$lib/stores/theme';
   import { currentUser } from '$lib/firebase/auth';
-  import { getMatchesPaginated, adminDeleteMatch } from '$lib/firebase/admin';
+  import { getMatchesPaginated, fetchAllMatches, adminDeleteMatch } from '$lib/firebase/admin';
   import type { MatchHistory } from '$lib/types/history';
   import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
   import ArrowLeft from '@lucide/svelte/icons/arrow-left';
@@ -35,9 +35,16 @@
   let hasMore = $state(true);
   let tableContainer: HTMLElement | null = $state(null);
 
-  // Derived counts
-  let singlesCount = $derived(matches.filter(m => (m.gameType || 'singles') === 'singles').length);
-  let doublesCount = $derived(matches.filter(m => m.gameType === 'doubles').length);
+  // Search: load all matches so the search covers the entire collection,
+  // not just the pages loaded so far (same pattern as /admin/users)
+  let allMatchesCache: MatchHistory[] | null = $state(null);
+  let isSearchLoading = $state(false);
+
+  // Derived counts — same source as filteredMatches so the tab counters
+  // stay coherent with what the list is actually showing
+  let countSource = $derived(isSearching && allMatchesCache ? allMatchesCache : matches);
+  let singlesCount = $derived(countSource.filter(m => (m.gameType || 'singles') === 'singles').length);
+  let doublesCount = $derived(countSource.filter(m => m.gameType === 'doubles').length);
 
   // Extract unique players from matches (by userId or name)
   interface PlayerOption {
@@ -45,27 +52,44 @@
     name: string;
     isRegistered: boolean;
   }
+  // All player ids of a match: both teams AND their doubles partners
+  function getMatchPlayerIds(match: MatchHistory): string[] {
+    const ids = [
+      match.players?.team1?.userId || match.team1Name,
+      match.players?.team2?.userId || match.team2Name
+    ];
+    const partner1 = match.players?.team1?.partner;
+    if (partner1?.name) ids.push(partner1.userId || partner1.name);
+    const partner2 = match.players?.team2?.partner;
+    if (partner2?.name) ids.push(partner2.userId || partner2.name);
+    return ids.filter(Boolean) as string[];
+  }
+
   let uniquePlayers = $derived((() => {
     const playerMap = new Map<string, PlayerOption>();
+    const addPlayer = (id: string | undefined | null, name: string | undefined, isRegistered: boolean) => {
+      if (!id || !name || playerMap.has(id)) return;
+      playerMap.set(id, { id, name, isRegistered });
+    };
 
-    for (const match of matches) {
-      const p1Id = match.players?.team1?.userId || match.team1Name;
-      if (!playerMap.has(p1Id)) {
-        playerMap.set(p1Id, {
-          id: p1Id,
-          name: match.team1Name,
-          isRegistered: !!match.players?.team1?.userId
-        });
-      }
+    // Use the full cache when available so the dropdown lists every player
+    for (const match of allMatchesCache ?? matches) {
+      addPlayer(
+        match.players?.team1?.userId || match.team1Name,
+        match.players?.team1?.name || match.team1Name,
+        !!match.players?.team1?.userId
+      );
+      addPlayer(
+        match.players?.team2?.userId || match.team2Name,
+        match.players?.team2?.name || match.team2Name,
+        !!match.players?.team2?.userId
+      );
 
-      const p2Id = match.players?.team2?.userId || match.team2Name;
-      if (!playerMap.has(p2Id)) {
-        playerMap.set(p2Id, {
-          id: p2Id,
-          name: match.team2Name,
-          isRegistered: !!match.players?.team2?.userId
-        });
-      }
+      // Doubles partners were invisible to the filter
+      const partner1 = match.players?.team1?.partner;
+      if (partner1?.name) addPlayer(partner1.userId || partner1.name, partner1.name, !!partner1.userId);
+      const partner2 = match.players?.team2?.partner;
+      if (partner2?.name) addPlayer(partner2.userId || partner2.name, partner2.name, !!partner2.userId);
     }
 
     return Array.from(playerMap.values()).sort((a, b) => a.name.localeCompare(b.name));
@@ -75,32 +99,39 @@
   let isFiltering = $derived(filterType !== 'all');
   let isPlayerFiltering = $derived(playerFilter !== '');
 
-  // Auto-load more if container doesn't have scroll
+  // Auto-load more if container doesn't have scroll (also when a filter
+  // shrinks the visible rows — filters apply client-side over loaded pages,
+  // so we must keep paginating or the filtered results stay incomplete)
   $effect(() => {
-    if (tableContainer && hasMore && !isLoading && !isLoadingMore && !isSearching && !isPlayerFiltering) {
-      if (tableContainer.scrollHeight <= tableContainer.clientHeight) {
-        loadMore();
-      }
+    // Track so the effect re-runs when filters change the visible rows
+    const _ = filteredMatches.length;
+
+    if (tableContainer && hasMore && !isLoading && !isLoadingMore && !isSearching) {
+      // Wait for the DOM to reflect the new rows before measuring scroll
+      requestAnimationFrame(() => {
+        if (tableContainer && tableContainer.scrollHeight <= tableContainer.clientHeight) {
+          loadMore();
+        }
+      });
     }
   });
 
-  // Filtered matches
-  let filteredMatches = $derived(matches.filter((match) => {
+  // Filtered matches. While searching, filter over the full cache so results
+  // cover the entire collection instead of only the loaded pages.
+  let filteredMatches = $derived((isSearching && allMatchesCache ? allMatchesCache : matches).filter((match) => {
     const matchType = match.gameType || 'singles';
     if (filterType === 'singles' && matchType !== 'singles') return false;
     if (filterType === 'doubles' && matchType !== 'doubles') return false;
 
-    if (isPlayerFiltering) {
-      const p1Id = match.players?.team1?.userId || match.team1Name;
-      const p2Id = match.players?.team2?.userId || match.team2Name;
-      if (p1Id !== playerFilter && p2Id !== playerFilter) return false;
+    if (isPlayerFiltering && !getMatchPlayerIds(match).includes(playerFilter)) {
+      return false;
     }
 
     if (isSearching) {
       const query = searchQuery.toLowerCase();
       return (
-        match.team1Name.toLowerCase().includes(query) ||
-        match.team2Name.toLowerCase().includes(query) ||
+        (match.team1Name ?? '').toLowerCase().includes(query) ||
+        (match.team2Name ?? '').toLowerCase().includes(query) ||
         match.eventTitle?.toLowerCase().includes(query) ||
         match.matchPhase?.toLowerCase().includes(query) ||
         match.id.toLowerCase().includes(query)
@@ -110,6 +141,25 @@
   }));
 
   let displayTotal = $derived(isSearching || isFiltering || isPlayerFiltering ? filteredMatches.length : totalCount);
+
+  // Debounced search: fetch all matches on first search attempt
+  $effect(() => {
+    const query = searchQuery.trim();
+    if (query.length === 0 || allMatchesCache) return;
+
+    const timer = setTimeout(async () => {
+      isSearchLoading = true;
+      try {
+        allMatchesCache = await fetchAllMatches();
+      } catch (error) {
+        console.error('Error loading matches for search:', error);
+      } finally {
+        isSearchLoading = false;
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  });
 
   // Wait for auth before loading - prevents race condition where
   // onMount fires before currentUser is set by the auth listener
@@ -162,7 +212,7 @@
     const target = e.target as HTMLElement;
     const scrollBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
 
-    if (scrollBottom < 100 && hasMore && !isLoadingMore && !isSearching && !isPlayerFiltering) {
+    if (scrollBottom < 100 && hasMore && !isLoadingMore && !isSearching) {
       loadMore();
     }
   }
@@ -177,6 +227,7 @@
 
   async function handleMatchUpdated() {
     closeEditModal();
+    allMatchesCache = null;
     await loadInitialMatches();
   }
 
@@ -184,26 +235,37 @@
     matchToDelete = match;
   }
 
+  let deleteError = $state('');
+
   async function deleteMatch() {
     if (!matchToDelete) return;
 
     isDeleting = true;
+    deleteError = '';
     const success = await adminDeleteMatch(matchToDelete.id);
 
     if (success) {
       matches = matches.filter((m) => m.id !== matchToDelete!.id);
+      if (allMatchesCache) {
+        allMatchesCache = allMatchesCache.filter((m) => m.id !== matchToDelete!.id);
+      }
       totalCount = Math.max(0, totalCount - 1);
+      matchToDelete = null;
+    } else {
+      // Keep the modal open so the admin sees the failure
+      deleteError = m.admin_deleteMatchError();
     }
 
     isDeleting = false;
-    matchToDelete = null;
   }
 
   function cancelDelete() {
     matchToDelete = null;
+    deleteError = '';
   }
 
   function formatDuration(ms: number): string {
+    if (!Number.isFinite(ms) || ms < 0) return '-';
     const seconds = Math.floor(ms / 1000);
     const minutes = Math.floor(seconds / 60);
     const hours = Math.floor(minutes / 60);
@@ -249,6 +311,10 @@
   }
 </script>
 
+<!-- Escape closes the delete dialog: the overlay div is not focusable, so its
+     own onkeydown only fires if focus happens to be inside the modal -->
+<svelte:window onkeydown={(e) => { if (e.key === 'Escape' && matchToDelete && !isDeleting) cancelDelete(); }} />
+
 <SuperAdminGuard>
   <div class="matches-container" data-theme={$adminTheme}>
     <header class="page-header">
@@ -274,7 +340,7 @@
             class:active={filterType === 'all'}
             onclick={() => (filterType = 'all')}
           >
-            {m.admin_all()} ({matches.length})
+            {m.admin_all()} ({countSource.length})
           </button>
           <button
             class="filter-tab"
@@ -315,8 +381,8 @@
       </div>
     </div>
 
-    {#if isLoading}
-      <LoadingSpinner message={m.common_loading()} />
+    {#if isLoading || (isSearching && isSearchLoading && !allMatchesCache)}
+      <LoadingSpinner message={isSearchLoading ? m.admin_searchingAllMatches() : m.common_loading()} />
     {:else if errorMessage}
       <div class="error-box">
         <CircleAlert size={40} class="error-icon-svg" />
@@ -367,10 +433,11 @@
                 </td>
                 <td class="result-cell">
                   {#if match.matchesToWin > 1}
+                    <!-- games may be missing on imported matches without round detail -->
                     <div class="score-compact">
-                      <span class="score-value" class:winner={match.winner === 1}>{match.games.filter(g => g.winner === 1).length}</span>
+                      <span class="score-value" class:winner={match.winner === 1}>{(match.games ?? []).filter(g => g.winner === 1).length}</span>
                       <span class="score-sep">-</span>
-                      <span class="score-value" class:winner={match.winner === 2}>{match.games.filter(g => g.winner === 2).length}</span>
+                      <span class="score-value" class:winner={match.winner === 2}>{(match.games ?? []).filter(g => g.winner === 2).length}</span>
                     </div>
                   {:else}
                     <div class="score-compact">
@@ -451,6 +518,9 @@
           <small class="preview-date">{formatDate(matchToDelete.startTime)}</small>
         </div>
         <p class="delete-warning">{m.admin_cannotBeUndone()}</p>
+        {#if deleteError}
+          <p class="delete-error">⚠️ {deleteError}</p>
+        {/if}
         <div class="delete-actions">
           <button class="cancel-btn" onclick={cancelDelete} disabled={isDeleting}>
             {m.common_cancel()}
@@ -1157,6 +1227,23 @@
     color: #dc2626;
     font-size: 0.85rem;
     margin: 0 0 1rem 0;
+  }
+
+  .delete-error {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #b91c1c;
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    margin: 0 0 0.75rem 0;
+    font-size: 0.8rem;
+    text-align: left;
+  }
+
+  .delete-overlay:is([data-theme='dark'], [data-theme='violet']) .delete-error {
+    background: #4d1f24;
+    border-color: #7f1d1d;
+    color: #fca5a5;
   }
 
   .delete-actions {
