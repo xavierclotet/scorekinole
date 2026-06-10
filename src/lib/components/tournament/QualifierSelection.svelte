@@ -121,6 +121,9 @@
   });
 
   function toggleParticipant(participantId: string) {
+    // Disqualified/withdrawn players cannot be selected as qualifiers:
+    // generateBracket would seed them into live bracket slots.
+    if (isInactive(participantId)) return;
     // Create a new Set to ensure Svelte reactivity
     const newSet = new Set(selectedParticipants);
     if (newSet.has(participantId)) {
@@ -135,11 +138,18 @@
   function selectTop(n: number) {
     selectedParticipants = new Set(
       [...standings]
+        .filter((s: any) => !isInactive(s.participantId))
         .sort((a: any, b: any) => a.position - b.position)
         .slice(0, n)
         .map((s: any) => s.participantId)
     );
     onupdate?.(Array.from(selectedParticipants));
+  }
+
+  // Disqualified or withdrawn — must never enter the bracket
+  function isInactive(participantId: string): boolean {
+    const participant = participantMap.get(participantId);
+    return participant?.status === 'DISQUALIFIED' || participant?.status === 'WITHDRAWN';
   }
 
   function getParticipantName(participantId: string): string {
@@ -500,6 +510,7 @@
               <input
                 type="checkbox"
                 checked={isSelected}
+                disabled={disqualified}
                 onclick={(e: MouseEvent) => e.stopPropagation()}
                 onchange={() => toggleParticipant(standing.participantId)}
               />

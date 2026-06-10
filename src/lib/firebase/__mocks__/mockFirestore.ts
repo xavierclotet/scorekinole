@@ -83,8 +83,24 @@ class MockTransaction {
     for (const write of this.writes) {
       const existing = this.store.getDocument(write.path);
       if (write.merge && existing) {
-        // Merge: shallow merge top-level fields
-        const merged = { ...existing.data, ...write.data };
+        // Merge: shallow merge top-level fields. Keys containing '.' follow real
+        // Firestore update() semantics: they address a NESTED field path instead
+        // of replacing the whole top-level map.
+        const merged: Record<string, unknown> = { ...existing.data };
+        for (const [key, value] of Object.entries(write.data)) {
+          if (key.includes('.')) {
+            const parts = key.split('.');
+            let target = merged as Record<string, unknown>;
+            for (let i = 0; i < parts.length - 1; i++) {
+              const part = parts[i];
+              target[part] = { ...((target[part] as Record<string, unknown>) ?? {}) };
+              target = target[part] as Record<string, unknown>;
+            }
+            target[parts[parts.length - 1]] = value;
+          } else {
+            merged[key] = value;
+          }
+        }
         this.store.setDocument(write.path, merged);
       } else {
         this.store.setDocument(write.path, write.data);

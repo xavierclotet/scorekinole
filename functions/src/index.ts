@@ -1812,8 +1812,16 @@ export const enableUser = onCall(
 
     try {
       const auth = getAuth();
-      await auth.updateUser(userId, { disabled: false });
-      // No revokeRefreshTokens needed — tokens were already revoked when the account was disabled.
+      // Guest profiles exist only in Firestore — no Auth record to re-enable.
+      // (disableUser has the same guard; without it here, disabling a guest was
+      // a one-way operation: enableUser threw before clearing the Firestore flags.)
+      try {
+        await auth.updateUser(userId, { disabled: false });
+        // No revokeRefreshTokens needed — tokens were already revoked when the account was disabled.
+      } catch (authError: any) {
+        if (authError?.code !== "auth/user-not-found") throw authError;
+        logger.info(`User ${userId} has no Auth record (guest); clearing Firestore flags only`);
+      }
 
       // Clear disabled flags in Firestore
       await db.collection("users").doc(userId).update({
@@ -1826,9 +1834,6 @@ export const enableUser = onCall(
       return { success: true };
     } catch (error: any) {
       logger.error(`Failed to enable user ${userId}:`, error);
-      if (error?.code === "auth/user-not-found") {
-        throw new HttpsError("not-found", "User not found in Firebase Auth");
-      }
       throw new HttpsError("internal", "Failed to enable user");
     }
   }

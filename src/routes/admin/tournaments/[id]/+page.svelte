@@ -376,22 +376,35 @@
         posterUrl: editPosterUrl.trim() || undefined,
       };
 
-      // Update finalStage options if it exists
+      // Update finalStage options via dot-notation field paths. NEVER write the
+      // whole finalStage object here: `tournament` is a page-mount snapshot, and
+      // during FINAL_STAGE players keep completing bracket matches — overwriting
+      // the full map would revert every result recorded since the page loaded.
+      const finalStageFieldUpdates: Record<string, boolean> = {};
       if (tournament.finalStage) {
-        updates.finalStage = {
-          ...tournament.finalStage,
-          consolationEnabled: editConsolationEnabled,
-          thirdPlaceMatchEnabled: editThirdPlaceMatchEnabled
-        };
+        finalStageFieldUpdates['finalStage.consolationEnabled'] = editConsolationEnabled;
+        finalStageFieldUpdates['finalStage.thirdPlaceMatchEnabled'] = editThirdPlaceMatchEnabled;
       }
 
       // Recalculate time estimate if time-affecting settings changed
       if (editNumTables !== tournament.numTables || editConsolationEnabled !== consolationEnabled || editThirdPlaceMatchEnabled !== thirdPlaceMatchEnabled) {
-        const tempTournament = { ...tournament, ...updates } as Tournament;
+        const tempTournament = {
+          ...tournament,
+          ...updates,
+          ...(tournament.finalStage
+            ? {
+                finalStage: {
+                  ...tournament.finalStage,
+                  consolationEnabled: editConsolationEnabled,
+                  thirdPlaceMatchEnabled: editThirdPlaceMatchEnabled
+                }
+              }
+            : {})
+        } as Tournament;
         updates.timeEstimate = calculateTournamentTimeEstimate(tempTournament);
       }
 
-      const success = await updateTournament(tournamentId, updates);
+      const success = await updateTournament(tournamentId, { ...updates, ...finalStageFieldUpdates } as Partial<Tournament>);
 
       if (success) {
         toastMessage = m.admin_configurationUpdated();

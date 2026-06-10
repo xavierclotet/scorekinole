@@ -49,7 +49,7 @@ description: "Pagina de finalizacion para torneos GROUP_ONLY. Permite reordenar 
 ## Firebase
 - `getTournament(tournamentId)` - Fetch unico al montar
 - `recalculateStandings(tournamentId, groupId)` - Recalculo con nuevo tiebreaker
-- `updateTournamentPublic(tournamentId, updates)` - Guardar tiebreakerPriority
+- `updateGroupStageTiebreakerPriority(tournamentId, priority)` - Guardar tiebreakerPriority (transaccional, solo ese campo)
 - `transitionTournament(tournamentId, 'COMPLETED')` - Llama `completeGroupOnlyTournament()` internamente
 
 ## Flujo de Estado

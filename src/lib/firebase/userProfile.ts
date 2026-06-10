@@ -371,38 +371,53 @@ export async function removeTournamentRecord(
 
   try {
     const userRef = doc(db!, 'users', userId);
-    const userSnap = await getDoc(userRef);
 
-    if (!userSnap.exists()) {
+    // Same lost-update class addTournamentRecord was already protected against:
+    // the written tournaments[] array must derive from the in-transaction read.
+    // Otherwise a record being added concurrently (e.g. another tournament's
+    // onTournamentComplete) between our read and write would be silently erased.
+    let found = false;
+    let userExists = true;
+    await runTransaction(db!, async (transaction) => {
+      found = false;
+      userExists = true;
+
+      const userSnap = await transaction.get(userRef);
+      if (!userSnap.exists()) {
+        userExists = false;
+        return;
+      }
+
+      const profile = userSnap.data() as UserProfile;
+      const tournaments = profile.tournaments || [];
+
+      const tournamentIndex = tournaments.findIndex(t => t.tournamentId === tournamentId);
+      if (tournamentIndex === -1) {
+        return; // Not an error - tournament wasn't in history
+      }
+      found = true;
+
+      const updatedTournaments = [
+        ...tournaments.slice(0, tournamentIndex),
+        ...tournaments.slice(tournamentIndex + 1)
+      ];
+
+      transaction.set(userRef, {
+        tournaments: updatedTournaments,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    });
+
+    if (!userExists) {
       console.warn(`User ${userId} not found`);
       return false;
     }
-
-    const profile = userSnap.data() as UserProfile;
-    const tournaments = profile.tournaments || [];
-
-    // Find the tournament record to remove
-    const tournamentIndex = tournaments.findIndex(t => t.tournamentId === tournamentId);
-
-    if (tournamentIndex === -1) {
+    if (!found) {
       console.log(`Tournament ${tournamentId} not found in user ${userId} history`);
-      return true; // Not an error - tournament wasn't in history
+      return true;
     }
 
-    const removedRecord = tournaments[tournamentIndex];
-
-    // Remove tournament from array
-    const updatedTournaments = [
-      ...tournaments.slice(0, tournamentIndex),
-      ...tournaments.slice(tournamentIndex + 1)
-    ];
-
-    await setDoc(userRef, {
-      tournaments: updatedTournaments,
-      updatedAt: serverTimestamp()
-    }, { merge: true });
-
-    console.log(`✅ Removed tournament ${tournamentId} from user ${userId} (was +${removedRecord.rankingDelta} points)`);
+    console.log(`✅ Removed tournament ${tournamentId} from user ${userId}`);
     return true;
   } catch (error) {
     console.error('❌ Error removing tournament record:', error);

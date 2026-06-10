@@ -1485,3 +1485,104 @@ describe('updateMatchResult — admin overwrite of completed matches', () => {
     expect(fixed.gamesWonB).toBe(1);
   });
 });
+
+// ─── Regression: FINAL-phase round sync must not overwrite a completed match ──
+// The GROUP paths always had this guard; the FINAL path was missing it, so a
+// lagging real-time sync from the players device could corrupt a bracket result
+// already entered or edited by an admin (winner kept, but rounds/totals reverted
+// to mid-match values).
+
+describe('Round sync does not overwrite completion (FINAL phase)', () => {
+  function seedBracketTournament(matchStatus: 'COMPLETED' | 'IN_PROGRESS'): Tournament {
+    const match = {
+      id: 'bm1',
+      position: 0,
+      participantA: 'p1',
+      participantB: 'p2',
+      status: matchStatus,
+      totalPointsA: 10,
+      totalPointsB: 6,
+      total20sA: 3,
+      total20sB: 1,
+      gamesWonA: 2,
+      gamesWonB: 1,
+      rounds: [
+        { gameNumber: 1, roundInGame: 1, pointsA: 4, pointsB: 2, twentiesA: 1, twentiesB: 0 },
+        { gameNumber: 1, roundInGame: 2, pointsA: 6, pointsB: 4, twentiesA: 2, twentiesB: 1 }
+      ],
+      ...(matchStatus === 'COMPLETED' ? { winner: 'p1' } : {})
+    };
+    const tournament = {
+      id: 'bracket-t1',
+      status: 'FINAL_STAGE',
+      participants: [
+        { id: 'p1', type: 'GUEST', name: 'P1', rankingSnapshot: 0, status: 'ACTIVE' },
+        { id: 'p2', type: 'GUEST', name: 'P2', rankingSnapshot: 0, status: 'ACTIVE' }
+      ],
+      finalStage: {
+        mode: 'SINGLE_BRACKET',
+        consolationEnabled: false,
+        goldBracket: { rounds: [{ roundNumber: 1, name: 'Final', matches: [match] }], totalRounds: 1 },
+        isComplete: false
+      }
+    } as unknown as Tournament;
+    seedTournament(tournament);
+    return tournament;
+  }
+
+  function readBracketMatch(tournamentId: string) {
+    const t = readTournament(tournamentId);
+    return (t.finalStage!.goldBracket!.rounds[0].matches as Array<Record<string, unknown>>)
+      .find(m => m.id === 'bm1')!;
+  }
+
+  it('stale round sync after bracket-match completion is a no-op', async () => {
+    const tournament = seedBracketTournament('COMPLETED');
+
+    const staleResult = await updateTournamentMatchRounds(
+      tournament.id,
+      'bm1',
+      'FINAL',
+      undefined,
+      [{ gameNumber: 1, roundInGame: 1, pointsA: 0, pointsB: 0, twentiesA: 0, twentiesB: 0 }],
+      { gamesWonA: 0, gamesWonB: 0 }
+    );
+
+    // The match was found (just not modified)
+    expect(staleResult).toBe(true);
+
+    const m = readBracketMatch(tournament.id);
+    expect(m.status).toBe('COMPLETED');
+    expect(m.winner).toBe('p1');
+    expect(m.gamesWonA).toBe(2);
+    expect(m.gamesWonB).toBe(1);
+    expect((m.rounds as unknown[]).length).toBe(2);
+    expect((m.rounds as Array<{ pointsA: number }>)[0].pointsA).toBe(4); // not the stale zeros
+  });
+
+  it('round sync still applies to an IN_PROGRESS bracket match', async () => {
+    const tournament = seedBracketTournament('IN_PROGRESS');
+
+    const result = await updateTournamentMatchRounds(
+      tournament.id,
+      'bm1',
+      'FINAL',
+      undefined,
+      [
+        { gameNumber: 1, roundInGame: 1, pointsA: 4, pointsB: 2, twentiesA: 1, twentiesB: 0 },
+        { gameNumber: 1, roundInGame: 2, pointsA: 6, pointsB: 4, twentiesA: 2, twentiesB: 1 },
+        { gameNumber: 1, roundInGame: 3, pointsA: 2, pointsB: 6, twentiesA: 0, twentiesB: 2 }
+      ],
+      { gamesWonA: 2, gamesWonB: 2 }
+    );
+
+    expect(result).toBe(true);
+
+    const m = readBracketMatch(tournament.id);
+    expect(m.status).toBe('IN_PROGRESS');
+    expect((m.rounds as unknown[]).length).toBe(3); // live sync DID apply
+    expect(m.gamesWonA).toBe(2);
+    expect(m.gamesWonB).toBe(2);
+    expect(m.total20sB).toBe(3); // recomputed from the synced rounds
+  });
+});

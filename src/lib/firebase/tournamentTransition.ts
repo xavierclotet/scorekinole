@@ -7,7 +7,91 @@ import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from './config';
 import { getTournament, parseTournamentData } from './tournaments';
 import { cleanUndefined } from './cleanUndefined';
-import type { TournamentParticipant } from '$lib/types/tournament';
+import type { TournamentParticipant, GroupStanding, TiebreakerCriterion } from '$lib/types/tournament';
+
+/**
+ * Replace the standings of ONE group, deriving everything else from the
+ * in-transaction read.
+ *
+ * Used by the transition page when the admin manually resolves ties. The page
+ * previously wrote the ENTIRE groupStage from its page-load snapshot, so two
+ * admins resolving ties in different groups (or a concurrent match correction)
+ * silently reverted each other's changes.
+ */
+export async function updateGroupStandings(
+  tournamentId: string,
+  groupIndex: number,
+  standings: GroupStanding[]
+): Promise<boolean> {
+  if (!db) {
+    console.error('Firestore not initialized');
+    return false;
+  }
+
+  try {
+    const tournamentRef = doc(db, 'tournaments', tournamentId);
+
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(tournamentRef);
+      if (!snapshot.exists()) {
+        throw new Error('Tournament not found');
+      }
+
+      const tournament = parseTournamentData(snapshot.data());
+      if (!tournament.groupStage?.groups?.[groupIndex]) {
+        throw new Error('Group not found');
+      }
+
+      tournament.groupStage.groups[groupIndex].standings = standings;
+
+      transaction.update(tournamentRef, {
+        groupStage: cleanUndefined(tournament.groupStage),
+        updatedAt: serverTimestamp()
+      });
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Error updating group standings:', error);
+    return false;
+  }
+}
+
+/**
+ * Set groupStage.tiebreakerPriority without touching the rest of the group stage.
+ * The finalize page previously wrote the whole groupStage from its mount-time
+ * snapshot just to change this one field.
+ */
+export async function updateGroupStageTiebreakerPriority(
+  tournamentId: string,
+  tiebreakerPriority: TiebreakerCriterion[]
+): Promise<boolean> {
+  if (!db) {
+    console.error('Firestore not initialized');
+    return false;
+  }
+
+  try {
+    const tournamentRef = doc(db, 'tournaments', tournamentId);
+
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(tournamentRef);
+      if (!snapshot.exists()) {
+        throw new Error('Tournament not found');
+      }
+
+      transaction.update(tournamentRef, {
+        'groupStage.tiebreakerPriority': tiebreakerPriority,
+        updatedAt: serverTimestamp()
+      });
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Error updating tiebreaker priority:', error);
+    return false;
+  }
+}
 
 /**
  * Update qualified participants for a group

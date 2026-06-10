@@ -15,6 +15,7 @@
   import { getTournament } from '$lib/firebase/tournaments';
   import {
     updateQualifiers,
+    updateGroupStandings,
     isValidBracketSize,
     getBracketRoundNames,
     calculateSuggestedQualifiers,
@@ -24,7 +25,7 @@
   import { recalculateStandings } from '$lib/firebase/tournamentGroups';
   import { generateBracket, generateSplitBrackets } from '$lib/firebase/tournamentBracket';
   import { MIN_PARTICIPANTS_FOR_CONSOLATION, crossSeedQualifiers } from '$lib/algorithms/bracket';
-  import { updateTournament, updateTournamentPublic } from '$lib/firebase/tournaments';
+  import { updateTournament } from '$lib/firebase/tournaments';
   import type { Tournament } from '$lib/types/tournament';
   import { getParticipantDisplayName } from '$lib/types/tournament';
   import * as Popover from '$lib/components/ui/popover';
@@ -279,9 +280,18 @@
             .filter((s: any) => s.qualifiedForFinal)
             .map((s: any) => s.participantId);
 
-          // If no qualifiers saved, auto-select based on mode
+          // If no qualifiers saved, auto-select based on mode.
+          // Never auto-select disqualified/withdrawn players: they may still hold a
+          // top-N position in the standings but must not be seeded into the bracket.
           if (qualified.length === 0 && standings.length > 0) {
-            const sortedStandings = [...standings].sort((a: any, b: any) => a.position - b.position);
+            const inactiveIds = new Set(
+              (tournament.participants || [])
+                .filter((p: any) => p.status === 'DISQUALIFIED' || p.status === 'WITHDRAWN')
+                .map((p: any) => p.id)
+            );
+            const sortedStandings = [...standings]
+              .filter((s: any) => !inactiveIds.has(s.participantId))
+              .sort((a: any, b: any) => a.position - b.position);
 
             let defaultSelection: string[];
             if (isSingleBracketSingleGroup) {
@@ -382,24 +392,22 @@
   }
 
   async function handleStandingsChanged(groupIndex: number, newStandings: any[]) {
-    // Save the updated standings to Firebase
+    // Save the updated standings to Firebase. Only this group's standings are
+    // written (derived from the in-transaction read): writing the whole groupStage
+    // from this page's snapshot reverted concurrent changes — e.g. another admin
+    // resolving ties in a different group, or a match correction.
     if (!tournamentId || !tournament || !tournament.groupStage?.groups) return;
 
     try {
+      const success = await updateGroupStandings(tournamentId, groupIndex, newStandings);
+      if (!success) throw new Error('updateGroupStandings failed');
+
+      // Update local tournament object
       const groups = [...tournament.groupStage.groups];
       groups[groupIndex] = {
         ...groups[groupIndex],
         standings: newStandings
       };
-
-      await updateTournamentPublic(tournamentId, {
-        groupStage: {
-          ...tournament.groupStage,
-          groups
-        }
-      });
-
-      // Update local tournament object
       tournament = {
         ...tournament,
         groupStage: {

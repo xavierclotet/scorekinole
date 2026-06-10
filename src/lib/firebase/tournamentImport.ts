@@ -76,9 +76,12 @@ export interface HistoricalTournamentInput {
 
 export interface HistoricalParticipantInput {
   name: string;
-  oderId?: string;          // If linked to existing user
+  userId?: string;          // If linked to existing user
   partnerName?: string;     // For doubles
   partnerUserId?: string;   // For doubles, if linked
+  teamName?: string;        // For doubles: artistic team name ("Los Tigres") — result
+                            // sheets may reference the team by this name, so it must
+                            // resolve in the participant lookup map
   finalPosition?: number;
 }
 
@@ -169,6 +172,193 @@ function generateTournamentKey(): string {
     key += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return key;
+}
+
+/**
+ * Build a complete GroupStage from wizard input: schedule, per-player match stats,
+ * head-to-head records, BYE bonus and tiebreaker-resolved standings.
+ *
+ * Shared by createHistoricalTournament AND completeUpcomingTournament — the latter
+ * used to rebuild standings with zeroed stats and an empty schedule, silently
+ * corrupting any tournament completed through the "upcoming" flow.
+ */
+function buildGroupStageFromInput(
+  groupStageInput: HistoricalGroupStageInput,
+  input: HistoricalTournamentInput,
+  participants: TournamentParticipant[],
+  findParticipantId: (name: string) => string
+): GroupStage {
+  const qualMode = groupStageInput.qualificationMode || 'WINS';
+  const tiebreakerPriority = groupStageInput.tiebreakerPriority;
+
+  const groups = groupStageInput.groups.map((g, gIndex) => {
+    // Build schedule from match data if available
+    const schedule: RoundRobinRound[] = [];
+    // Track match stats per participant
+    const stats = new Map<string, { played: number; won: number; lost: number; tied: number; totalPoints: number; total20s: number }>();
+    // Track h2h results per participant pair (for tiebreaker)
+    const h2hMap = new Map<string, Map<string, { result: 'WIN' | 'LOSS' | 'TIE'; twenties: number }>>();
+
+    if (g.schedule && g.schedule.length > 0) {
+      for (const round of g.schedule) {
+        const groupId = `group-${gIndex}`;
+        const matches: GroupMatch[] = round.matches.map((m, mIdx) => {
+          const pA = findParticipantId(m.participantAName);
+          const pB = findParticipantId(m.participantBName);
+          const winner = m.scoreA > m.scoreB ? pA : (m.scoreB > m.scoreA ? pB : undefined);
+
+          // Accumulate stats
+          for (const pid of [pA, pB]) {
+            if (!stats.has(pid)) stats.set(pid, { played: 0, won: 0, lost: 0, tied: 0, totalPoints: 0, total20s: 0 });
+          }
+          const sA = stats.get(pA)!;
+          const sB = stats.get(pB)!;
+          sA.played++; sB.played++;
+          sA.totalPoints += m.scoreA; sB.totalPoints += m.scoreB;
+
+          if (m.scoreA > m.scoreB) { sA.won++; sB.lost++; }
+          else if (m.scoreB > m.scoreA) { sB.won++; sA.lost++; }
+          else { sA.tied++; sB.tied++; }
+
+          const total20sA = m.rounds ? m.rounds.reduce((s, r) => s + r.twentiesA, 0) : (m.twentiesA ?? 0);
+          const total20sB = m.rounds ? m.rounds.reduce((s, r) => s + r.twentiesB, 0) : (m.twentiesB ?? 0);
+          sA.total20s += total20sA;
+          sB.total20s += total20sB;
+
+          // Build head-to-head records
+          if (!h2hMap.has(pA)) h2hMap.set(pA, new Map());
+          if (!h2hMap.has(pB)) h2hMap.set(pB, new Map());
+          const resultA: 'WIN' | 'LOSS' | 'TIE' = m.scoreA > m.scoreB ? 'WIN' : (m.scoreA < m.scoreB ? 'LOSS' : 'TIE');
+          const resultB: 'WIN' | 'LOSS' | 'TIE' = m.scoreB > m.scoreA ? 'WIN' : (m.scoreB < m.scoreA ? 'LOSS' : 'TIE');
+          h2hMap.get(pA)!.set(pB, { result: resultA, twenties: total20sA });
+          h2hMap.get(pB)!.set(pA, { result: resultB, twenties: total20sB });
+
+          const gm: GroupMatch = {
+            id: `gm-${gIndex}-${round.roundNumber}-${mIdx}`,
+            groupId,
+            participantA: pA,
+            participantB: pB,
+            status: m.isWalkover ? 'WALKOVER' : 'COMPLETED',
+            totalPointsA: m.scoreA,
+            totalPointsB: m.scoreB,
+            total20sA,
+            total20sB,
+            completedAt: input.tournamentDate
+          };
+          // Only set winner if defined (Firebase rejects undefined)
+          if (winner) {
+            gm.winner = winner;
+          }
+
+          if (m.rounds && m.rounds.length > 0) {
+            gm.rounds = m.rounds.map((r, idx) => ({
+              gameNumber: 1,
+              roundInGame: idx + 1,
+              pointsA: r.pointsA,
+              pointsB: r.pointsB,
+              twentiesA: r.twentiesA,
+              twentiesB: r.twentiesB,
+              hammer: null
+            }));
+          }
+
+          return gm;
+        });
+
+        schedule.push({ roundNumber: round.roundNumber, matches });
+      }
+    }
+
+    // Calculate totalRounds and BYE bonus
+    const totalRounds = g.schedule?.length || 0;
+    const allScores = totalRounds > 0
+      ? g.schedule!.flatMap(r => r.matches.flatMap(m => [m.scoreA, m.scoreB]))
+      : [];
+    const maxMatchScore = allScores.length > 0 ? Math.max(...allScores) : 8;
+
+    if (totalRounds > 0) {
+      for (const [, st] of stats) {
+        const byes = totalRounds - st.played;
+        if (byes > 0) {
+          st.won += byes;
+          st.totalPoints += byes * maxMatchScore;
+        }
+      }
+    }
+
+    // Build standings — enrich with match stats if available
+    const standings: GroupStanding[] = g.standings.map((s) => {
+      const pid = findParticipantId(s.participantName);
+      const st = stats.get(pid);
+
+      const standing: GroupStanding = {
+        participantId: pid,
+        position: s.position,
+        matchesPlayed: st?.played ?? 0,
+        matchesWon: st?.won ?? 0,
+        matchesLost: st?.lost ?? 0,
+        matchesTied: st?.tied ?? 0,
+        points: st
+          ? (qualMode === 'POINTS' ? st.totalPoints : (st.won * 2 + st.tied))
+          : (s.points || 0),
+        total20s: st?.total20s ?? (s.total20s || 0),
+        totalPointsScored: st?.totalPoints ?? (s.points || 0),
+        qualifiedForFinal: true
+      };
+
+      // Add h2h record if available
+      const h2h = h2hMap.get(pid);
+      if (h2h && h2h.size > 0) {
+        standing.headToHeadRecord = Object.fromEntries(h2h);
+      }
+
+      return standing;
+    });
+
+    // Apply tiebreaker resolution if we have match data
+    const hasMatchData = stats.size > 0;
+    const resolvedStandings = hasMatchData
+      ? resolveTiebreaker(
+          standings,
+          participants,
+          false, // isSwiss
+          qualMode,
+          input.show20s ?? true,
+          tiebreakerPriority
+        )
+      : standings;
+
+    // Strip undefined values from standings (Firebase rejects undefined)
+    const cleanStandings = stripUndefined(resolvedStandings);
+
+    return {
+      id: `group-${gIndex}`,
+      name: g.name,
+      participants: cleanStandings.map((s) => s.participantId),
+      standings: cleanStandings,
+      schedule
+    };
+  });
+
+  const gsObj: GroupStage = {
+    type: 'ROUND_ROBIN',
+    groups,
+    currentRound: 0,
+    totalRounds: groups[0]?.schedule?.length || 0,
+    isComplete: true,
+    gameMode: 'points',
+    pointsToWin: 7,
+    matchesToWin: 1,
+    numGroups: groupStageInput.numGroups,
+    qualificationMode: qualMode
+  };
+
+  // Store tiebreakerPriority if provided
+  if (tiebreakerPriority && tiebreakerPriority.length > 0) {
+    gsObj.tiebreakerPriority = tiebreakerPriority;
+  }
+
+  return gsObj;
 }
 
 /**
@@ -338,19 +528,26 @@ export async function createHistoricalTournament(
       const fullName = p.partnerName ? `${p.name} / ${p.partnerName}` : p.name;
       participantMap.set(fullName.toLowerCase(), id);
       participantMap.set(p.name.toLowerCase(), id);
+      // Doubles team name ("Los Tigres") — standings/matches may reference it
+      if (p.teamName) {
+        participantMap.set(p.teamName.toLowerCase(), id);
+      }
 
       // Build participant object without undefined values (Firebase rejects undefined)
       const participant: TournamentParticipant = {
         id,
-        type: p.oderId ? 'REGISTERED' : 'GUEST',
+        type: p.userId ? 'REGISTERED' : 'GUEST',
         name: p.name,
         rankingSnapshot: 0,
         status: 'ACTIVE'
       };
 
       // Only add optional fields if they have values
-      if (p.oderId) {
-        participant.userId = p.oderId;
+      if (p.userId) {
+        participant.userId = p.userId;
+      }
+      if (p.teamName) {
+        participant.teamName = p.teamName;
       }
       if (p.finalPosition !== undefined && p.finalPosition !== null) {
         participant.finalPosition = p.finalPosition;
@@ -382,181 +579,10 @@ export async function createHistoricalTournament(
       return id;
     };
 
-    // Build group stage if provided
-    let groupStage: GroupStage | undefined;
-    if (input.groupStage) {
-      const qualMode = input.groupStage.qualificationMode || 'WINS';
-      const tiebreakerPriority = input.groupStage.tiebreakerPriority;
-
-      const groups = input.groupStage.groups.map((g, gIndex) => {
-        // Build schedule from match data if available
-        const schedule: RoundRobinRound[] = [];
-        // Track match stats per participant
-        const stats = new Map<string, { played: number; won: number; lost: number; tied: number; totalPoints: number; total20s: number }>();
-        // Track h2h results per participant pair (for tiebreaker)
-        const h2hMap = new Map<string, Map<string, { result: 'WIN' | 'LOSS' | 'TIE'; twenties: number }>>();
-
-        if (g.schedule && g.schedule.length > 0) {
-          for (const round of g.schedule) {
-            const groupId = `group-${gIndex}`;
-            const matches: GroupMatch[] = round.matches.map((m, mIdx) => {
-              const pA = findParticipantId(m.participantAName);
-              const pB = findParticipantId(m.participantBName);
-              const winner = m.scoreA > m.scoreB ? pA : (m.scoreB > m.scoreA ? pB : undefined);
-
-              // Accumulate stats
-              for (const pid of [pA, pB]) {
-                if (!stats.has(pid)) stats.set(pid, { played: 0, won: 0, lost: 0, tied: 0, totalPoints: 0, total20s: 0 });
-              }
-              const sA = stats.get(pA)!;
-              const sB = stats.get(pB)!;
-              sA.played++; sB.played++;
-              sA.totalPoints += m.scoreA; sB.totalPoints += m.scoreB;
-
-              if (m.scoreA > m.scoreB) { sA.won++; sB.lost++; }
-              else if (m.scoreB > m.scoreA) { sB.won++; sA.lost++; }
-              else { sA.tied++; sB.tied++; }
-
-              const total20sA = m.rounds ? m.rounds.reduce((s, r) => s + r.twentiesA, 0) : (m.twentiesA ?? 0);
-              const total20sB = m.rounds ? m.rounds.reduce((s, r) => s + r.twentiesB, 0) : (m.twentiesB ?? 0);
-              sA.total20s += total20sA;
-              sB.total20s += total20sB;
-
-              // Build head-to-head records
-              if (!h2hMap.has(pA)) h2hMap.set(pA, new Map());
-              if (!h2hMap.has(pB)) h2hMap.set(pB, new Map());
-              const resultA: 'WIN' | 'LOSS' | 'TIE' = m.scoreA > m.scoreB ? 'WIN' : (m.scoreA < m.scoreB ? 'LOSS' : 'TIE');
-              const resultB: 'WIN' | 'LOSS' | 'TIE' = m.scoreB > m.scoreA ? 'WIN' : (m.scoreB < m.scoreA ? 'LOSS' : 'TIE');
-              h2hMap.get(pA)!.set(pB, { result: resultA, twenties: total20sA });
-              h2hMap.get(pB)!.set(pA, { result: resultB, twenties: total20sB });
-
-              const gm: GroupMatch = {
-                id: `gm-${gIndex}-${round.roundNumber}-${mIdx}`,
-                groupId,
-                participantA: pA,
-                participantB: pB,
-                status: m.isWalkover ? 'WALKOVER' : 'COMPLETED',
-                totalPointsA: m.scoreA,
-                totalPointsB: m.scoreB,
-                total20sA,
-                total20sB,
-                completedAt: input.tournamentDate
-              };
-              // Only set winner if defined (Firebase rejects undefined)
-              if (winner) {
-                gm.winner = winner;
-              }
-
-              if (m.rounds && m.rounds.length > 0) {
-                gm.rounds = m.rounds.map((r, idx) => ({
-                  gameNumber: 1,
-                  roundInGame: idx + 1,
-                  pointsA: r.pointsA,
-                  pointsB: r.pointsB,
-                  twentiesA: r.twentiesA,
-                  twentiesB: r.twentiesB,
-                  hammer: null
-                }));
-              }
-
-              return gm;
-            });
-
-            schedule.push({ roundNumber: round.roundNumber, matches });
-          }
-        }
-
-        // Calculate totalRounds and BYE bonus
-        const totalRounds = g.schedule?.length || 0;
-        const allScores = totalRounds > 0
-          ? g.schedule!.flatMap(r => r.matches.flatMap(m => [m.scoreA, m.scoreB]))
-          : [];
-        const maxMatchScore = allScores.length > 0 ? Math.max(...allScores) : 8;
-
-        if (totalRounds > 0) {
-          for (const [, st] of stats) {
-            const byes = totalRounds - st.played;
-            if (byes > 0) {
-              st.won += byes;
-              st.totalPoints += byes * maxMatchScore;
-            }
-          }
-        }
-
-        // Build standings — enrich with match stats if available
-        const standings: GroupStanding[] = g.standings.map((s) => {
-          const pid = findParticipantId(s.participantName);
-          const st = stats.get(pid);
-
-          const standing: GroupStanding = {
-            participantId: pid,
-            position: s.position,
-            matchesPlayed: st?.played ?? 0,
-            matchesWon: st?.won ?? 0,
-            matchesLost: st?.lost ?? 0,
-            matchesTied: st?.tied ?? 0,
-            points: st
-              ? (qualMode === 'POINTS' ? st.totalPoints : (st.won * 2 + st.tied))
-              : (s.points || 0),
-            total20s: st?.total20s ?? (s.total20s || 0),
-            totalPointsScored: st?.totalPoints ?? (s.points || 0),
-            qualifiedForFinal: true
-          };
-
-          // Add h2h record if available
-          const h2h = h2hMap.get(pid);
-          if (h2h && h2h.size > 0) {
-            standing.headToHeadRecord = Object.fromEntries(h2h);
-          }
-
-          return standing;
-        });
-
-        // Apply tiebreaker resolution if we have match data
-        const hasMatchData = stats.size > 0;
-        const resolvedStandings = hasMatchData
-          ? resolveTiebreaker(
-              standings,
-              participants,
-              false, // isSwiss
-              qualMode,
-              input.show20s ?? true,
-              tiebreakerPriority
-            )
-          : standings;
-
-        // Strip undefined values from standings (Firebase rejects undefined)
-        const cleanStandings = stripUndefined(resolvedStandings);
-
-        return {
-          id: `group-${gIndex}`,
-          name: g.name,
-          participants: cleanStandings.map((s) => s.participantId),
-          standings: cleanStandings,
-          schedule
-        };
-      });
-
-      const gsObj: GroupStage = {
-        type: 'ROUND_ROBIN',
-        groups,
-        currentRound: 0,
-        totalRounds: groups[0]?.schedule?.length || 0,
-        isComplete: true,
-        gameMode: 'points',
-        pointsToWin: 7,
-        matchesToWin: 1,
-        numGroups: input.groupStage.numGroups,
-        qualificationMode: qualMode
-      };
-
-      // Store tiebreakerPriority if provided
-      if (tiebreakerPriority && tiebreakerPriority.length > 0) {
-        gsObj.tiebreakerPriority = tiebreakerPriority;
-      }
-
-      groupStage = gsObj;
-    }
+    // Build group stage if provided (shared helper: schedule, stats, H2H, tiebreakers)
+    const groupStage: GroupStage | undefined = input.groupStage
+      ? buildGroupStageFromInput(input.groupStage, input, participants, findParticipantId)
+      : undefined;
 
     // Build final stage
     const buildBracketMatch = (
@@ -567,7 +593,11 @@ export async function createHistoricalTournament(
     ): BracketMatch => {
       const participantA = findParticipantId(match.participantAName);
       const participantB = findParticipantId(match.participantBName);
-      const winner = match.scoreA > match.scoreB ? participantA : (match.scoreB > match.scoreA ? participantB : undefined);
+      // BYE matches arrive as "X vs BYE" with 0-0 scores: the real player advances.
+      const isBye = participantA === 'BYE' || participantB === 'BYE';
+      const winner = isBye
+        ? (participantA === 'BYE' ? participantB : participantA)
+        : (match.scoreA > match.scoreB ? participantA : (match.scoreB > match.scoreA ? participantB : undefined));
 
       // Compute 20s from rounds if available, otherwise use explicit values
       const total20sA = match.rounds && match.rounds.length > 0
@@ -582,14 +612,19 @@ export async function createHistoricalTournament(
         position,
         participantA,
         participantB,
-        status: match.isWalkover ? 'WALKOVER' : 'COMPLETED',
-        winner,
+        status: (match.isWalkover || isBye) ? 'WALKOVER' : 'COMPLETED',
         totalPointsA: match.scoreA ?? 0,
         totalPointsB: match.scoreB ?? 0,
         total20sA,
         total20sB,
         completedAt: input.tournamentDate
       };
+
+      // Firebase rejects undefined — only set winner when there is one (a tied
+      // score between two real players has no winner).
+      if (winner && winner !== 'BYE') {
+        bracketMatch.winner = winner;
+      }
 
       if (match.rounds && match.rounds.length > 0) {
         bracketMatch.rounds = match.rounds.map((r, idx) => ({
@@ -822,7 +857,14 @@ export async function createHistoricalTournament(
     }
 
     if (unknownParticipants.size > 0) {
-      console.warn(`⚠️ ${unknownParticipants.size} unknown participant(s) in match data: ${[...unknownParticipants].join(', ')}`);
+      // Abort instead of writing `unknown-<name>` participant IDs: those rows can't be
+      // resolved by the public view, get no finalPosition and earn no ranking points.
+      // Typical cause: a doubles result sheet referencing the team name while the
+      // participant list only has the player names (or a typo in a name).
+      console.error(
+        `❌ Import aborted — ${unknownParticipants.size} name(s) in the results don't match any participant: ${[...unknownParticipants].join(', ')}`
+      );
+      return null;
     }
 
     const tournamentRef = doc(db, 'tournaments', tournamentId);
@@ -1054,17 +1096,24 @@ export async function completeUpcomingTournament(
       const fullName = p.partnerName ? `${p.name} / ${p.partnerName}` : p.name;
       participantMap.set(fullName.toLowerCase(), participantId);
       participantMap.set(p.name.toLowerCase(), participantId);
+      // Doubles team name ("Los Tigres") — standings/matches may reference it
+      if (p.teamName) {
+        participantMap.set(p.teamName.toLowerCase(), participantId);
+      }
 
       const participant: TournamentParticipant = {
         id: participantId,
-        type: p.oderId ? 'REGISTERED' : 'GUEST',
+        type: p.userId ? 'REGISTERED' : 'GUEST',
         name: p.name,
         rankingSnapshot: 0,
         status: 'ACTIVE'
       };
 
-      if (p.oderId) {
-        participant.userId = p.oderId;
+      if (p.userId) {
+        participant.userId = p.userId;
+      }
+      if (p.teamName) {
+        participant.teamName = p.teamName;
       }
       if (p.finalPosition !== undefined && p.finalPosition !== null) {
         participant.finalPosition = p.finalPosition;
@@ -1096,47 +1145,13 @@ export async function completeUpcomingTournament(
       return foundId;
     };
 
-    // Build group stage if provided
-    let groupStage: GroupStage | undefined;
-    if (input.groupStage) {
-      const groups = input.groupStage.groups.map((g, gIndex) => {
-        const standings: GroupStanding[] = g.standings.map((s) => ({
-          participantId: findParticipantId(s.participantName),
-          position: s.position,
-          matchesPlayed: 0,
-          matchesWon: 0,
-          matchesLost: 0,
-          matchesTied: 0,
-          // For imported tournaments: put crokinole points in both fields
-          // so data shows regardless of qualificationMode (WINS or POINTS)
-          points: s.points || 0,
-          total20s: s.total20s || 0,
-          totalPointsScored: s.points || 0,
-          qualifiedForFinal: input.phaseType !== 'GROUP_ONLY'
-        }));
-
-        return {
-          id: `group-${gIndex}`,
-          name: g.name,
-          participants: standings.map((s) => s.participantId),
-          standings,
-          schedule: []
-        };
-      });
-
-      groupStage = {
-        type: 'ROUND_ROBIN',
-        groups,
-        currentRound: 0,
-        totalRounds: 0,
-        isComplete: true,
-        gameMode: 'points',
-        pointsToWin: 7,
-        matchesToWin: 1,
-        numGroups: input.groupStage.numGroups,
-        qualificationMode: input.groupStage.qualificationMode || 'WINS'
-      };
-    }
+    // Build group stage if provided. Uses the SAME helper as createHistoricalTournament:
+    // this path used to rebuild standings with zeroed match stats, an empty schedule and
+    // classification points written as game points, corrupting every tournament completed
+    // through the "upcoming" flow.
+    const groupStage: GroupStage | undefined = input.groupStage
+      ? buildGroupStageFromInput(input.groupStage, input, participants, findParticipantId)
+      : undefined;
 
     // Build final stage
     const buildBracketMatch = (
@@ -1147,7 +1162,11 @@ export async function completeUpcomingTournament(
     ): BracketMatch => {
       const participantA = findParticipantId(match.participantAName);
       const participantB = findParticipantId(match.participantBName);
-      const winner = match.scoreA > match.scoreB ? participantA : (match.scoreB > match.scoreA ? participantB : undefined);
+      // BYE matches arrive as "X vs BYE" with 0-0 scores: the real player advances.
+      const isBye = participantA === 'BYE' || participantB === 'BYE';
+      const winner = isBye
+        ? (participantA === 'BYE' ? participantB : participantA)
+        : (match.scoreA > match.scoreB ? participantA : (match.scoreB > match.scoreA ? participantB : undefined));
 
       // Compute 20s from rounds if available, otherwise use explicit values
       const total20sA = match.rounds && match.rounds.length > 0
@@ -1162,14 +1181,19 @@ export async function completeUpcomingTournament(
         position,
         participantA,
         participantB,
-        status: match.isWalkover ? 'WALKOVER' : 'COMPLETED',
-        winner,
+        status: (match.isWalkover || isBye) ? 'WALKOVER' : 'COMPLETED',
         totalPointsA: match.scoreA ?? 0,
         totalPointsB: match.scoreB ?? 0,
         total20sA,
         total20sB,
         completedAt: input.tournamentDate
       };
+
+      // Firebase rejects undefined — only set winner when there is one (a tied
+      // score between two real players has no winner).
+      if (winner && winner !== 'BYE') {
+        bracketMatch.winner = winner;
+      }
 
       if (match.rounds && match.rounds.length > 0) {
         bracketMatch.rounds = match.rounds.map((r, idx) => ({
@@ -1368,7 +1392,12 @@ export async function completeUpcomingTournament(
     }
 
     if (unknownParticipants.size > 0) {
-      console.warn(`⚠️ ${unknownParticipants.size} unknown participant(s) in match data: ${[...unknownParticipants].join(', ')}`);
+      // Abort instead of writing `unknown-<name>` participant IDs (see
+      // createHistoricalTournament for rationale).
+      console.error(
+        `❌ Completion aborted — ${unknownParticipants.size} name(s) in the results don't match any participant: ${[...unknownParticipants].join(', ')}`
+      );
+      return false;
     }
 
     await updateDoc(tournamentRef, updateData);

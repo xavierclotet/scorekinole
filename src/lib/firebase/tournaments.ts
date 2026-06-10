@@ -309,6 +309,9 @@ export async function createTournament(data: Partial<Tournament>): Promise<strin
     if ('externalLink' in data && data.externalLink) tournament.externalLink = data.externalLink;
     if ('posterUrl' in data && data.posterUrl) tournament.posterUrl = data.posterUrl;
     if ('timeConfig' in data && data.timeConfig) tournament.timeConfig = data.timeConfig;
+    if ('registration' in data && data.registration) tournament.registration = data.registration;
+    if ('finalStageMinQualifiers' in data && data.finalStageMinQualifiers) tournament.finalStageMinQualifiers = data.finalStageMinQualifiers;
+    if ('timeEstimate' in data && data.timeEstimate) tournament.timeEstimate = data.timeEstimate;
 
     // Add groupStage configuration if it exists in the data
     if ('groupStage' in data && data.groupStage) {

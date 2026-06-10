@@ -223,14 +223,16 @@ export function buildRegistrationConfig(
   allowWaitlist: boolean,
   notify: boolean,
   showList: boolean
-): TournamentRegistration | undefined {
-  if (!enabled) return undefined;
+): TournamentRegistration {
+  // Always return an object (never undefined): in edit mode the wizard payload is
+  // merged field-by-field into Firestore, so an absent `registration` key would leave
+  // a previously-enabled config untouched and the admin could never close registration.
   const ds = deadlineDate
     ? (deadlineTime ? `${deadlineDate}T${deadlineTime}` : `${deadlineDate}T23:59`)
     : '';
   const sanitizedMax = maxParticipants && maxParticipants > 0 ? maxParticipants : undefined;
   return {
-    enabled: true,
+    enabled,
     deadline: ds ? new Date(ds).getTime() : undefined,
     maxParticipants: sanitizedMax,
     entryFee: entryFee.trim() || undefined,

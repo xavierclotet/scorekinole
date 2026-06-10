@@ -1488,6 +1488,27 @@
     return validationErrors.length === 0;
   }
 
+  /**
+   * Validate steps 1-4 regardless of which step is currently visible.
+   * Saving only validated the CURRENT step (and steps 5-6 validate nothing),
+   * so in edit/duplicate mode an admin could break step-1 fields (key, name,
+   * city), click step 6 in the progress bar and save invalid data.
+   * On failure, jumps to the first failing step so the errors are visible.
+   */
+  function validateAllSteps(): boolean {
+    for (let step = 1; step <= 4; step++) {
+      const [errors, warnings] = getValidationForStep(step);
+      if (errors.length > 0) {
+        currentStep = step;
+        validationErrors = errors;
+        validationWarnings = warnings;
+        return false;
+      }
+    }
+    [validationErrors, validationWarnings] = getValidationForStep(currentStep);
+    return true;
+  }
+
   function nextStep() {
     if (!validateCurrentStep()) {
       return;
@@ -1550,7 +1571,23 @@
   }
 
   async function createTournamentSubmit() {
-    if (!validateCurrentStep()) {
+    // Validate EVERY config step, not just the visible one
+    if (!validateAllSteps()) {
+      return;
+    }
+
+    // Fresh key-uniqueness check at submit time. The debounced check only runs on
+    // manual key input: it never covers the auto-generated key, and a paste +
+    // quick submit beats the 300ms debounce. Two tournaments sharing a key make
+    // joining by key resolve to an arbitrary one.
+    const keyCheck = await checkTournamentKeyExists(
+      key.toUpperCase().trim(),
+      editMode ? editTournamentId || undefined : undefined
+    );
+    if (keyCheck?.exists) {
+      keyCheckResult = keyCheck;
+      currentStep = 1;
+      validationErrors = getStep1Errors();
       return;
     }
 

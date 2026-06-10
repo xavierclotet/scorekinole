@@ -16,6 +16,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 let mockUsers: Map<string, any> = new Map();
 let mockTournaments: Map<string, any> = new Map();
 let setDocCalls: { path: string; data: any; options?: any }[] = [];
+let updateDocCalls: { path: string; data: any }[] = [];
 let isAdminResult = true;
 let mockCurrentUser: any = { id: 'admin-user' };
 let mockUserProfile: any = { isAdmin: true };
@@ -80,8 +81,18 @@ vi.mock('firebase/firestore', () => ({
 		_collection: collection
 	}),
 	getDoc: async (ref: any) => makeGetDoc(ref),
+	// mergeUsers scans tournaments with status in DRAFT/GROUP_STAGE/TRANSITION/FINAL_STAGE
+	// for registrations of the source user. Mimic that filter here: tournaments without
+	// a status (most fixtures) are not returned, matching the Firestore 'in' query.
 	getDocs: async () => ({
-		forEach: () => {}
+		forEach: (cb: (snap: { id: string; data: () => any }) => void) => {
+			const activeStatuses = ['DRAFT', 'GROUP_STAGE', 'TRANSITION', 'FINAL_STAGE'];
+			for (const [id, data] of mockTournaments) {
+				if (activeStatuses.includes(data?.status)) {
+					cb({ id, data: () => JSON.parse(JSON.stringify(data)) });
+				}
+			}
+		}
 	}),
 	setDoc: async (ref: any, data: any, options?: any) => {
 		applyWrite(ref, data, options);
@@ -106,7 +117,10 @@ vi.mock('firebase/firestore', () => ({
 			}
 		};
 	},
-	updateDoc: async () => {},
+	updateDoc: async (ref: any, data: any) => {
+		updateDocCalls.push({ path: ref.path, data });
+	},
+	deleteField: () => '__DELETE_FIELD__',
 	deleteDoc: async () => {},
 	collection: () => ({}),
 	query: (...args: any[]) => args,
@@ -1043,5 +1057,147 @@ describe('deleteUserAccount', () => {
 		vi.mocked(httpsCallable).mockReturnValue(innerFn as any);
 
 		await expect(deleteUserAccount('target-user-id')).rejects.toThrow(/tournament history/);
+	});
+});
+
+// ─── Regression: merge must remap registrations in ACTIVE tournaments ─────────
+// source.tournaments only holds records of COMPLETED tournaments. If the source
+// user is registered in a tournament still in progress, the merge previously left
+// participants[].userId pointing at the merged-away doc: when the tournament later
+// completed, the record landed on the hidden source profile and the ranking points
+// were silently lost.
+
+describe('mergeUsers — active tournament registrations', () => {
+	beforeEach(() => {
+		mockUsers = new Map();
+		mockTournaments = new Map();
+		setDocCalls = [];
+		isAdminResult = true;
+		mockCurrentUser = { id: 'admin-user' };
+		mockUserProfile = { isAdmin: true };
+	});
+
+	it('remaps participant userId in a DRAFT tournament not present in source.tournaments', async () => {
+		mockUsers.set('source-id', { playerName: 'Source', tournaments: [] });
+		mockUsers.set('target-id', { playerName: 'Target', tournaments: [] });
+		mockTournaments.set('active-t1', {
+			status: 'DRAFT',
+			participants: [
+				{ id: 'p1', userId: 'source-id', name: 'Source', type: 'GUEST' },
+				{ id: 'p2', userId: 'other-user', name: 'Other', type: 'REGISTERED' }
+			]
+		});
+
+		const result = await mergeUsers('source-id', 'target-id');
+
+		expect(result.success).toBe(true);
+		expect(result.tournamentsUpdated).toBe(1);
+
+		const updated = mockTournaments.get('active-t1');
+		expect(updated.participants[0].userId).toBe('target-id');
+		expect(updated.participants[1].userId).toBe('other-user');
+	});
+
+	it('remaps partner userId and waitlist entries in a live tournament', async () => {
+		mockUsers.set('source-id', { playerName: 'Source', tournaments: [] });
+		mockUsers.set('target-id', { playerName: 'Target', tournaments: [] });
+		mockTournaments.set('active-t2', {
+			status: 'GROUP_STAGE',
+			participants: [
+				{ id: 'p1', userId: 'someone', name: 'Someone', partner: { userId: 'source-id', name: 'Source' } }
+			],
+			waitlist: [
+				{ userId: 'source-id', userName: 'Source', registeredAt: 1 },
+				{ userId: 'other', userName: 'Other', registeredAt: 2 }
+			]
+		});
+
+		const result = await mergeUsers('source-id', 'target-id');
+
+		expect(result.success).toBe(true);
+		expect(result.tournamentsUpdated).toBe(1);
+
+		const updated = mockTournaments.get('active-t2');
+		expect(updated.participants[0].partner.userId).toBe('target-id');
+		expect(updated.waitlist[0].userId).toBe('target-id');
+		expect(updated.waitlist[1].userId).toBe('other');
+	});
+
+	it('does not touch active tournaments where the source user does not appear', async () => {
+		mockUsers.set('source-id', { playerName: 'Source', tournaments: [] });
+		mockUsers.set('target-id', { playerName: 'Target', tournaments: [] });
+		mockTournaments.set('active-t3', {
+			status: 'FINAL_STAGE',
+			participants: [{ id: 'p1', userId: 'unrelated', name: 'Unrelated' }]
+		});
+
+		const result = await mergeUsers('source-id', 'target-id');
+
+		expect(result.success).toBe(true);
+		expect(result.tournamentsUpdated).toBe(0);
+		expect(findSetDocCall('tournaments/active-t3')).toHaveLength(0);
+	});
+
+	it('still counts a tournament only once when it appears both as record and as active doc', async () => {
+		mockUsers.set('source-id', {
+			playerName: 'Source',
+			tournaments: [{ tournamentId: 'dual-t' }]
+		});
+		mockUsers.set('target-id', { playerName: 'Target', tournaments: [] });
+		mockTournaments.set('dual-t', {
+			status: 'GROUP_STAGE',
+			participants: [{ id: 'p1', userId: 'source-id', name: 'Source', type: 'GUEST' }]
+		});
+
+		const result = await mergeUsers('source-id', 'target-id');
+
+		expect(result.success).toBe(true);
+		expect(result.tournamentsUpdated).toBe(1);
+		expect(mockTournaments.get('dual-t').participants[0].userId).toBe('target-id');
+	});
+});
+
+// ─── updateUserProfile — admin edit modal saves ───────────────────────────────
+
+describe('updateUserProfile', () => {
+	beforeEach(async () => {
+		mockUsers = new Map();
+		updateDocCalls = [];
+		mockCurrentUser = { id: 'admin-user' };
+		mockUserProfile = { isAdmin: true };
+	});
+
+	it('renaming also syncs playerNameLower (uniqueness checks and import matching depend on it)', async () => {
+		const { updateUserProfile } = await import('./admin');
+
+		const ok = await updateUserProfile('u1', { playerName: '  Josep  ' } as any);
+
+		expect(ok).toBe(true);
+		const call = updateDocCalls.find(c => c.path === 'users/u1')!;
+		expect(call.data.playerName).toBe('Josep');
+		expect(call.data.playerNameLower).toBe('josep');
+	});
+
+	it('clearing a field (undefined) becomes a field deletion instead of breaking the whole save', async () => {
+		const { updateUserProfile } = await import('./admin');
+
+		// Modal sends country: undefined to clear it; Firestore would throw on undefined.
+		const ok = await updateUserProfile('u1', { country: undefined, canAutofill: true } as any);
+
+		expect(ok).toBe(true);
+		const call = updateDocCalls.find(c => c.path === 'users/u1')!;
+		expect(call.data.country).toBe('__DELETE_FIELD__'); // deleteField() sentinel
+		expect(call.data.canAutofill).toBe(true);
+		// No undefined values reach Firestore
+		expect(Object.values(call.data)).not.toContain(undefined);
+	});
+
+	it('does not touch playerNameLower when playerName is not being changed', async () => {
+		const { updateUserProfile } = await import('./admin');
+
+		await updateUserProfile('u1', { country: 'ES' } as any);
+
+		const call = updateDocCalls.find(c => c.path === 'users/u1')!;
+		expect('playerNameLower' in call.data).toBe(false);
 	});
 });

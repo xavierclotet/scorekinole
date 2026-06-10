@@ -25,6 +25,9 @@ import type {
 /** Captured tournament documents written via setDoc */
 let capturedDocs: Record<string, Record<string, unknown>> = {};
 
+/** Existing doc returned by getDoc (for completeUpcomingTournament tests) */
+let mockExistingDoc: Record<string, unknown> | null = null;
+
 // ─── vi.mock setup ──────────────────────────────────────────────────────────
 
 vi.mock('$app/environment', () => ({ browser: true }));
@@ -61,7 +64,13 @@ vi.mock('firebase/firestore', () => ({
   setDoc: async (ref: { path: string }, data: Record<string, unknown>) => {
     capturedDocs[ref.path] = data;
   },
-  getDoc: async () => ({ exists: () => false }),
+  getDoc: async () => ({
+    exists: () => mockExistingDoc !== null,
+    data: () => (mockExistingDoc ? JSON.parse(JSON.stringify(mockExistingDoc)) : undefined)
+  }),
+  updateDoc: async (ref: { path: string }, data: Record<string, unknown>) => {
+    capturedDocs[ref.path] = data;
+  },
   getDocs: async () => ({ empty: true, forEach: () => {} }),
   collection: (_db: unknown, name: string) => ({ name }),
   query: (...args: unknown[]) => args,
@@ -78,12 +87,13 @@ vi.mock('firebase/firestore', () => ({
 }));
 
 // Import AFTER mocks
-const { createHistoricalTournament } = await import('./tournamentImport');
+const { createHistoricalTournament, completeUpcomingTournament } = await import('./tournamentImport');
 
 // ─── Setup ──────────────────────────────────────────────────────────────────
 
 beforeEach(() => {
   capturedDocs = {};
+  mockExistingDoc = null;
 });
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -832,7 +842,9 @@ describe('createHistoricalTournament: edge cases', () => {
     expect(gs.qualificationMode).toBe('POINTS');
   });
 
-  it('missing participant name falls back to unknown-{name}', async () => {
+  it('ABORTS the import when a result name matches no participant (no unknown- IDs written)', async () => {
+    // Previous behavior wrote `unknown-Bob` participant IDs into standings/matches:
+    // those rows could never be resolved, got no finalPosition and no ranking points.
     const input = baseInput({
       participants: [
         { name: 'Alice' }
@@ -860,13 +872,9 @@ describe('createHistoricalTournament: edge cases', () => {
     });
 
     const id = await createHistoricalTournament(input);
-    const doc = getCapturedTournament();
-    const match = (doc!.groupStage as any).groups[0].schedule[0].matches[0];
 
-    // Alice should resolve normally
-    expect(match.participantA).not.toContain('unknown');
-    // Bob should get unknown fallback
-    expect(match.participantB).toContain('unknown');
+    expect(id).toBeNull();
+    expect(getCapturedTournament()).toBeNull(); // nothing written to Firestore
   });
 
   it('multiple groups produce independent standings', async () => {
@@ -922,5 +930,336 @@ describe('createHistoricalTournament: edge cases', () => {
     const groupBIds = gs.groups[1].standings.map((s: any) => s.participantId);
     const overlap = groupAIds.filter((id: string) => groupBIds.includes(id));
     expect(overlap.length).toBe(0);
+  });
+});
+
+// ─── Regression: userId linking (was broken `oderId` field) ─────────────────
+
+/** Recursively assert no `undefined` value anywhere (real Firestore throws on them) */
+function expectNoUndefined(obj: unknown, path = 'doc'): void {
+  if (obj === null || typeof obj !== 'object') return;
+  if (Array.isArray(obj)) {
+    obj.forEach((v, i) => expectNoUndefined(v, `${path}[${i}]`));
+    return;
+  }
+  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+    expect(value, `${path}.${key} must not be undefined`).not.toBeUndefined();
+    expectNoUndefined(value, `${path}.${key}`);
+  }
+}
+
+describe('participant userId linking', () => {
+  it('participant with userId is stored as REGISTERED with that userId', async () => {
+    const input = baseInput({
+      participants: [
+        { name: 'Alice', userId: 'user-alice', finalPosition: 1 },
+        { name: 'Bob', finalPosition: 2 }
+      ]
+    });
+
+    const id = await createHistoricalTournament(input);
+    expect(id).toBeTruthy();
+    const doc = getCapturedTournament();
+    const participants = doc!.participants as Array<Record<string, unknown>>;
+
+    const alice = participants.find(p => p.name === 'Alice')!;
+    expect(alice.type).toBe('REGISTERED');
+    expect(alice.userId).toBe('user-alice');
+
+    const bob = participants.find(p => p.name === 'Bob')!;
+    expect(bob.type).toBe('GUEST');
+    expect('userId' in bob).toBe(false);
+  });
+});
+
+// ─── Regression: BYE / tied bracket matches must not write undefined ────────
+
+describe('bracket BYE and tied matches', () => {
+  it('BYE match (0-0) gets WALKOVER status, real player as winner, and no undefined fields', async () => {
+    const input = baseInput({
+      phaseType: 'TWO_PHASE',
+      participants: [
+        { name: 'Alice', finalPosition: 1 },
+        { name: 'Bob', finalPosition: 2 },
+        { name: 'Charlie', finalPosition: 3 }
+      ],
+      groupStage: {
+        numGroups: 1,
+        groups: [{
+          name: 'Grupo A',
+          standings: [
+            { participantName: 'Alice', position: 1, points: 6 },
+            { participantName: 'Bob', position: 2, points: 4 },
+            { participantName: 'Charlie', position: 3, points: 2 }
+          ]
+        }]
+      },
+      finalStage: {
+        mode: 'SINGLE_BRACKET',
+        brackets: [{
+          name: 'Final',
+          label: 'A',
+          sourcePositions: [1, 2, 3],
+          rounds: [
+            {
+              name: 'Semifinales',
+              matches: [
+                { participantAName: 'Bob', participantBName: 'Charlie', scoreA: 7, scoreB: 5 },
+                // Auto-generated BYE match: 0-0 scores, not flagged as walkover by the parser
+                { participantAName: 'Alice', participantBName: 'BYE', scoreA: 0, scoreB: 0 }
+              ]
+            },
+            {
+              name: 'Final',
+              matches: [{ participantAName: 'Alice', participantBName: 'Bob', scoreA: 8, scoreB: 4 }]
+            }
+          ]
+        }]
+      }
+    });
+
+    const id = await createHistoricalTournament(input);
+    expect(id).toBeTruthy();
+    const doc = getCapturedTournament();
+    const fs = doc!.finalStage as any;
+
+    const semis = fs.goldBracket.rounds[0].matches;
+    const byeMatch = semis.find((m: any) => m.participantB === 'BYE');
+    expect(byeMatch).toBeDefined();
+    expect(byeMatch.status).toBe('WALKOVER');
+    // The real player advances
+    expect(byeMatch.winner).toBe(byeMatch.participantA);
+
+    // Real Firestore throws on any undefined value anywhere in the doc
+    expectNoUndefined(doc);
+  });
+
+  it('tied match between two real players has no winner key (instead of winner: undefined)', async () => {
+    const input = baseInput({
+      phaseType: 'ONE_PHASE',
+      participants: [
+        { name: 'Alice', finalPosition: 1 },
+        { name: 'Bob', finalPosition: 2 }
+      ],
+      finalStage: {
+        mode: 'SINGLE_BRACKET',
+        brackets: [{
+          name: 'Final',
+          label: 'A',
+          sourcePositions: [1, 2],
+          rounds: [{
+            name: 'Final',
+            matches: [{ participantAName: 'Alice', participantBName: 'Bob', scoreA: 5, scoreB: 5 }]
+          }]
+        }]
+      }
+    });
+
+    const id = await createHistoricalTournament(input);
+    expect(id).toBeTruthy();
+    const doc = getCapturedTournament();
+    const fs = doc!.finalStage as any;
+    const finalMatch = fs.goldBracket.rounds[0].matches[0];
+
+    expect('winner' in finalMatch).toBe(false);
+    expectNoUndefined(doc);
+  });
+});
+
+// ─── Regression: completeUpcomingTournament must build full group-stage data ─
+
+describe('completeUpcomingTournament', () => {
+  function upcomingDoc() {
+    return {
+      id: 'upc-1',
+      status: 'DRAFT',
+      isImported: true,
+      createdBy: { userId: 'admin-user-1' },
+      name: 'Upcoming Open'
+    };
+  }
+
+  const inputWithMatches = () => baseInput({
+    participants: [
+      { name: 'Alice', finalPosition: 1 },
+      { name: 'Bob', finalPosition: 2 },
+      { name: 'Charlie', finalPosition: 3 },
+      { name: 'Diana', finalPosition: 4 }
+    ],
+    groupStage: {
+      numGroups: 1,
+      qualificationMode: 'WINS',
+      groups: [{
+        name: 'Grupo A',
+        standings: [
+          { participantName: 'Alice', position: 1, points: 6 },
+          { participantName: 'Bob', position: 2, points: 4 },
+          { participantName: 'Charlie', position: 3, points: 2 },
+          { participantName: 'Diana', position: 4, points: 0 }
+        ],
+        schedule: [
+          {
+            roundNumber: 1,
+            matches: [
+              { participantAName: 'Alice', participantBName: 'Bob', scoreA: 8, scoreB: 4 },
+              { participantAName: 'Charlie', participantBName: 'Diana', scoreA: 6, scoreB: 2 }
+            ]
+          },
+          {
+            roundNumber: 2,
+            matches: [
+              { participantAName: 'Alice', participantBName: 'Charlie', scoreA: 7, scoreB: 3 },
+              { participantAName: 'Bob', participantBName: 'Diana', scoreA: 5, scoreB: 5 }
+            ]
+          }
+        ]
+      }]
+    }
+  });
+
+  it('keeps the full schedule instead of writing schedule: []', async () => {
+    mockExistingDoc = upcomingDoc();
+
+    const ok = await completeUpcomingTournament('upc-1', inputWithMatches());
+
+    expect(ok).toBe(true);
+    const doc = capturedDocs['tournaments/upc-1'];
+    expect(doc).toBeDefined();
+    const group = (doc.groupStage as any).groups[0];
+    expect(group.schedule).toHaveLength(2);
+    expect(group.schedule[0].matches).toHaveLength(2);
+    expect(group.schedule[0].matches[0].status).toBe('COMPLETED');
+  });
+
+  it('computes real match stats instead of zeroing them', async () => {
+    mockExistingDoc = upcomingDoc();
+
+    await completeUpcomingTournament('upc-1', inputWithMatches());
+
+    const doc = capturedDocs['tournaments/upc-1'];
+    const group = (doc.groupStage as any).groups[0];
+    const participants = doc.participants as Array<{ id: string; name: string }>;
+    const aliceId = participants.find(p => p.name === 'Alice')!.id;
+    const alice = group.standings.find((s: any) => s.participantId === aliceId);
+
+    // Alice won both her matches
+    expect(alice.matchesPlayed).toBe(2);
+    expect(alice.matchesWon).toBe(2);
+    expect(alice.matchesLost).toBe(0);
+    // WINS mode: classification points = wins*2 + ties
+    expect(alice.points).toBe(4);
+    // Game points scored go to totalPointsScored (8 + 7), NOT into points
+    expect(alice.totalPointsScored).toBe(15);
+    // H2H present for tiebreakers
+    expect(alice.headToHeadRecord).toBeDefined();
+  });
+
+  it('handles a tied match (matchesTied) without writing undefined winner', async () => {
+    mockExistingDoc = upcomingDoc();
+
+    await completeUpcomingTournament('upc-1', inputWithMatches());
+
+    const doc = capturedDocs['tournaments/upc-1'];
+    const group = (doc.groupStage as any).groups[0];
+    const tiedMatch = group.schedule[1].matches[1]; // Bob 5 - 5 Diana
+    expect('winner' in tiedMatch).toBe(false);
+
+    const participants = doc.participants as Array<{ id: string; name: string }>;
+    const bobId = participants.find(p => p.name === 'Bob')!.id;
+    const bob = group.standings.find((s: any) => s.participantId === bobId);
+    expect(bob.matchesTied).toBe(1);
+    expect(bob.points).toBe(1); // 0 wins + 1 tie
+  });
+});
+
+// ─── Regression: doubles team name must resolve in standings/matches ─────────
+
+describe('doubles team-name resolution', () => {
+  it('standings referencing the team name resolve to the real participant (no unknown- IDs)', async () => {
+    // Documented input format: "María / Carlos (Los Tigres),63,90" → the parser
+    // names the standing row by the TEAM name while the participant entry is
+    // keyed by player names.
+    const input = baseInput({
+      gameType: 'doubles',
+      participants: [
+        { name: 'María', partnerName: 'Carlos', teamName: 'Los Tigres' },
+        { name: 'Ana', partnerName: 'Luis', teamName: 'Las Águilas' }
+      ],
+      groupStage: {
+        numGroups: 1,
+        groups: [{
+          name: 'Grupo A',
+          standings: [
+            { participantName: 'Los Tigres', position: 1, points: 2 },
+            { participantName: 'Las Águilas', position: 2, points: 0 }
+          ],
+          schedule: [{
+            roundNumber: 1,
+            matches: [{
+              participantAName: 'Los Tigres',
+              participantBName: 'Las Águilas',
+              scoreA: 8,
+              scoreB: 4
+            }]
+          }]
+        }]
+      }
+    });
+
+    const id = await createHistoricalTournament(input);
+
+    expect(id).not.toBeNull();
+    const doc = getCapturedTournament();
+    const participants = doc!.participants as Array<Record<string, unknown>>;
+    const tigres = participants.find(p => p.teamName === 'Los Tigres')!;
+
+    // Team name persisted on the participant
+    expect(tigres).toBeDefined();
+    expect(tigres.name).toBe('María');
+    expect((tigres.partner as { name: string }).name).toBe('Carlos');
+
+    // Standings and matches resolve to the real participant ID
+    const group = (doc!.groupStage as any).groups[0];
+    expect(group.standings[0].participantId).toBe(tigres.id);
+    expect(group.schedule[0].matches[0].participantA).toBe(tigres.id);
+    const ids = group.standings.map((s: any) => s.participantId).join(',');
+    expect(ids).not.toContain('unknown');
+  });
+
+  it('mixed references (team name and "P1 / P2") resolve to the same participant', async () => {
+    const input = baseInput({
+      gameType: 'doubles',
+      participants: [
+        { name: 'María', partnerName: 'Carlos', teamName: 'Los Tigres' },
+        { name: 'Ana', partnerName: 'Luis' }
+      ],
+      groupStage: {
+        numGroups: 1,
+        groups: [{
+          name: 'Grupo A',
+          standings: [
+            { participantName: 'María / Carlos', position: 1, points: 2 },
+            { participantName: 'Ana / Luis', position: 2, points: 0 }
+          ],
+          schedule: [{
+            roundNumber: 1,
+            matches: [{
+              participantAName: 'Los Tigres',   // by team name
+              participantBName: 'Ana / Luis',   // by pair name
+              scoreA: 6,
+              scoreB: 2
+            }]
+          }]
+        }]
+      }
+    });
+
+    const id = await createHistoricalTournament(input);
+
+    expect(id).not.toBeNull();
+    const doc = getCapturedTournament();
+    const group = (doc!.groupStage as any).groups[0];
+    // The match's participantA (via team name) equals the standing's participantId (via pair name)
+    expect(group.schedule[0].matches[0].participantA).toBe(group.standings[0].participantId);
   });
 });

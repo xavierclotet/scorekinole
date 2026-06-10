@@ -7,13 +7,13 @@ import { getApp } from 'firebase/app';
 import {
   collection,
   getDocs,
-  getDoc,
   getCountFromServer,
   doc,
   updateDoc,
   setDoc,
   deleteDoc,
   serverTimestamp,
+  deleteField,
   query,
   where,
   orderBy,
@@ -21,7 +21,6 @@ import {
   startAfter,
   arrayRemove,
   runTransaction,
-  writeBatch,
   type QueryDocumentSnapshot,
   type DocumentData
 } from 'firebase/firestore';
@@ -344,8 +343,26 @@ export async function updateUserProfile(
 
   try {
     const userRef = doc(db!, 'users', userId);
+
+    const payload: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(updates)) {
+      // Firestore throws on `undefined` anywhere in the payload (and one bad field
+      // aborts the WHOLE save). `undefined` from the admin modal means "clear this
+      // field" — translate it to a real field deletion.
+      payload[key] = value === undefined ? deleteField() : value;
+    }
+
+    // playerNameLower is a denormalized invariant (name-uniqueness checks and the
+    // import wizard's player matching query both depend on it). Renaming without
+    // syncing it blocks the old name forever and lets imports create duplicate
+    // guest profiles for the new name.
+    if (typeof updates.playerName === 'string' && updates.playerName.trim()) {
+      payload.playerName = updates.playerName.trim();
+      payload.playerNameLower = updates.playerName.trim().toLowerCase();
+    }
+
     await updateDoc(userRef, {
-      ...updates,
+      ...payload,
       updatedAt: serverTimestamp()
     });
 
@@ -746,9 +763,35 @@ export async function mergeUsers(
   }
 
   // 2. Update tournament documents where source userId appears.
-  //    Done outside the transaction (idempotent) with a safety cap to prevent
-  //    unbounded writes from users with many tournaments.
+  //    Done outside the merge transaction (idempotent) with a safety cap to
+  //    prevent unbounded writes from users with many tournaments.
   const tournamentIdsRaw = [...new Set((sourceData!.tournaments || []).map(t => t.tournamentId))];
+
+  // Records in source.tournaments only exist for COMPLETED tournaments. The source
+  // user may also be registered in tournaments still in progress (DRAFT/GROUP_STAGE/
+  // TRANSITION/FINAL_STAGE): without remapping those, the registration keeps pointing
+  // at the merged-away doc and — since the Cloud Function writes records to
+  // participant.userId and rankings skip mergedTo docs — the ranking points are
+  // silently lost when the tournament completes.
+  try {
+    const activeSnapshot = await getDocs(query(
+      collection(db!, 'tournaments'),
+      where('status', 'in', ['DRAFT', 'GROUP_STAGE', 'TRANSITION', 'FINAL_STAGE'])
+    ));
+    activeSnapshot.forEach(docSnap => {
+      const data = docSnap.data();
+      const inParticipants = (data.participants || []).some((p: any) =>
+        p.userId === sourceUserId || p.partner?.userId === sourceUserId
+      );
+      const inWaitlist = (data.waitlist || []).some((w: any) => w.userId === sourceUserId);
+      if ((inParticipants || inWaitlist) && !tournamentIdsRaw.includes(docSnap.id)) {
+        tournamentIdsRaw.push(docSnap.id);
+      }
+    });
+  } catch (error) {
+    console.error('⚠️ mergeUsers: could not scan active tournaments for registrations:', error);
+  }
+
   if (tournamentIdsRaw.length > MAX_TOURNAMENTS_PER_MERGE) {
     console.warn(
       `⚠️ mergeUsers: source has ${tournamentIdsRaw.length} tournaments — ` +
@@ -758,55 +801,67 @@ export async function mergeUsers(
   const tournamentIdsToCheck = tournamentIdsRaw.slice(0, MAX_TOURNAMENTS_PER_MERGE);
 
   let tournamentsUpdated = 0;
-  const batch = writeBatch(db!);
-  let batchSize = 0;
 
   for (const tournamentId of tournamentIdsToCheck) {
     const tournamentRef = doc(db!, 'tournaments', tournamentId);
-    const tournamentSnap = await getDoc(tournamentRef);
-    if (!tournamentSnap.exists()) continue;
 
-    const tournamentData = tournamentSnap.data();
-    const participants = tournamentData!.participants || [];
-    let changed = false;
+    // Per-tournament transaction: active tournaments receive concurrent writes
+    // (self-registrations, match results), so the written arrays must derive
+    // from the in-transaction read — a batched read-modify-write would lose them.
+    let docChanged = false;
+    try {
+      await runTransaction(db!, async (tx) => {
+        docChanged = false; // reset in case of transaction retry
+        const tournamentSnap = await tx.get(tournamentRef);
+        if (!tournamentSnap.exists()) return;
 
-    const updatedParticipants = participants.map((p: any) => {
-      const updated = { ...p };
+        const tournamentData = tournamentSnap.data();
+        let changed = false;
 
-      // Replace source userId in main participant
-      if (updated.userId === sourceUserId) {
-        updated.userId = targetUserId;
-        if (targetData!.photoURL) updated.photoURL = targetData!.photoURL;
-        if (targetData!.authProvider) updated.type = 'REGISTERED';
-        changed = true;
-      }
+        const updatedParticipants = (tournamentData!.participants || []).map((p: any) => {
+          const updated = { ...p };
 
-      // Replace source userId in partner
-      if (updated.partner?.userId === sourceUserId) {
-        updated.partner = { ...updated.partner, userId: targetUserId };
-        if (targetData!.photoURL) updated.partner.photoURL = targetData!.photoURL;
-        if (targetData!.authProvider) updated.partner.type = 'REGISTERED';
-        changed = true;
-      }
+          // Replace source userId in main participant
+          if (updated.userId === sourceUserId) {
+            updated.userId = targetUserId;
+            if (targetData!.photoURL) updated.photoURL = targetData!.photoURL;
+            if (targetData!.authProvider) updated.type = 'REGISTERED';
+            changed = true;
+          }
 
-      return updated;
-    });
+          // Replace source userId in partner
+          if (updated.partner?.userId === sourceUserId) {
+            updated.partner = { ...updated.partner, userId: targetUserId };
+            if (targetData!.photoURL) updated.partner.photoURL = targetData!.photoURL;
+            if (targetData!.authProvider) updated.partner.type = 'REGISTERED';
+            changed = true;
+          }
 
-    if (changed) {
-      batch.set(tournamentRef, { participants: updatedParticipants }, { merge: true });
-      batchSize++;
-      tournamentsUpdated++;
+          return updated;
+        });
 
-      // Firestore batch limit is 500 writes; flush early at 400 for safety
-      if (batchSize >= 400) {
-        await batch.commit();
-        batchSize = 0;
-      }
+        let waitlistChanged = false;
+        const updatedWaitlist = (tournamentData!.waitlist || []).map((w: any) => {
+          if (w.userId === sourceUserId) {
+            waitlistChanged = true;
+            return { ...w, userId: targetUserId };
+          }
+          return w;
+        });
+
+        if (!changed && !waitlistChanged) return;
+
+        const updates: Record<string, unknown> = {};
+        if (changed) updates.participants = updatedParticipants;
+        if (waitlistChanged) updates.waitlist = updatedWaitlist;
+        tx.set(tournamentRef, updates, { merge: true });
+        docChanged = true;
+      });
+    } catch (error) {
+      console.error(`❌ mergeUsers: failed to remap tournament ${tournamentId}:`, error);
     }
-  }
 
-  if (batchSize > 0) {
-    await batch.commit();
+    if (docChanged) tournamentsUpdated++;
   }
 
   console.log(`✅ Merged user ${sourceUserId} into ${targetUserId}`);

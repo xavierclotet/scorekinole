@@ -327,8 +327,18 @@ describe('validateWaitlistUnregistration', () => {
 // ─── buildRegistrationConfig ─────────────────────────────────────────────────
 
 describe('buildRegistrationConfig', () => {
-  it('returns undefined when registration is disabled', () => {
-    expect(buildRegistrationConfig(false, '', '', undefined, '', true, true, true)).toBeUndefined();
+  it('returns config with enabled=false when disabled (so edit mode can close registration)', () => {
+    // Must be an object, NOT undefined: undefined gets stripped from the wizard
+    // payload and a previously-enabled registration would never be disabled.
+    const config = buildRegistrationConfig(false, '', '', undefined, '', true, true, true);
+    expect(config).toBeDefined();
+    expect(config.enabled).toBe(false);
+  });
+
+  it('disabled config still blocks registration via validateRegistration', () => {
+    const config = buildRegistrationConfig(false, '', '', undefined, '', true, true, true);
+    expect(validateRegistration('DRAFT', config, [], [], 'user-1', Date.now()))
+      .toEqual({ canRegister: false, reason: 'registration_disabled' });
   });
 
   it('returns config with enabled=true when enabled', () => {

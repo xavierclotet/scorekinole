@@ -55,7 +55,7 @@ description: "Seleccion de clasificados de fase de grupos a bracket, resolucion 
 - `generateBracket(tournamentId, config, consolation, thirdPlace)` - Bracket unico
 - `generateSplitBrackets(tournamentId, splitConfig)` - Brackets gold/silver
 - `updateTournament(tournamentId, { status: 'FINAL_STAGE' })` - Transicion (transaccional)
-- `updateTournamentPublic()` - Guardar standings actualizados
+- `updateGroupStandings(tournamentId, groupIndex, standings)` - Guardar standings de UN grupo (transaccional; no sobreescribe el resto del groupStage)
 
 ## Suscripciones Tiempo Real
 Ninguna - fetch unico al montar con recalculo automatico de standings.

@@ -10,7 +10,8 @@
   import MatchSchedule from '$lib/components/tournament/MatchSchedule.svelte';
   import { adminTheme } from '$lib/stores/theme';
   import * as m from '$lib/paraglide/messages.js';
-  import { getTournament, updateTournamentPublic } from '$lib/firebase/tournaments';
+  import { getTournament } from '$lib/firebase/tournaments';
+  import { updateGroupStageTiebreakerPriority } from '$lib/firebase/tournamentTransition';
   import { recalculateStandings } from '$lib/firebase/tournamentGroups';
   import { transitionTournament } from '$lib/utils/tournamentStateMachine';
   import type { Tournament, TiebreakerCriterion, GroupMatch, Group, RoundRobinRound, SwissPairing } from '$lib/types/tournament';
@@ -159,12 +160,10 @@
     isRecalculating = true;
 
     try {
-      await updateTournamentPublic(tournamentId, {
-        groupStage: {
-          ...tournament.groupStage,
-          tiebreakerPriority
-        }
-      });
+      // Write ONLY the tiebreaker priority: rewriting the whole groupStage from
+      // this page's snapshot reverted any match data changed since page load.
+      const prioritySaved = await updateGroupStageTiebreakerPriority(tournamentId, tiebreakerPriority);
+      if (!prioritySaved) throw new Error('Could not save tiebreaker priority');
 
       await recalculateStandings(tournamentId);
       tournament = await getTournament(tournamentId);

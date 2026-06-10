@@ -596,7 +596,7 @@ export async function markNoShow(
  * @param tournament Tournament object (will be mutated)
  * @param groupIndex Group index
  */
-function calculateStandings(tournament: Tournament, groupIndex: number): void {
+export function calculateStandings(tournament: Tournament, groupIndex: number): void {
   if (!tournament.groupStage) return;
 
   const group = tournament.groupStage.groups[groupIndex];
@@ -2558,6 +2558,10 @@ export async function updateTournamentMatchRounds(
         }
       } else if (phase === 'FINAL' && tournament.finalStage) {
         const updateMatchRounds = (match: any) => {
+          // Don't overwrite rounds on already completed matches (mirrors the GROUP
+          // paths above): a lagging real-time sync from the players' device must
+          // not corrupt a result already entered or edited by an admin.
+          if (match.status === 'COMPLETED' || match.status === 'WALKOVER') return;
           match.rounds = rounds;
           match.total20sA = total20sA;
           match.total20sB = total20sB;

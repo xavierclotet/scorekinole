@@ -456,11 +456,25 @@ export async function reassignTables(
   tournamentId: string,
   newNumTables?: number
 ): Promise<{ success: boolean; error?: string; tablesAssigned?: number }> {
+  if (!db) {
+    return { success: false, error: 'Firebase disabled' };
+  }
+
   try {
-    const tournament = await getTournament(tournamentId);
-    if (!tournament) {
+    // The whole read→assign→write cycle runs inside ONE transaction. This is an
+    // explicitly live-time admin action (used between bracket rounds, exactly when
+    // players are committing match completions): deriving the written finalStage
+    // from a read outside the transaction would silently revert any completion
+    // that landed in between.
+    const tournamentRef = doc(db, 'tournaments', tournamentId);
+
+    return await runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(tournamentRef);
+    if (!snapshot.exists()) {
       return { success: false, error: 'Tournament not found' };
     }
+
+    const tournament = parseTournamentData(snapshot.data());
 
     if (!tournament.finalStage || !tournament.finalStage.goldBracket) {
       return { success: false, error: 'No bracket found' };
@@ -579,14 +593,14 @@ export async function reassignTables(
       cleanFinalStage.silverBracket = silverBracket;
     }
 
-    const updateData: any = {
+    transaction.update(tournamentRef, {
       numTables,
-      finalStage: cleanFinalStage
-    };
-
-    await updateTournament(tournamentId, updateData);
+      finalStage: cleanUndefined(cleanFinalStage),
+      updatedAt: serverTimestamp()
+    });
 
     return { success: true, tablesAssigned };
+    }, { maxAttempts: 10 });
   } catch (error) {
     console.error('Error reassigning tables:', error);
     return { success: false, error: String(error) };
@@ -801,10 +815,15 @@ export async function generateBracket(
       qualifiedParticipantIds = tournament.participants.map(p => p.id);
     }
 
-    // Get participant objects
+    // Get participant objects. Never seed disqualified/withdrawn players: a DSQ'd
+    // player can still carry a top-N position in (stale) standings or remain
+    // checked in the qualifier selection, and disqualifyParticipant's auto-walkover
+    // only covers matches that existed when the DSQ happened — a bracket generated
+    // afterwards would give them live slots (see docs/en/TOURNAMENT_ADMIN.md).
     const qualifiedParticipants = qualifiedParticipantIds
       .map(id => tournament.participants.find(p => p.id === id))
-      .filter(p => p !== undefined);
+      .filter(p => p !== undefined)
+      .filter(p => p!.status !== 'DISQUALIFIED' && p!.status !== 'WITHDRAWN');
 
     if (qualifiedParticipants.length < 2) {
       console.error('Not enough qualified participants');

@@ -12,6 +12,8 @@ import {
   isLoserPlaceholder,
   isBye
 } from '$lib/algorithms/bracket';
+import { calculateStandings } from './tournamentMatches';
+import { cleanUndefined } from './cleanUndefined';
 import type { TournamentParticipant, Bracket, BracketWithConfig } from '$lib/types/tournament';
 
 /** Remove undefined values recursively — Firestore rejects them */
@@ -568,7 +570,24 @@ export async function disqualifyParticipant(
           return updatedGroup;
         });
 
-        updates.groupStage = groupStage;
+        // Recalculate standings for every group the DSQ'd player belongs to: the
+        // walkover wins created above must be reflected immediately. Without this,
+        // GROUP_ONLY tournaments compute final positions (and ranking points) from
+        // stale standings unless some other match completion happens to trigger a
+        // recalculation afterwards.
+        tournament.groupStage = groupStage;
+        groupStage.groups.forEach((group, groupIndex) => {
+          const involvesParticipant =
+            (group.participants || []).includes(participantId) ||
+            (group.standings || []).some(s => s.participantId === participantId);
+          if (involvesParticipant) {
+            calculateStandings(tournament, groupIndex);
+          }
+        });
+
+        // resolveTiebreaker can leave undefined fields (swissPoints, tiedWith, …)
+        // and Firestore rejects undefined anywhere in the payload.
+        updates.groupStage = cleanUndefined(groupStage);
       }
 
       transaction.update(tournamentRef, {

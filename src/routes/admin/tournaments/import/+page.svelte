@@ -161,6 +161,7 @@
           userId: p.userId,
           partnerName: p.partner?.name,
           partnerUserId: p.partner?.userId,
+          teamName: p.teamName,
           isRegistered: p.type === 'REGISTERED',
           partner: p.partner
         }));
@@ -300,6 +301,7 @@
           userId: p.userId,
           partnerName: p.partner?.name,
           partnerUserId: p.partner?.userId,
+          teamName: p.teamName,
           isRegistered: p.type === 'REGISTERED',
           partner: p.partner ? {
             type: p.partner.type || 'GUEST',
@@ -595,6 +597,7 @@
     userId?: string;
     partnerName?: string;
     partnerUserId?: string;
+    teamName?: string;       // Doubles: artistic team name ("Los Tigres")
     isRegistered: boolean;
     // Partner for doubles
     partner?: {
@@ -986,8 +989,8 @@
         const results = await searchUsers(searchQuery) as (UserProfile & { userId: string })[];
         // Filter out users already added as participants
         const addedUserIds = participants
-          .filter(p => p.isRegistered && p.oderId)
-          .map(p => p.oderId);
+          .filter(p => p.isRegistered && p.userId)
+          .map(p => p.userId);
         searchResults = results.filter(u => !addedUserIds.includes(u.userId));
       } catch (e) {
         console.error('Search error:', e);
@@ -1000,7 +1003,7 @@
 
   // Add participant from search
   function addParticipantFromSearch(user: UserProfile & { userId: string }) {
-    if (participants.some(p => p.oderId === user.userId)) {
+    if (participants.some(p => p.userId === user.userId)) {
       showToastMessage(m.import_userAlreadyAdded(), 'warning');
       return;
     }
@@ -1008,7 +1011,7 @@
     participants = [...participants, {
       id: `p-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
       name: user.playerName || 'Usuario',
-      oderId: user.userId,
+      userId: user.userId,
       isRegistered: true
     }];
 
@@ -1098,7 +1101,7 @@
       }
 
       // Search for each name in Firebase to find registered users
-      const newRegisteredMap = new Map<string, { oderId: string; name: string }>();
+      const newRegisteredMap = new Map<string, { userId: string; name: string }>();
 
       for (const name of allNames) {
         try {
@@ -1110,7 +1113,7 @@
           );
           if (exactMatch && exactMatch.userId) {
             newRegisteredMap.set(name.toLowerCase(), {
-              oderId: exactMatch.userId,
+              userId: exactMatch.userId,
               name: exactMatch.playerName || exactMatch.name || name
             });
           }
@@ -1141,7 +1144,7 @@
           const entry: ParticipantEntry = {
             id: `p-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
             name: mainName,
-            oderId: registered?.oderId,
+            userId: registered?.userId,
             isRegistered: !!registered
           };
 
@@ -1151,8 +1154,11 @@
             // TODO: Could search for partner in registered users too
           }
 
-          // If there's a team name, we could store it somewhere
-          // For now, the display name is used for matching
+          // Keep the team name: result sheets reference the team by it, so it must
+          // reach the participant lookup map in tournamentImport.ts
+          if (gameType === 'doubles' && participant.teamName) {
+            entry.teamName = participant.teamName;
+          }
 
           newParticipants.push(entry);
         }
@@ -1166,6 +1172,9 @@
         standings: g.participants.map(p => {
           const participantEntry = newParticipants.find(
             np => np.name.toLowerCase() === p.name.toLowerCase() ||
+                  // Doubles: parser names the row by team name ("Los Tigres") while the
+                  // entry is keyed by player1Name — match via the stored teamName
+                  (np.teamName || '').toLowerCase() === p.name.toLowerCase() ||
                   (registeredUsersMap.get(p.name.toLowerCase())?.name || '').toLowerCase() === np.name.toLowerCase()
           );
           return {
@@ -1678,9 +1687,10 @@
   function buildTournamentInput(): HistoricalTournamentInput {
     const participantInputs: HistoricalParticipantInput[] = participants.map(p => ({
       name: p.name,
-      oderId: p.oderId,
+      userId: p.userId,
       partnerName: p.partnerName,
-      partnerUserId: p.partnerUserId
+      partnerUserId: p.partnerUserId,
+      teamName: p.teamName
     }));
 
     let groupStageInput: HistoricalGroupStageInput | undefined;
