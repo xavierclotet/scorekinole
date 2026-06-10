@@ -2,6 +2,20 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.46] - 2026-06-10
+- Fix (public tournaments detail): navigating between two tournaments now reloads and resubscribes (it kept showing the previous tournament with its stale live subscription)
+- Fix (public tournaments detail, live): the Groups/Bracket tab is no longer forced back to Bracket on every realtime snapshot during the final stage
+- Fix (public tournaments detail, live): the match detail modal now follows live score updates instead of freezing on the data captured when opened
+- Fix (public tournaments detail): registration closes by itself when the deadline passes with the page open (reactive 30s clock, also used by the upcoming badge)
+- Fix (live view): the page no longer gets stuck unscrollable if the tournament finishes or changes phase while a fullscreen chart is open; fullscreen auto-closes if its group disappears
+- Fix (live view): groups added mid-tournament now appear expanded with their current round open
+- Fix (registration): capacity is now counted consistently (guests occupy slots, withdrawn/DSQ free them) — admin-added guests could previously let registrations exceed `maxParticipants`
+- Fix (public tournaments list): infinite scroll no longer resets to the first page on every realtime update from live tournaments
+- Fix (firebase): `getTournamentByKey` sets the tournament id from the Firestore doc (same as `subscribeTournament`)
+- Fix (admin): critical bugs in tournament creation, import, live admin and user management; last two stale whole-object writes (repair tool, enterTransition)
+- Fix (ranking/users): public profile bugs + friendly slug profile URLs
+- Tests: +12 (registration capacity consistency, public list time/date edge cases)
+
 ## [2.5.45] - 2026-06-09
 - Fix (game): reloading mid-game in a friendly match no longer breaks round detection permanently (`lastRoundPoints` baseline is now rebuilt from the saved rounds)
 - Fix (game): reloading while the 20s dialog was open no longer drops the pending round — it is reconstructed from the score deltas
