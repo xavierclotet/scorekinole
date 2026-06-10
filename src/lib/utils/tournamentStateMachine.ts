@@ -7,7 +7,7 @@ import { getTournament, updateTournament, commitTournamentStartIfRosterUnchanged
 import { participantIdentityKey } from '$lib/firebase/tournamentRegistration';
 import { generateBracket } from '$lib/firebase/tournamentBracket';
 import { calculateFinalPositions, calculateFinalPositionsForTournament, syncParticipantRankings } from '$lib/firebase/tournamentRanking';
-import type { TournamentStatus } from '$lib/types/tournament';
+import type { Tournament, TournamentStatus } from '$lib/types/tournament';
 
 /**
  * Valid state transitions
@@ -340,14 +340,13 @@ async function enterTransition(tournamentId: string): Promise<boolean> {
     }
   }
 
-  // Update status
+  // Update status. groupStage.isComplete is written via dot-notation: rewriting
+  // the whole groupStage from the pre-read above would revert any match result
+  // or standings change committed between that read and this write.
   return await updateTournament(tournamentId, {
     status: 'TRANSITION',
-    groupStage: {
-      ...tournament.groupStage,
-      isComplete: true
-    }
-  });
+    'groupStage.isComplete': true
+  } as unknown as Partial<Tournament>);
 }
 
 /**

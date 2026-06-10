@@ -274,3 +274,48 @@ describe('generateBracket — disqualified players excluded', () => {
     expect(slots).toContain('p4');
   });
 });
+
+// ─── setBracketMatchSlot — transactional repair-tool write ────────────────────
+
+describe('setBracketMatchSlot (repair tool fallback)', () => {
+  it('sets only the requested slot of the target match', async () => {
+    const { setBracketMatchSlot } = await import('./tournamentBracket');
+    seedTournament(makeBracketTournament());
+
+    const ok = await setBracketMatchSlot('bt1', 'gold', 'm3', 'A', 'p1');
+
+    expect(ok).toBe(true);
+    const t = readTournament('bt1');
+    const m3 = findBracketMatch(t, 'm3');
+    expect(m3.participantA).toBe('p1');
+    expect(m3.participantB).toBe(''); // other slot untouched
+  });
+
+  it('returns false when the match does not exist', async () => {
+    const { setBracketMatchSlot } = await import('./tournamentBracket');
+    seedTournament(makeBracketTournament());
+
+    const ok = await setBracketMatchSlot('bt1', 'gold', 'no-such-match', 'A', 'p1');
+
+    expect(ok).toBe(false);
+  });
+
+  it('a concurrent match completion is NOT reverted by the repair write', async () => {
+    const { setBracketMatchSlot } = await import('./tournamentBracket');
+    seedTournament(makeBracketTournament());
+
+    // Repair m3 slot A while a player completes m1 at the same time.
+    const [ok] = await Promise.all([
+      setBracketMatchSlot('bt1', 'gold', 'm3', 'A', 'p1'),
+      concurrentCompleteM1('bt1')
+    ]);
+
+    expect(ok).toBe(true);
+    const t = readTournament('bt1');
+    // Both writes survive (the old fallback wrote a whole stale finalStage,
+    // reverting m1 to IN_PROGRESS).
+    expect(findBracketMatch(t, 'm1').status).toBe('COMPLETED');
+    expect(findBracketMatch(t, 'm1').winner).toBe('p1');
+    expect(findBracketMatch(t, 'm3').participantA).toBe('p1');
+  });
+});

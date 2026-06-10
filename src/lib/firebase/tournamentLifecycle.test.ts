@@ -56,6 +56,28 @@ vi.mock('./config', () => ({
   isFirebaseEnabled: () => true
 }));
 
+// Apply updates with real Firestore update() semantics: keys containing '.'
+// address a NESTED field path instead of replacing the whole top-level map
+// (enterTransition writes 'groupStage.isComplete', for example).
+function applyFieldUpdates(current: Record<string, unknown>, updates: Record<string, unknown>): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...current };
+  for (const [key, value] of Object.entries(updates)) {
+    if (key.includes('.')) {
+      const parts = key.split('.');
+      let target = merged as Record<string, unknown>;
+      for (let i = 0; i < parts.length - 1; i++) {
+        const part = parts[i];
+        target[part] = { ...((target[part] as Record<string, unknown>) ?? {}) };
+        target = target[part] as Record<string, unknown>;
+      }
+      target[parts[parts.length - 1]] = value;
+    } else {
+      merged[key] = value;
+    }
+  }
+  return merged;
+}
+
 // Mock tournaments module — getTournament/updateTournament backed by mockStore
 vi.mock('$lib/firebase/tournaments', () => ({
   getTournament: async (id: string) => {
@@ -66,14 +88,14 @@ vi.mock('$lib/firebase/tournaments', () => ({
     const doc = mockStore.getDocument(`tournaments/${id}`);
     if (!doc) return false;
     const current = doc.data as Record<string, unknown>;
-    mockStore.setDocument(`tournaments/${id}`, { ...current, ...updates });
+    mockStore.setDocument(`tournaments/${id}`, applyFieldUpdates(current, updates));
     return true;
   },
   updateTournamentPublic: async (id: string, updates: Record<string, unknown>) => {
     const doc = mockStore.getDocument(`tournaments/${id}`);
     if (!doc) return false;
     const current = doc.data as Record<string, unknown>;
-    mockStore.setDocument(`tournaments/${id}`, { ...current, ...updates });
+    mockStore.setDocument(`tournaments/${id}`, applyFieldUpdates(current, updates));
     return true;
   },
   commitTournamentStartIfRosterUnchanged: async (id: string, _keys: string[], updates: Record<string, unknown>) => {

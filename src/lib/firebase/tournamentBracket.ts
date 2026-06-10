@@ -445,6 +445,63 @@ function assignTablesToConsolation(
 
 
 /**
+ * Directly set one participant slot of a bracket match.
+ *
+ * Used by the admin "repair broken matches" tool when the normal advanceWinner
+ * path didn't propagate a winner. Transactional: the written finalStage derives
+ * from the in-transaction read, so a match completion committing concurrently
+ * is never reverted (the old fallback wrote a whole stale finalStage snapshot).
+ */
+export async function setBracketMatchSlot(
+  tournamentId: string,
+  bracketType: 'gold' | 'silver',
+  matchId: string,
+  slot: 'A' | 'B',
+  participantId: string
+): Promise<boolean> {
+  if (!db) return false;
+
+  try {
+    const tournamentRef = doc(db, 'tournaments', tournamentId);
+
+    return await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(tournamentRef);
+      if (!snapshot.exists()) return false;
+
+      const tournament = parseTournamentData(snapshot.data());
+      const bracket = bracketType === 'silver'
+        ? tournament.finalStage?.silverBracket
+        : tournament.finalStage?.goldBracket;
+      if (!bracket?.rounds) return false;
+
+      let found = false;
+      for (const round of bracket.rounds) {
+        const match = round.matches.find(mt => mt.id === matchId);
+        if (match) {
+          if (slot === 'A') {
+            match.participantA = participantId;
+          } else {
+            match.participantB = participantId;
+          }
+          found = true;
+          break;
+        }
+      }
+      if (!found) return false;
+
+      transaction.update(tournamentRef, {
+        finalStage: cleanUndefined(tournament.finalStage),
+        updatedAt: serverTimestamp()
+      });
+      return true;
+    }, { maxAttempts: 10 });
+  } catch (error) {
+    console.error('Error setting bracket match slot:', error);
+    return false;
+  }
+}
+
+/**
  * Reassign tables for all pending matches in the bracket(s)
  * Also optionally updates the number of tables available
  *

@@ -1270,26 +1270,17 @@
         if (currentValue === item.winnerId) {
           repairedCount++;
         } else {
-          // Direct repair as fallback
-
-          // Directly modify the bracket data
-          for (const round of bracket.rounds) {
-            const matchToUpdate = round.matches.find(matchItem => matchItem.id === item.nextMatchId);
-            if (matchToUpdate) {
-              if (item.slot === 'A') {
-                matchToUpdate.participantA = item.winnerId;
-              } else {
-                matchToUpdate.participantB = item.winnerId;
-              }
-              break;
-            }
-          }
-
-          // Save the updated bracket
-          const { updateTournament: updateTournamentFn } = await import('$lib/firebase/tournaments');
-          const directSuccess = await updateTournamentFn(tournamentId, {
-            finalStage: currentTournament.finalStage
-          });
+          // Direct repair as fallback: set ONLY the broken slot, transactionally.
+          // (The old code mutated this function's tournament snapshot and wrote
+          // the whole finalStage back, reverting any concurrent match completion.)
+          const { setBracketMatchSlot } = await import('$lib/firebase/tournamentBracket');
+          const directSuccess = await setBracketMatchSlot(
+            tournamentId,
+            item.bracketType === 'silver' ? 'silver' : 'gold',
+            item.nextMatchId,
+            item.slot,
+            item.winnerId
+          );
 
           if (directSuccess) {
             repairedCount++;
