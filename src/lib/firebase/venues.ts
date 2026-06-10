@@ -22,6 +22,7 @@ import {
 	where,
 	orderBy,
 	serverTimestamp,
+	deleteField,
 	writeBatch
 } from 'firebase/firestore';
 import { get } from 'svelte/store';
@@ -217,8 +218,17 @@ export async function updateVenue(
 			return false;
 		}
 
+		// Firestore throws on `undefined` anywhere in the payload (and one bad
+		// field aborts the WHOLE save). `undefined` from the edit modal means
+		// "clear this field" (e.g. removing the address) — translate it to a
+		// real field deletion, same pattern as updateUserProfile.
+		const payload: Record<string, unknown> = {};
+		for (const [key, value] of Object.entries(updates)) {
+			payload[key] = value === undefined ? deleteField() : value;
+		}
+
 		await updateDoc(venueRef, {
-			...updates,
+			...payload,
 			updatedAt: serverTimestamp()
 		});
 
@@ -357,6 +367,13 @@ export async function mergeVenues(
 	const superAdmin = await isSuperAdmin();
 	if (!superAdmin) {
 		return { success: false, updatedCount: 0, error: 'Not a SuperAdmin' };
+	}
+
+	// The UI excludes the source from the target dropdown, but a stale UI or
+	// direct call could pass the same id: the batch would then DELETE the venue
+	// while leaving every tournament pointing at it.
+	if (sourceVenueId === targetVenueId) {
+		return { success: false, updatedCount: 0, error: 'Source and target venue are the same' };
 	}
 
 	try {
