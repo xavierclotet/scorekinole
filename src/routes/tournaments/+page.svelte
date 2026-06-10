@@ -55,10 +55,15 @@
 	let visibleTournaments = $derived(filteredTournaments.slice(0, visibleCount));
 	let hasMore = $derived(visibleCount < filteredTournaments.length);
 
-	// Reset visible count when filters change
+	// Reset visible count when filters change (NOT when the derived list changes:
+	// live tournaments push snapshots every few seconds and would reset the
+	// user's infinite-scroll position)
 	$effect(() => {
-		// Access derived to track
-		filteredTournaments;
+		selectedYear;
+		selectedCountry;
+		selectedMode;
+		selectedTier;
+		timeFilter;
 		visibleCount = PAGE_SIZE;
 	});
 

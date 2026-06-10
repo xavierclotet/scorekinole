@@ -63,8 +63,14 @@
 	// Phase tabs state - auto-detect based on tournament status
 	let activePhase = $state<'groups' | 'bracket'>('groups');
 
+	// Only auto-switch when the status itself changes (live snapshots replace
+	// `tournament` every few seconds and must not stomp the user's tab choice)
+	let lastSeenStatus: string | undefined = undefined;
 	$effect(() => {
-		if (tournament?.status === 'FINAL_STAGE') {
+		const status = tournament?.status;
+		if (status === lastSeenStatus) return;
+		lastSeenStatus = status;
+		if (status === 'FINAL_STAGE') {
 			activePhase = 'bracket';
 		}
 	});
@@ -179,6 +185,17 @@
 		return inParticipants || inWaitlist;
 	});
 
+	// Reactive clock (30s tick) so time-based UI (registration deadline,
+	// upcoming badge) updates while the page stays open — Date.now() inside a
+	// $derived is only evaluated when its reactive deps change
+	let now = $state(Date.now());
+	$effect(() => {
+		const iv = setInterval(() => {
+			now = Date.now();
+		}, 30_000);
+		return () => clearInterval(iv);
+	});
+
 	// Show registration component when:
 	// - tournament is DRAFT + registration enabled
 	// - AND: either deadline hasn't passed, OR the user is already enrolled (so they can unregister)
@@ -187,7 +204,7 @@
 		tournament?.registration?.enabled === true &&
 		(
 			tournament?.registration?.deadline == null ||
-			Date.now() < tournament.registration.deadline ||
+			now < tournament.registration.deadline ||
 			isCurrentUserEnrolled
 		)
 	);
@@ -207,7 +224,7 @@
 	let isUpcoming = $derived(
 		tournament?.isImported &&
 		tournament.tournamentDate &&
-		tournament.tournamentDate > Date.now()
+		tournament.tournamentDate > now
 	);
 
 	// Check if tournament has any results (completed matches or standings with played matches)
@@ -527,8 +544,63 @@
 		refreshTournament();
 	}
 
-	onMount(async () => {
+	onMount(() => {
+		// Background tabs freeze the Firestore WebSocket — refetch when user returns
+		document.addEventListener('visibilitychange', handleVisibilityChange);
+		window.addEventListener('online', handleOnline);
+	});
+
+	// Load + subscribe, re-running when the URL param changes (SvelteKit reuses
+	// the component instance when navigating /tournaments/A → /tournaments/B)
+	let loadedParam: string | undefined = undefined;
+	let loadToken = 0;
+
+	$effect(() => {
+		const param = urlParam;
+		if (!param || param === loadedParam) return;
+		const isNavigation = loadedParam !== undefined;
+		loadedParam = param;
+		if (isNavigation) resetViewState();
+		void loadAndSubscribe();
+	});
+
+	function resetViewState() {
+		tournament = null;
+		resolvedDocId = null;
+		canEdit = false;
+		loading = true;
+		error = false;
+		showMatchDetail = false;
+		selectedMatch = null;
+		showVideoModal = false;
+		videoMatch = null;
+		activePhase = 'groups';
+		lastSeenStatus = undefined;
+		activeTab = 'gold';
+		activeParallelBracket = 0;
+		fullscreenChart = null;
+		expandedGroupMatches = new Set();
+		selectedPlayerFilter = undefined;
+		hiddenBumpCharts = new Set();
+		hiddenTwentiesCharts = new Set();
+		bumpChartHighlight = new Map();
+		bumpFilterOpen = new Map();
+		translatedDescription = null;
+		showTranslation = false;
+		translationError = null;
+		descriptionExpanded = false;
+		standingsSortBy = 'position';
+	}
+
+	async function loadAndSubscribe() {
+		const token = ++loadToken;
+		if (unsubscribe) {
+			unsubscribe();
+			unsubscribe = null;
+		}
+
 		await loadTournament();
+		if (token !== loadToken) return; // superseded by a newer navigation
 
 		// Subscribe to real-time updates using the resolved Firestore doc ID
 		if (resolvedDocId) {
@@ -538,11 +610,7 @@
 				}
 			});
 		}
-
-		// Background tabs freeze the Firestore WebSocket — refetch when user returns
-		document.addEventListener('visibilitychange', handleVisibilityChange);
-		window.addEventListener('online', handleOnline);
-	});
+	}
 
 	// Check if group stage has match details (wins/losses) or just aggregated data
 	let hasMatchDetails = $derived((() => {
@@ -665,6 +733,43 @@
 	function getParticipant(participantId: string | undefined) {
 		if (!participantId || isBye(participantId) || !tournament) return null;
 		return participantMap.get(participantId) || null;
+	}
+
+	// Re-resolve a captured match object against the freshest tournament snapshot.
+	// Live snapshots replace every match object, so a match stored in $state
+	// (e.g. the detail modal) would otherwise show frozen scores.
+	function resolveLiveMatch(match: BracketMatch): BracketMatch {
+		if (!tournament) return match;
+		const id = match.id;
+		const asArray = (x: unknown): any[] => (Array.isArray(x) ? x : Object.values(x ?? {}));
+
+		for (const g of tournament.groupStage?.groups ?? []) {
+			for (const round of asArray(g.schedule)) {
+				for (const mm of asArray(round?.matches)) if (mm?.id === id) return mm;
+			}
+			for (const pairing of asArray((g as any).pairings)) {
+				for (const mm of asArray(pairing?.matches)) if (mm?.id === id) return mm;
+			}
+		}
+
+		const brackets = [
+			tournament.finalStage?.goldBracket,
+			tournament.finalStage?.silverBracket,
+			...(tournament.finalStage?.parallelBrackets?.map(pb => pb.bracket) ?? [])
+		];
+		for (const b of brackets) {
+			if (!b) continue;
+			for (const r of b.rounds ?? []) {
+				for (const mm of r.matches ?? []) if (mm.id === id) return mm;
+			}
+			if (b.thirdPlaceMatch?.id === id) return b.thirdPlaceMatch;
+			for (const cb of b.consolationBrackets ?? []) {
+				for (const r of cb.rounds ?? []) {
+					for (const mm of r.matches ?? []) if (mm.id === id) return mm;
+				}
+			}
+		}
+		return match;
 	}
 
 	// Get participant ranking snapshot (seeding points)
@@ -3292,11 +3397,12 @@
 
 <!-- Match Detail Modal -->
 {#if showMatchDetail && selectedMatch}
-	{@const roundsByGame = selectedMatch.rounds?.reduce((acc, r) => {
+	{@const liveMatch = resolveLiveMatch(selectedMatch)}
+	{@const roundsByGame = liveMatch.rounds?.reduce((acc, r) => {
 		if (!acc[r.gameNumber]) acc[r.gameNumber] = [];
 		acc[r.gameNumber].push(r);
 		return acc;
-	}, {} as Record<number, typeof selectedMatch.rounds>) ?? {}}
+	}, {} as Record<number, typeof liveMatch.rounds>) ?? {}}
 	{@const gameNumbers = Object.keys(roundsByGame).map(Number).sort((a, b) => a - b)}
 	{@const show20s = tournament?.show20s ?? false}
 	{@const showHammer = tournament?.showHammer ?? false}
@@ -3320,14 +3426,14 @@
 			</button>
 			<div class="match-detail-header">
 				<div class="match-detail-matchup">
-					<div class="md-side" class:is-winner={selectedMatch.winner === selectedMatch.participantA}>
-						<span class="md-name">{getParticipantName(selectedMatch.participantA)}</span>
-						<span class="md-score">{selectedMatch.totalPointsA ?? selectedMatch.gamesWonA ?? 0}</span>
+					<div class="md-side" class:is-winner={liveMatch.winner === liveMatch.participantA}>
+						<span class="md-name">{getParticipantName(liveMatch.participantA)}</span>
+						<span class="md-score">{liveMatch.totalPointsA ?? liveMatch.gamesWonA ?? 0}</span>
 					</div>
 					<span class="md-divider">–</span>
-					<div class="md-side" class:is-winner={selectedMatch.winner === selectedMatch.participantB}>
-						<span class="md-name">{getParticipantName(selectedMatch.participantB)}</span>
-						<span class="md-score">{selectedMatch.totalPointsB ?? selectedMatch.gamesWonB ?? 0}</span>
+					<div class="md-side" class:is-winner={liveMatch.winner === liveMatch.participantB}>
+						<span class="md-name">{getParticipantName(liveMatch.participantB)}</span>
+						<span class="md-score">{liveMatch.totalPointsB ?? liveMatch.gamesWonB ?? 0}</span>
 					</div>
 				</div>
 			</div>
@@ -3363,9 +3469,9 @@
 										<td class="player-col hammer-label">🔨</td>
 										{#each gameRounds as round}
 											<td class="round-col hammer-cell">
-												{#if round.hammer === selectedMatch.participantA}
+												{#if round.hammer === liveMatch.participantA}
 													<span class="hammer-indicator">▲</span>
-												{:else if round.hammer === selectedMatch.participantB}
+												{:else if round.hammer === liveMatch.participantB}
 													<span class="hammer-indicator">▼</span>
 												{:else}
 													<span class="hammer-indicator empty">-</span>
@@ -3377,7 +3483,7 @@
 								{/if}
 								<!-- Player A row -->
 								<tr class:row-winner={gameTotalA > gameTotalB}>
-									<td class="player-col">{getParticipantName(selectedMatch.participantA)}</td>
+									<td class="player-col">{getParticipantName(liveMatch.participantA)}</td>
 									{#each gameRounds as round}
 										<td class="round-col" class:round-winner={(round.pointsA ?? 0) > (round.pointsB ?? 0)}>
 											<span class="round-points">{round.pointsA ?? '-'}</span>
@@ -3395,7 +3501,7 @@
 								</tr>
 								<!-- Player B row -->
 								<tr class:row-winner={gameTotalB > gameTotalA}>
-									<td class="player-col">{getParticipantName(selectedMatch.participantB)}</td>
+									<td class="player-col">{getParticipantName(liveMatch.participantB)}</td>
 									{#each gameRounds as round}
 										<td class="round-col" class:round-winner={(round.pointsB ?? 0) > (round.pointsA ?? 0)}>
 											<span class="round-points">{round.pointsB ?? '-'}</span>

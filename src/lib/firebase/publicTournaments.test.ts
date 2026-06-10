@@ -346,3 +346,37 @@ describe('large dataset scalability', () => {
 		}
 	});
 });
+
+// ---------------------------------------------------------------------------
+// Time/date boundary edge cases
+// ---------------------------------------------------------------------------
+
+describe('time filter boundaries', () => {
+	it('a tournament dated exactly now counts as past, not future', () => {
+		const exact = makeTournament({ id: 'exact', tournamentDate: NOW });
+		expect(filterTournaments([exact], { timeFilter: 'past' }, NOW).map(t => t.id)).toEqual(['exact']);
+		expect(filterTournaments([exact], { timeFilter: 'future' }, NOW)).toHaveLength(0);
+	});
+
+	it('tournaments without tournamentDate pass both past and future filters (cannot classify)', () => {
+		const noDate = makeTournament({ id: 'no-date', tournamentDate: undefined });
+		expect(filterTournaments([noDate], { timeFilter: 'past' }, NOW)).toHaveLength(1);
+		expect(filterTournaments([noDate], { timeFilter: 'future' }, NOW)).toHaveLength(1);
+	});
+
+	it('tournaments without tournamentDate pass the year filter (cannot classify)', () => {
+		const noDate = makeTournament({ id: 'no-date', tournamentDate: undefined });
+		expect(filterTournaments([noDate], { year: 2025 }, NOW)).toHaveLength(1);
+	});
+
+	it('a live tournament that started earlier today is still listed under past/all', () => {
+		// Tournament started this morning, still GROUP_STAGE at midday
+		const liveToday = makeTournament({
+			id: 'live-today',
+			status: 'GROUP_STAGE',
+			tournamentDate: NOW - 4 * 60 * 60 * 1000
+		});
+		expect(filterTournaments([liveToday], { timeFilter: 'past' }, NOW)).toHaveLength(1);
+		expect(filterTournaments([liveToday], { timeFilter: 'all' }, NOW)).toHaveLength(1);
+	});
+});

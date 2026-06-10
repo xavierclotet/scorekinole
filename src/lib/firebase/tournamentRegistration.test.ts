@@ -20,6 +20,7 @@ import {
   isWaitlistAllowed,
   normalizeGuestPartnerName,
   collectGuestPartnerNames,
+  countActiveParticipants,
 } from './tournamentRegistration';
 import type { TournamentParticipant, WaitlistEntry } from '$lib/types/tournament';
 
@@ -2183,5 +2184,106 @@ describe('validateRegistration with tournamentDate (defense in depth)', () => {
       'DRAFT', reg, [], [], 'u1', Date.now(), [], undefined, undefined
     );
     expect(result).toEqual({ canRegister: true });
+  });
+});
+
+// ─── countActiveParticipants + capacity consistency ───────────────────────────
+// Bug class: validateRegistration counted only REGISTERED rows with userId
+// while determineRegistrationOutcome counted ALL rows. With admin-added GUEST
+// participants this allowed registering past maxParticipants (allowWaitlist
+// false) or waitlisting users that validation said could register.
+
+describe('countActiveParticipants', () => {
+  it('counts ACTIVE and legacy no-status rows', () => {
+    expect(countActiveParticipants([
+      { status: 'ACTIVE' },
+      {},
+      { status: 'ACTIVE' }
+    ])).toBe(3);
+  });
+
+  it('excludes WITHDRAWN and DISQUALIFIED rows (they free their slot)', () => {
+    expect(countActiveParticipants([
+      { status: 'ACTIVE' },
+      { status: 'WITHDRAWN' },
+      { status: 'DISQUALIFIED' },
+      { status: 'ACTIVE' }
+    ])).toBe(2);
+  });
+
+  it('returns 0 for an empty list', () => {
+    expect(countActiveParticipants([])).toBe(0);
+  });
+});
+
+describe('capacity consistency between validation and outcome', () => {
+  const baseReg = { enabled: true, notifyOnRegistration: false, showParticipantList: true };
+  const now = Date.now();
+
+  it('rejects registration when GUEST participants fill the tournament (allowWaitlist=false)', () => {
+    // 16 admin-added guests (no userId), max 16, no waitlist:
+    // validation used to pass (0 registered userIds < 16) and the user was
+    // inserted as participant #17, exceeding maxParticipants.
+    const reg = { ...baseReg, maxParticipants: 16, allowWaitlist: false };
+    const guests = Array.from({ length: 16 }, () => ({ status: 'ACTIVE' }));
+    const participantsCount = countActiveParticipants(guests);
+
+    const result = validateRegistration(
+      'DRAFT', reg, [], [], 'u1', now, [], undefined, undefined, [], undefined,
+      participantsCount
+    );
+    expect(result).toEqual({ canRegister: false, reason: 'tournament_full' });
+  });
+
+  it('waitlists when GUEST participants fill the tournament (allowWaitlist=true)', () => {
+    const reg = { ...baseReg, maxParticipants: 16, allowWaitlist: true };
+    const guests = Array.from({ length: 16 }, () => ({ status: 'ACTIVE' }));
+    const participantsCount = countActiveParticipants(guests);
+
+    const validation = validateRegistration(
+      'DRAFT', reg, [], [], 'u1', now, [], undefined, undefined, [], undefined,
+      participantsCount
+    );
+    expect(validation.canRegister).toBe(true);
+    expect(determineRegistrationOutcome(participantsCount, reg.maxParticipants, reg.allowWaitlist))
+      .toBe('waitlisted');
+  });
+
+  it('frees slots when participants withdraw: registers instead of waitlisting', () => {
+    // 16 rows but 2 withdrawn → 14 occupied slots of 16 → direct registration.
+    const reg = { ...baseReg, maxParticipants: 16, allowWaitlist: true };
+    const rows = [
+      ...Array.from({ length: 14 }, () => ({ status: 'ACTIVE' })),
+      { status: 'WITHDRAWN' },
+      { status: 'WITHDRAWN' }
+    ];
+    const participantsCount = countActiveParticipants(rows);
+
+    const validation = validateRegistration(
+      'DRAFT', reg, [], [], 'u1', now, [], undefined, undefined, [], undefined,
+      participantsCount
+    );
+    expect(validation.canRegister).toBe(true);
+    expect(determineRegistrationOutcome(participantsCount, reg.maxParticipants, reg.allowWaitlist))
+      .toBe('registered');
+  });
+
+  it('validation and outcome agree at the exact capacity boundary', () => {
+    const reg = { ...baseReg, maxParticipants: 8, allowWaitlist: true };
+    for (const occupied of [7, 8, 9]) {
+      const validation = validateRegistration(
+        'DRAFT', reg, [], [], 'u1', now, [], undefined, undefined, [], undefined,
+        occupied
+      );
+      const outcome = determineRegistrationOutcome(occupied, reg.maxParticipants, reg.allowWaitlist);
+      expect(validation.canRegister).toBe(true);
+      expect(outcome).toBe(occupied >= 8 ? 'waitlisted' : 'registered');
+    }
+  });
+
+  it('falls back to registered-only counting when participantsCount is omitted (backward compat)', () => {
+    const reg = { ...baseReg, maxParticipants: 2, allowWaitlist: false };
+    const result = validateRegistration('DRAFT', reg, ['u2', 'u3'], [], 'u1', now);
+    expect(result).toEqual({ canRegister: false, reason: 'tournament_full' });
   });
 });

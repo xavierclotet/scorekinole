@@ -56,13 +56,31 @@
 
 	function openChartFullscreen(groupId: string) {
 		fullscreenChart = { groupId };
-		document.body.style.overflow = 'hidden';
 	}
 
 	function closeChartFullscreen() {
 		fullscreenChart = null;
-		document.body.style.overflow = '';
 	}
+
+	// Lock body scroll while fullscreen is open. The effect cleanup also runs on
+	// unmount, so a live tournament finishing (component swap) can't leave the
+	// page stuck with overflow:hidden.
+	$effect(() => {
+		if (fullscreenChart) {
+			document.body.style.overflow = 'hidden';
+			return () => {
+				document.body.style.overflow = '';
+			};
+		}
+	});
+
+	// Auto-close fullscreen if its group disappears (e.g. phase transition),
+	// otherwise the overlay vanishes but scroll would stay locked.
+	$effect(() => {
+		if (fullscreenChart && !groups.some(g => g.id === fullscreenChart!.groupId)) {
+			fullscreenChart = null;
+		}
+	});
 
 	// Bump chart highlight filter
 	let bumpChartHighlight = $state<Map<string, Set<string>>>(new Map());
@@ -288,6 +306,32 @@
 			lastKnownHighestRound = roundProgress.highestExisting;
 			initialized = true;
 		}
+	});
+
+	// Groups added after initialization (admin creates one mid-tournament) get
+	// the same treatment: expanded, with their current round open. A group is
+	// "new" when it has no expandedRounds entry — toggleGroup never deletes
+	// entries, so a user-collapsed group won't re-expand.
+	$effect(() => {
+		if (!initialized) return;
+		const newGroups = groups.filter(g => !(g.id in expandedRounds));
+		if (newGroups.length === 0) return;
+
+		const nextExpandedGroups = new Set(expandedGroups);
+		for (const group of newGroups) {
+			nextExpandedGroups.add(group.id);
+			const rounds = getGroupRounds(group);
+			const expanded = new Set<number>();
+			const firstIncomplete = rounds.find(r => !isRoundComplete(r.matches));
+			if (firstIncomplete) {
+				expanded.add(firstIncomplete.roundNumber);
+			} else if (rounds.length > 0) {
+				expanded.add(rounds[rounds.length - 1].roundNumber);
+			}
+			expandedRounds[group.id] = expanded;
+		}
+		expandedRounds = { ...expandedRounds };
+		expandedGroups = nextExpandedGroups;
 	});
 
 	// Detect when a new round appears and auto-expand it, collapse the previous

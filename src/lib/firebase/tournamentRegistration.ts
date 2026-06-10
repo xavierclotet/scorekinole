@@ -43,6 +43,19 @@ export function collectGuestPartnerNames(
   return names;
 }
 
+/**
+ * Count participants that occupy a registration slot: ACTIVE (or legacy
+ * no-status) rows, including admin-added GUEST participants. WITHDRAWN and
+ * DISQUALIFIED participants free their slot.
+ */
+export function countActiveParticipants(participants: Array<{ status?: string }>): number {
+  let count = 0;
+  for (const p of participants) {
+    if (!p.status || p.status === 'ACTIVE') count++;
+  }
+  return count;
+}
+
 export function validateRegistration(
   tournamentStatus: string,
   registration: TournamentRegistration | undefined,
@@ -59,13 +72,20 @@ export function validateRegistration(
   /** Normalized guest partner names already in use (use `collectGuestPartnerNames`) */
   existingGuestPartnerNames: string[] = [],
   /** Raw name the user proposes for a GUEST partner (only relevant when type === 'GUEST') */
-  proposedGuestPartnerName?: string
+  proposedGuestPartnerName?: string,
+  /**
+   * Slot-occupying participant count (use `countActiveParticipants`). Includes
+   * GUEST rows, excludes WITHDRAWN/DSQ. Falls back to participantUserIds.length
+   * (registered-only) when not provided.
+   */
+  participantsCount?: number
 ): RegistrationValidation {
   if (tournamentStatus !== 'DRAFT') return { canRegister: false, reason: 'not_draft' };
   if (!registration?.enabled) return { canRegister: false, reason: 'registration_disabled' };
   if (registration.deadline && now > registration.deadline) return { canRegister: false, reason: 'deadline_passed' };
   if (tournamentDate !== undefined && now >= tournamentDate) return { canRegister: false, reason: 'deadline_passed' };
-  if (!isWaitlistAllowed(registration.allowWaitlist) && registration.maxParticipants && participantUserIds.length >= registration.maxParticipants) {
+  const occupiedSlots = participantsCount ?? participantUserIds.length;
+  if (!isWaitlistAllowed(registration.allowWaitlist) && registration.maxParticipants && occupiedSlots >= registration.maxParticipants) {
     return { canRegister: false, reason: 'tournament_full' };
   }
   if (participantUserIds.includes(currentUserId)) return { canRegister: false, reason: 'already_registered' };
@@ -528,6 +548,7 @@ export async function registerForTournament(
       const waitlistUserIds = (tournament.waitlist || []).map((w: WaitlistEntry) => w.userId);
       const partnerUserIds = collectPartnerUserIds(tournament.participants, tournament.waitlist || []);
       const guestPartnerNames = collectGuestPartnerNames(tournament.participants, tournament.waitlist || []);
+      const activeParticipantsCount = countActiveParticipants(tournament.participants);
 
       const validation = validateRegistration(
         tournament.status,
@@ -540,7 +561,8 @@ export async function registerForTournament(
         partnerData?.type === 'REGISTERED' ? partnerData.userId : undefined,
         tournament.tournamentDate,
         guestPartnerNames,
-        partnerData?.type === 'GUEST' ? partnerData.name : undefined
+        partnerData?.type === 'GUEST' ? partnerData.name : undefined,
+        activeParticipantsCount
       );
 
       if (!validation.canRegister) {
@@ -548,7 +570,7 @@ export async function registerForTournament(
       }
 
       outcome = determineRegistrationOutcome(
-        tournament.participants.length,
+        activeParticipantsCount,
         tournament.registration?.maxParticipants,
         tournament.registration?.allowWaitlist
       );

@@ -1219,6 +1219,8 @@ export async function getTournamentByKey(key: string): Promise<Tournament | null
     const data = docSnap.data();
 
     const tournament = parseTournamentData(data);
+    // Ensure id always matches the Firestore doc (same as subscribeTournament)
+    tournament.id = docSnap.id;
 
     return tournament;
   } catch (error) {
