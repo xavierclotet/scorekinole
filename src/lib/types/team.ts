@@ -96,6 +96,8 @@ export interface GameData {
     team2Twenty: number;
     /** Unix timestamp when game was completed */
     timestamp: number;
+    /** Rounds played in this game (persisted so RoundsPanel survives a reload) */
+    rounds?: RoundData[];
 }
 
 /**

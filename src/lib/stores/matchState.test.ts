@@ -6,17 +6,19 @@ vi.mock('$app/environment', () => ({
 }));
 
 // Mock history module — use vi.hoisted so fns are available when vi.mock factory runs
-const { mockAddRoundToCurrentMatch, mockResetCurrentMatch, mockRemoveLastRoundFromCurrentMatch, mockSwapTeamsInCurrentMatch } = vi.hoisted(() => ({
+const { mockAddRoundToCurrentMatch, mockResetCurrentMatch, mockRemoveLastRoundFromCurrentMatch, mockSwapTeamsInCurrentMatch, mockRestoreCurrentMatch } = vi.hoisted(() => ({
 	mockAddRoundToCurrentMatch: vi.fn(),
 	mockResetCurrentMatch: vi.fn(),
 	mockRemoveLastRoundFromCurrentMatch: vi.fn(),
-	mockSwapTeamsInCurrentMatch: vi.fn()
+	mockSwapTeamsInCurrentMatch: vi.fn(),
+	mockRestoreCurrentMatch: vi.fn()
 }));
 vi.mock('./history', () => ({
 	resetCurrentMatch: mockResetCurrentMatch,
 	addRoundToCurrentMatch: mockAddRoundToCurrentMatch,
 	removeLastRoundFromCurrentMatch: mockRemoveLastRoundFromCurrentMatch,
-	swapTeamsInCurrentMatch: mockSwapTeamsInCurrentMatch
+	swapTeamsInCurrentMatch: mockSwapTeamsInCurrentMatch,
+	restoreCurrentMatch: mockRestoreCurrentMatch
 }));
 
 // Mock localStorage
@@ -1022,5 +1024,105 @@ describe('matchState', () => {
 			expect(get(lastRoundPoints)).toEqual(baselineBefore);
 			expect(get(currentGameStartHammer)).toBe(2);
 		});
+	});
+});
+
+// ─── Regression: F5 mid-match must restore currentMatch (RoundsPanel source) ─
+
+describe('loadMatchState rebuilds currentMatch after reload', () => {
+	beforeEach(() => {
+		localStorageMock.clear();
+		vi.clearAllMocks();
+		resetMatchState();
+		vi.clearAllMocks(); // resetMatchState calls resetCurrentMatch — discard that call
+	});
+
+	function makeRound(n: number, overrides: Partial<RoundData> = {}): RoundData {
+		return {
+			roundNumber: n,
+			team1Points: 4,
+			team2Points: 2,
+			team1Twenty: 1,
+			team2Twenty: 0,
+			hammerTeam: 1,
+			timestamp: 1000000 + n,
+			...overrides
+		};
+	}
+
+	it('restores current-game rounds into currentMatch (panel showed blank on F5)', () => {
+		localStorageMock.store['crokinoleMatchState'] = JSON.stringify({
+			matchStartTime: 123456,
+			currentMatchGames: [],
+			currentMatchRounds: [makeRound(1), makeRound(2)],
+			currentGameRounds: [makeRound(1), makeRound(2)],
+			roundsPlayed: 2
+		});
+
+		loadMatchState();
+
+		expect(mockRestoreCurrentMatch).toHaveBeenCalledTimes(1);
+		const restored = mockRestoreCurrentMatch.mock.calls[0][0];
+		expect(restored.startTime).toBe(123456);
+		expect(restored.rounds).toHaveLength(2);
+		expect(restored.rounds[0]).toEqual({
+			team1Points: 4,
+			team2Points: 2,
+			team1Twenty: 1,
+			team2Twenty: 0,
+			hammerTeam: 1,
+			roundNumber: 1
+		});
+		expect(restored.games).toHaveLength(0);
+	});
+
+	it('restores completed games WITH their rounds (multi-game Bo3 reload)', () => {
+		localStorageMock.store['crokinoleMatchState'] = JSON.stringify({
+			matchStartTime: 99,
+			currentMatchGames: [
+				{ ...{ gameNumber: 1, winner: 2, team1Points: 3, team2Points: 7, team1Rounds: 1, team2Rounds: 3, team1Twenty: 0, team2Twenty: 2, timestamp: 1 }, rounds: [makeRound(1), makeRound(2), makeRound(3)] }
+			],
+			currentMatchRounds: [makeRound(1)],
+			currentGameRounds: [makeRound(1)],
+			roundsPlayed: 1
+		});
+
+		loadMatchState();
+
+		const restored = mockRestoreCurrentMatch.mock.calls[0][0];
+		expect(restored.games).toHaveLength(1);
+		expect(restored.games[0].gameNumber).toBe(1);
+		expect(restored.games[0].winner).toBe(2);
+		expect(restored.games[0].rounds).toHaveLength(3);
+		expect(restored.rounds).toHaveLength(1); // current game in progress
+	});
+
+	it('does NOT touch currentMatch when there is nothing in progress', () => {
+		localStorageMock.store['crokinoleMatchState'] = JSON.stringify({
+			matchStartTime: null,
+			currentMatchGames: [],
+			currentMatchRounds: [],
+			currentGameRounds: [],
+			roundsPlayed: 0
+		});
+
+		loadMatchState();
+
+		expect(mockRestoreCurrentMatch).not.toHaveBeenCalled();
+	});
+
+	it('addGame persists the game (and its rounds) into matchState for reload survival', () => {
+		const game: GameData = { ...makeGame(), rounds: [makeRound(1), makeRound(2)] };
+
+		addGame(game);
+
+		const persisted = JSON.parse(localStorageMock.store['crokinoleMatchState']);
+		expect(persisted.currentMatchGames).toHaveLength(1);
+		expect(persisted.currentMatchGames[0].rounds).toHaveLength(2);
+
+		// Round-trip: a reload restores the game with its rounds
+		loadMatchState();
+		const restored = mockRestoreCurrentMatch.mock.calls[0][0];
+		expect(restored.games[0].rounds).toHaveLength(2);
 	});
 });

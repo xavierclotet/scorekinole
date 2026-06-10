@@ -1,7 +1,7 @@
 import { writable, get } from 'svelte/store';
 import type { MatchState, GameData, RoundData } from '$lib/types/team';
 import { browser } from '$app/environment';
-import { resetCurrentMatch, addRoundToCurrentMatch, removeLastRoundFromCurrentMatch, swapTeamsInCurrentMatch } from './history';
+import { resetCurrentMatch, addRoundToCurrentMatch, removeLastRoundFromCurrentMatch, swapTeamsInCurrentMatch, restoreCurrentMatch } from './history';
 import type { MatchRound } from '$lib/types/history';
 
 const defaultMatchState: MatchState = {
@@ -92,6 +92,36 @@ export function loadMatchState() {
                 { team1: 0, team2: 0 }
             );
             lastRoundPoints.set(baseline);
+
+            // Rebuild the in-memory currentMatch (history store). RoundsPanel and
+            // the history modal read from it, but it was never restored after a
+            // reload — the rounds were persisted right here in matchState, yet the
+            // panel went blank on F5 (and saveGameAndCheckMatchComplete saw an
+            // empty match). Must run BEFORE the game page's onMount fallback
+            // `if (!$currentMatch) startCurrentMatch()` so it isn't replaced by
+            // a fresh empty match.
+            const toMatchRound = (r: RoundData): MatchRound => ({
+                team1Points: r.team1Points,
+                team2Points: r.team2Points,
+                team1Twenty: r.team1Twenty,
+                team2Twenty: r.team2Twenty,
+                hammerTeam: r.hammerTeam ?? null,
+                roundNumber: r.roundNumber
+            });
+
+            if (state.currentGameRounds.length > 0 || state.currentMatchGames.length > 0) {
+                restoreCurrentMatch({
+                    startTime: state.matchStartTime ?? Date.now(),
+                    games: state.currentMatchGames.map((g, i) => ({
+                        gameNumber: g.gameNumber || i + 1,
+                        winner: g.winner === 1 || g.winner === 2 ? g.winner : null,
+                        team1Points: g.team1Points,
+                        team2Points: g.team2Points,
+                        rounds: (g.rounds ?? []).map(toMatchRound)
+                    })),
+                    rounds: state.currentGameRounds.map(toMatchRound)
+                });
+            }
         } catch (e) {
             console.error('Error loading match state:', e);
         }
@@ -334,7 +364,9 @@ function swapGameTeams(game: GameData): GameData {
         team1Rounds: game.team2Rounds,
         team2Rounds: game.team1Rounds,
         team1Twenty: game.team2Twenty,
-        team2Twenty: game.team1Twenty
+        team2Twenty: game.team1Twenty,
+        // Games persist their rounds (for RoundsPanel reload survival) — mirror them too
+        rounds: game.rounds ? game.rounds.map(swapRoundTeams) : game.rounds
     };
 }
 

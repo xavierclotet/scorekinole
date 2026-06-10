@@ -19,6 +19,15 @@ export function resetCurrentMatch() {
     currentMatch.set(null);
 }
 
+/**
+ * Restore the current match after a page reload.
+ * currentMatch itself is in-memory only; loadMatchState() rebuilds it from the
+ * persisted matchState so RoundsPanel / the history modal survive an F5.
+ */
+export function restoreCurrentMatch(match: CurrentMatch) {
+    currentMatch.set(match);
+}
+
 // Add a completed game to current match and clear rounds for next game
 export function addGameToCurrentMatch(game: any) {
     currentMatch.update(match => {

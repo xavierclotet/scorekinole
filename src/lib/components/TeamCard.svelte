@@ -7,7 +7,7 @@
 	import { buildCompletedMatch, currentMatch, addGameToCurrentMatch, countTotalRounds } from '$lib/stores/history';
 	import { canDecrementScore } from '$lib/utils/scoreGuards';
 	import { saveFriendlyMatchToFirestore, savePendingFriendlyMatch, removePendingFriendlyMatch } from '$lib/firebase/firestore';
-	import { lastRoundPoints, completeRound, roundsPlayed, resetGameOnly, currentMatchGames, currentMatchRounds, currentGameRounds, currentGameStartHammer, setCurrentGameStartHammer, undoLastRound } from '$lib/stores/matchState';
+	import { lastRoundPoints, completeRound, roundsPlayed, resetGameOnly, addGame, currentMatchGames, currentMatchRounds, currentGameRounds, currentGameStartHammer, setCurrentGameStartHammer, undoLastRound } from '$lib/stores/matchState';
 	import { gameTournamentContext } from '$lib/stores/tournamentContext';
 	import { currentUser } from '$lib/firebase/auth';
 	import { get } from 'svelte/store';
@@ -617,15 +617,17 @@
 
 		console.log('New game:', newGame);
 
-		// Add game to currentMatchGames (for backwards compatibility)
-		currentMatchGames.update(games => [...games, newGame]);
-
-		// Add game with rounds to currentMatch for history display
+		// Add game (with its rounds) to the PERSISTED match state. Updating the
+		// `currentMatchGames` store directly (old behaviour) skipped matchState,
+		// so completed games — and their rounds — were lost on page reload.
 		const rounds = get(currentMatchRounds);
 		const gameWithRounds = {
 			...newGame,
 			rounds: rounds
 		};
+		addGame(gameWithRounds);
+
+		// Add game with rounds to currentMatch for history display
 		addGameToCurrentMatch(gameWithRounds);
 
 		console.log('Game saved with rounds:', rounds.length);
