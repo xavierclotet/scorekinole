@@ -2,7 +2,17 @@
 
 All notable changes to Scorekinole are documented in this file.
 
-## [2.5.46] - 2026-06-10
+## [2.5.47] - 2026-06-10
+- Fix (admin/users): mergeUsers rejects merging into an already-merged target (prevented dead-profile merges and A→B→A cycles that silently lost ranking data)
+- Fix (admin/users): disable-user modal no longer applies one user's dependencies to another (race could disable a tournament owner); dependency load errors are surfaced
+- Fix (admin/users): quota revocation works — an explicit 0 entry no longer falls back to the legacy maxTournamentsPerYear field (display, modal and enforcement); legacy field cleared on save
+- Fix (admin/users): users without createdAt now appear at the end of the list; next-year quota can be set to 0; saving "no name" users no longer fails silently; enable-user failures show a toast
+- Fix (admin/matches): editing rounds in MatchEditModal now recomputes winner, scores, per-game winners and totalRounds (stored aggregates silently desynced); numeric inputs sanitized
+- Fix (admin/matches): search covers the whole collection; player filter includes doubles partners and keeps paginating; delete failures surface an error
+- Fix (admin/venues): editing a venue without address no longer fails (undefined → field deletion); merging a venue into itself is rejected; edits propagate location to linked tournaments
+- Fix (admin/analytics): /admin/tournaments/create|import and /users/[slug] no longer misattributed in tracking; filter changes no longer race (stale responses discarded); exact route decode in charts
+- Fix (admin/backup): 'pairs' collection (doubles pair history) was silently excluded from every backup; restores validate everything before writing (no partial restores); capped collection preview
+- Tests: 5 new unit test suites (admin users/merge, quota, match aggregates, venues, page-view paths, backup) — 94 new tests
 - Fix (public tournaments detail): navigating between two tournaments now reloads and resubscribes (it kept showing the previous tournament with its stale live subscription)
 - Fix (public tournaments detail, live): the Groups/Bracket tab is no longer forced back to Bracket on every realtime snapshot during the final stage
 - Fix (public tournaments detail, live): the match detail modal now follows live score updates instead of freezing on the data captured when opened
