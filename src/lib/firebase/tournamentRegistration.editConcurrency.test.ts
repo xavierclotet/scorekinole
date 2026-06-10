@@ -322,3 +322,74 @@ describe('applyRankingSnapshots', () => {
     expect(result.find(p => p.userId === 'ulate')).toBeTruthy();
   });
 });
+
+// ─── duplicate user identity dedupe ──────────────────────────────────────────
+
+describe('reconcileEditedRegistration — duplicate user identity dedupe', () => {
+  it('REGRESSION: same user added manually by the admin AND self-registered concurrently → single row, Firestore row wins', () => {
+    const a = participant('a');
+    const baseline = baselineFrom([a], []);
+    // Admin manually adds X with a fresh local id (a stub without registration data)
+    const manualX = participant('local-x', { userId: 'user-x' });
+    // Meanwhile X self-registers (different row id, carries userKey etc.)
+    const registeredX = participant('fs-x', { userId: 'user-x', userKey: 'XKEY42' });
+
+    const edited = { participants: [a, manualX], waitlist: [] as WaitlistEntry[] };
+    const current = { participants: [a, registeredX], waitlist: [] as WaitlistEntry[] };
+
+    const result = reconcileEditedRegistration(baseline, edited, current);
+
+    const xRows = result.participants.filter(p => p.userId === 'user-x');
+    expect(xRows).toHaveLength(1);
+    // The concurrent Firestore row is preferred over the admin-added stub
+    expect(xRows[0].id).toBe('fs-x');
+    expect(xRows[0].userKey).toBe('XKEY42');
+    expect(result.participants).toHaveLength(2);
+  });
+
+  it('keeps the admin-edited row when the kept duplicate was already in the baseline', () => {
+    const a = participant('a');
+    const x = participant('x'); // userId user-x, present at open time
+    const editedX = { ...x, status: 'WITHDRAWN' as const };
+    // Firestore grew a second row with the same userId while the wizard was open
+    const dupX = participant('dup-x', { userId: 'user-x' });
+
+    const baseline = baselineFrom([a, x], []);
+    const edited = { participants: [a, editedX], waitlist: [] as WaitlistEntry[] };
+    const current = { participants: [a, x, dupX], waitlist: [] as WaitlistEntry[] };
+
+    const result = reconcileEditedRegistration(baseline, edited, current);
+
+    const xRows = result.participants.filter(p => p.userId === 'user-x');
+    expect(xRows).toHaveLength(1);
+    // The admin's edit on the pre-existing row wins over the concurrent duplicate
+    expect(xRows[0].id).toBe('x');
+    expect(xRows[0].status).toBe('WITHDRAWN');
+  });
+
+  it('guests without userId dedupe by normalized name', () => {
+    const baseline = baselineFrom([], []);
+    const manualGuest = participant('g1', { type: 'GUEST', userId: undefined, name: 'María López' });
+    const concurrentGuest = participant('g2', { type: 'GUEST', userId: undefined, name: '  maría lópez ' });
+
+    const edited = { participants: [manualGuest], waitlist: [] as WaitlistEntry[] };
+    const current = { participants: [concurrentGuest], waitlist: [] as WaitlistEntry[] };
+
+    const result = reconcileEditedRegistration(baseline, edited, current);
+
+    expect(result.participants).toHaveLength(1);
+  });
+
+  it('different users with different ids are never merged', () => {
+    const a = participant('a');
+    const b = participant('b');
+    const c = participant('c');
+    const baseline = baselineFrom([a], []);
+    const edited = { participants: [a, b], waitlist: [] as WaitlistEntry[] };
+    const current = { participants: [a, c], waitlist: [] as WaitlistEntry[] };
+
+    const result = reconcileEditedRegistration(baseline, edited, current);
+
+    expect(result.participants.map(p => p.id).sort()).toEqual(['a', 'b', 'c']);
+  });
+});

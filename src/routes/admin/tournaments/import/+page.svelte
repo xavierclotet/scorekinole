@@ -167,6 +167,16 @@
         }));
       }
 
+      // Resolve a stored participant reference to its display name. The literal
+      // 'BYE' id (written for BYE bracket matches) must round-trip as 'BYE' —
+      // mapping it to '' made every edited tournament with BYEs unsaveable
+      // (the empty name was flagged as an unknown participant on submit).
+      const participantNameById = (id: string | undefined): string => {
+        if (!id) return '';
+        if (id === 'BYE') return 'BYE';
+        return tournament.participants?.find(p => p.id === id)?.name || '';
+      };
+
       // Pre-populate Step 2: Group Stage (if any) - now combined with participants
       if (tournament.groupStage) {
         hasGroupStage = true;
@@ -176,21 +186,39 @@
             name: g.name,
             standings: g.standings?.map(s => ({
               participantId: s.participantId,
-              participantName: tournament.participants?.find(p => p.id === s.participantId)?.name || '',
+              participantName: participantNameById(s.participantId),
               position: s.position,
               points: s.points || 0,
               total20s: s.total20s || 0
-            })) || []
+            })) || [],
+            // Load the stored schedule too: saving without it used to wipe the
+            // group matches, H2H records and per-player match stats on edit.
+            matches: (g.schedule || []).flatMap(round =>
+              (round.matches || []).map(gm => ({
+                participantAName: participantNameById(gm.participantA),
+                participantBName: participantNameById(gm.participantB),
+                scoreA: gm.totalPointsA || 0,
+                scoreB: gm.totalPointsB || 0,
+                rounds: (gm.rounds || []).map(r => ({
+                  pointsA: r.pointsA,
+                  pointsB: r.pointsB,
+                  twentiesA: r.twentiesA,
+                  twentiesB: r.twentiesB
+                }))
+              }))
+            ),
+            ...(tournament.groupStage?.totalRounds ? { totalRounds: tournament.groupStage.totalRounds } : {})
           }));
 
-          // Serialize groups to textarea format for editing
+          // Serialize groups (WITH matches) to textarea format for editing
           const groupsForSerialization = groups.map(g => ({
             name: g.name,
             standings: g.standings.map(s => ({
               participantName: s.participantName,
               points: s.points,
               total20s: s.total20s
-            }))
+            })),
+            matches: g.matches
           }));
           groupStageText = serializeGroupStageData(groupsForSerialization, gameType);
           parsePhase = 'preview'; // Show preview directly
@@ -206,10 +234,17 @@
         parsePhase = 'preview'; // No groups, go to preview
       }
 
-      // Pre-populate Step 3: Final Stage (if any)
-      if (tournament.finalStage?.parallelBrackets) {
-        numBrackets = tournament.finalStage.parallelBrackets.length;
-        brackets = tournament.finalStage.parallelBrackets.map(nb => ({
+      // Pre-populate Step 3: Final Stage (if any). Normalize goldBracket /
+      // silverBracket (SINGLE_BRACKET / SPLIT_DIVISIONS) to the parallelBrackets
+      // shape — editing used to silently drop non-parallel brackets.
+      const bracketsToEdit = tournament.finalStage?.parallelBrackets ??
+        ([
+          tournament.finalStage?.goldBracket ? { name: 'Gold', label: 'Gold', sourcePositions: [], bracket: tournament.finalStage.goldBracket } : null,
+          tournament.finalStage?.silverBracket ? { name: 'Silver', label: 'Silver', sourcePositions: [], bracket: tournament.finalStage.silverBracket } : null,
+        ].filter(Boolean) as { name: string; label: string; sourcePositions: number[]; bracket: NonNullable<typeof tournament.finalStage>['goldBracket'] }[]);
+      if (tournament.finalStage && bracketsToEdit.length > 0) {
+        numBrackets = bracketsToEdit.length;
+        brackets = bracketsToEdit.map(nb => ({
           name: nb.name,
           label: nb.label,
           sourcePositions: nb.sourcePositions || [],
@@ -219,14 +254,20 @@
             matches: r.matches?.map(match => ({
               id: crypto.randomUUID(),
               participantAId: match.participantA || '',
-              participantAName: tournament.participants?.find(p => p.id === match.participantA)?.name || '',
+              participantAName: participantNameById(match.participantA),
               participantBId: match.participantB || '',
-              participantBName: tournament.participants?.find(p => p.id === match.participantB)?.name || '',
+              participantBName: match.participantB ? participantNameById(match.participantB) : 'BYE',
               scoreA: match.totalPointsA || 0,
               scoreB: match.totalPointsB || 0,
               twentiesA: match.total20sA || 0,
               twentiesB: match.total20sB || 0,
-              isWalkover: match.status === 'WALKOVER'
+              isWalkover: match.status === 'WALKOVER',
+              rounds: (match.rounds || []).map(r2 => ({
+                pointsA: r2.pointsA,
+                pointsB: r2.pointsB,
+                twentiesA: r2.twentiesA,
+                twentiesB: r2.twentiesB
+              }))
             })) || []
           })) || []
         }));
@@ -253,6 +294,7 @@
           brackets: [],
           errors: [],
           warnings: [],
+          unknownParticipants: [],
           totalMatches: brackets.reduce((sum, b) => sum + b.rounds.reduce((rSum, r) => rSum + r.matches.length, 0), 0),
           totalRounds: brackets.reduce((sum, b) => sum + b.rounds.length, 0)
         };
@@ -668,6 +710,9 @@
     name: string;
     standings: StandingEntry[];
     matches?: GroupMatchEntry[];
+    /** Real round count from SS/RR headers (round-based parse) or stored data.
+     * Avoids re-inferring rounds (wrong for Swiss / unordered match lists). */
+    totalRounds?: number;
   }
 
   interface StandingEntry {
@@ -707,6 +752,8 @@
     twentiesA: number;
     twentiesB: number;
     isWalkover: boolean;
+    /** Round-level detail (kept through edit/save so it isn't silently lost) */
+    rounds?: Array<{ pointsA: number; pointsB: number; twentiesA: number; twentiesB: number }>;
   }
 
   let brackets = $state<BracketEntry[]>([]);
@@ -831,6 +878,7 @@
       address = data.address ?? '';
       city = data.city ?? '';
       country = data.country ?? 'España';
+      venueId = data.venueId ?? undefined;
       tournamentDate = data.tournamentDate ?? new Date().toISOString().split('T')[0];
       tournamentTime = data.tournamentTime ?? '';
       gameType = data.gameType ?? 'singles';
@@ -851,6 +899,8 @@
       qualificationMode = data.qualificationMode ?? 'POINTS';
       tiebreakerPriority = data.tiebreakerPriority ?? [];
       if (tiebreakerPriority.length > 0) initTiebreakerPriority();
+      groupStageText = data.groupStageText ?? '';
+      parsePhase = data.parsePhase === 'preview' ? 'preview' : 'input';
 
       // Step 4: Final Stage
       numBrackets = data.numBrackets ?? 2;
@@ -866,6 +916,23 @@
           }))
         }))
       }));
+
+      isGroupOnly = data.isGroupOnly ?? false;
+      knockoutStageText = data.knockoutStageText ?? '';
+      knockoutParsePhase = data.knockoutParsePhase === 'preview' && brackets.length > 0 ? 'preview' : 'input';
+      // knockoutParseResult itself isn't persisted — synthesize the minimal
+      // shape preview/validation need (same as edit mode does).
+      if (knockoutParsePhase === 'preview') {
+        knockoutParseResult = {
+          success: true,
+          brackets: [],
+          errors: [],
+          warnings: [],
+          unknownParticipants: [],
+          totalMatches: brackets.reduce((sum, b) => sum + b.rounds.reduce((rSum, r) => rSum + r.matches.length, 0), 0),
+          totalRounds: brackets.reduce((sum, b) => sum + b.rounds.length, 0)
+        };
+      }
 
       // Wizard state
       currentStep = data.currentStep ?? 1;
@@ -888,6 +955,7 @@
         address,
         city,
         country,
+        venueId,
         tournamentDate,
         tournamentTime,
         gameType,
@@ -907,10 +975,15 @@
         groups,
         qualificationMode,
         tiebreakerPriority,
+        groupStageText,
+        parsePhase,
 
         // Step 4: Final Stage
         numBrackets,
         brackets,
+        isGroupOnly,
+        knockoutStageText,
+        knockoutParsePhase,
 
         // Wizard state
         currentStep
@@ -1103,14 +1176,29 @@
       // Search for each name in Firebase to find registered users
       const newRegisteredMap = new Map<string, { userId: string; name: string }>();
 
+      // Accent-insensitive normalization, same as searchUsers(): an imported
+      // "Jose Garcia" must exact-match the registered "José García" instead of
+      // silently becoming a duplicate guest identity.
+      const normalizeName = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+
       for (const name of allNames) {
         try {
           const users = await searchUsers(name);
-          // Find exact match (case-insensitive)
-          const exactMatch = users.find(u =>
-            (u.playerName || '').toLowerCase() === name.toLowerCase() ||
-            (u.name || '').toLowerCase() === name.toLowerCase()
+          const exactMatches = users.filter(u =>
+            (u.userId) && (
+              normalizeName(u.playerName || '') === normalizeName(name) ||
+              normalizeName(u.name || '') === normalizeName(name)
+            )
           );
+          // Several registered users share this exact name → linking would
+          // attribute results/ranking points to an arbitrary person. Leave
+          // unlinked so the admin resolves it manually.
+          const distinctUserIds = new Set(exactMatches.map(u => u.userId));
+          if (distinctUserIds.size > 1) {
+            console.warn(`⚠️ "${name}" matches ${distinctUserIds.size} registered users — not auto-linking`);
+            continue;
+          }
+          const exactMatch = exactMatches[0];
           if (exactMatch && exactMatch.userId) {
             newRegisteredMap.set(name.toLowerCase(), {
               userId: exactMatch.userId,
@@ -1191,7 +1279,8 @@
           scoreA: m.scoreA,
           scoreB: m.scoreB,
           rounds: m.rounds
-        }))
+        })),
+        ...(g.totalRounds ? { totalRounds: g.totalRounds } : {})
       }));
 
       groups = newGroups;
@@ -1236,8 +1325,10 @@
 
       const players = new Set(g.matches.flatMap(m => [m.participantAName, m.participantBName]));
       const n = players.size;
-      // Round-robin totalRounds: even=N-1, odd=N (odd players have BYE rounds)
-      const totalRounds = n % 2 === 0 ? n - 1 : n;
+      // Prefer the REAL round count from the parse (SS/RR headers): the
+      // round-robin formula (even=N-1, odd=N) awarded phantom BYE wins when
+      // applied to Swiss data with fewer rounds than N-1.
+      const totalRounds = g.totalRounds ?? (n % 2 === 0 ? n - 1 : n);
 
       const parsedMatches = g.matches.map(m => ({
         participantAName: m.participantAName,
@@ -1295,13 +1386,16 @@
     knockoutParseResult = null;
 
     try {
-      // Get valid participant names from Step 2 for validation
+      // Get valid participant names from Step 2 for validation. For doubles the
+      // knockout text may reference the pair as "P1 / P2" or by its team name
+      // (the same forms the group text accepts), so include those too.
       const validParticipantNames = participants.map(p => {
-        // For doubles, include both player names
         if (gameType === 'doubles' && p.partnerName) {
-          return [p.name, p.partnerName];
+          const names = [p.name, p.partnerName, `${p.name} / ${p.partnerName}`];
+          if (p.teamName) names.push(p.teamName);
+          return names;
         }
-        return [p.name];
+        return p.teamName ? [p.name, p.teamName] : [p.name];
       }).flat();
 
       const result = parseKnockoutStageText(knockoutStageText, { validParticipantNames });
@@ -1310,6 +1404,37 @@
         knockoutParseResult = result;
         isParsingKnockout = false;
         return;
+      }
+
+      // No group stage → there was no participant source until now: derive the
+      // participant list from the knockout match names (otherwise the submit
+      // aborts with every name flagged as unknown).
+      if (participants.length === 0) {
+        const knockoutNames = new Set<string>();
+        for (const b of result.brackets) {
+          for (const r of b.rounds) {
+            for (const mt of r.matches) {
+              for (const n of [mt.participantAName, mt.participantBName]) {
+                if (n && n.trim() && n.trim().toUpperCase() !== 'BYE') knockoutNames.add(n.trim());
+              }
+            }
+          }
+        }
+        participants = [...knockoutNames].map(n => {
+          const entry: ParticipantEntry = {
+            id: `p-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+            name: n,
+            isRegistered: false
+          };
+          if (gameType === 'doubles' && n.includes('/')) {
+            const [p1, p2] = n.split('/').map(s => s.trim());
+            if (p1 && p2) {
+              entry.name = p1;
+              entry.partnerName = p2;
+            }
+          }
+          return entry;
+        });
       }
 
       // Convert parsed brackets to the internal format
@@ -1566,8 +1691,11 @@
         if (parsePhase === 'input' && hasGroupStage) {
           errors.push(m.import_mustParseFirst());
         }
-        if (participants.length < 2) errors.push(m.import_minParticipants());
         if (hasGroupStage) {
+          // Without a group stage there is no participant input on this step:
+          // participants are derived from the knockout text in step 3, so
+          // requiring them here made "skip group stage" a dead end.
+          if (participants.length < 2) errors.push(m.import_minParticipants());
           for (let i = 0; i < groups.length; i++) {
             if (groups[i].standings.length < 2) {
               errors.push(m.import_minParticipantsGroup({ n: i + 1 }));
@@ -1641,26 +1769,30 @@
     }
   }
 
-  // Convert flat match list to round-based schedule for HistoricalGroupInput
+  // Convert flat match list to round-based schedule for HistoricalGroupInput.
+  // Each match goes to the EARLIEST round where neither player has played yet
+  // (earliest-fit). The previous sequential heuristic ("new round whenever a
+  // player repeats") over-segmented unordered match lists — e.g. a group of 4
+  // typed player-by-player produced 5 "rounds" instead of 3, and the import's
+  // BYE bonus then awarded phantom wins to every player.
   function buildGroupSchedule(matches: GroupMatchEntry[]): HistoricalGroupRoundInput[] {
-    // Group matches into rounds based on participants
-    // Each participant plays once per round, so we fill rounds sequentially
-    const playersPerRound = new Set<string>();
-    const rounds: HistoricalGroupRoundInput[] = [];
-    let currentRound: HistoricalMatchInput[] = [];
-    let roundNumber = 1;
+    const rounds: HistoricalMatchInput[][] = [];
+    const playersInRound: Set<string>[] = [];
 
     for (const m of matches) {
-      // If either player already played this round, start a new round
-      if (playersPerRound.has(m.participantAName) || playersPerRound.has(m.participantBName)) {
-        rounds.push({ roundNumber, matches: currentRound });
-        roundNumber++;
-        currentRound = [];
-        playersPerRound.clear();
+      let r = 0;
+      while (
+        r < rounds.length &&
+        (playersInRound[r].has(m.participantAName) || playersInRound[r].has(m.participantBName))
+      ) {
+        r++;
       }
-
-      playersPerRound.add(m.participantAName);
-      playersPerRound.add(m.participantBName);
+      if (r === rounds.length) {
+        rounds.push([]);
+        playersInRound.push(new Set());
+      }
+      playersInRound[r].add(m.participantAName);
+      playersInRound[r].add(m.participantBName);
 
       const match: HistoricalMatchInput = {
         participantAName: m.participantAName,
@@ -1670,17 +1802,13 @@
       };
       if (m.rounds.length > 0) {
         match.rounds = m.rounds;
-        match.twentiesA = m.rounds.reduce((s, r) => s + r.twentiesA, 0);
-        match.twentiesB = m.rounds.reduce((s, r) => s + r.twentiesB, 0);
+        match.twentiesA = m.rounds.reduce((s, r2) => s + r2.twentiesA, 0);
+        match.twentiesB = m.rounds.reduce((s, r2) => s + r2.twentiesB, 0);
       }
-      currentRound.push(match);
+      rounds[r].push(match);
     }
 
-    if (currentRound.length > 0) {
-      rounds.push({ roundNumber, matches: currentRound });
-    }
-
-    return rounds;
+    return rounds.map((matchesInRound, idx) => ({ roundNumber: idx + 1, matches: matchesInRound }));
   }
 
   // Build input data for Firebase
@@ -1712,6 +1840,10 @@
           if (g.matches && g.matches.length > 0) {
             group.schedule = buildGroupSchedule(g.matches);
           }
+          // Real round count (SS/RR headers) — keeps the BYE bonus honest
+          if (g.totalRounds) {
+            group.totalRounds = g.totalRounds;
+          }
           return group;
         })
       };
@@ -1732,13 +1864,15 @@
           rounds: b.rounds.map(r => ({
             name: r.name,
             matches: r.matches.map(m => ({
-              participantAName: m.participantAName || participants.find(p => p.id === m.participantAId)?.name || '',
-              participantBName: m.participantBName || participants.find(p => p.id === m.participantBId)?.name || '',
+              participantAName: m.participantAName || (m.participantAId === 'BYE' ? 'BYE' : participants.find(p => p.id === m.participantAId)?.name || ''),
+              participantBName: m.participantBName || (m.participantBId === 'BYE' ? 'BYE' : participants.find(p => p.id === m.participantBId)?.name || ''),
               scoreA: m.scoreA,
               scoreB: m.scoreB,
               twentiesA: m.twentiesA,
               twentiesB: m.twentiesB,
-              isWalkover: m.isWalkover
+              isWalkover: m.isWalkover,
+              // Keep round-level detail (edit mode used to drop it on save)
+              ...(m.rounds && m.rounds.length > 0 ? { rounds: m.rounds } : {})
             }))
           }))
         }))
@@ -1778,6 +1912,9 @@
     if (posterUrl && posterUrl.trim()) {
       input.posterUrl = posterUrl.trim();
     }
+    if (venueId) {
+      input.venueId = venueId;
+    }
     if (isTest) {
       input.isTest = true;
     }
@@ -1812,6 +1949,9 @@
       };
 
       // Add optional fields only if they have values
+      if (tournamentTime) {
+        input.tournamentTime = tournamentTime;
+      }
       if (edition !== undefined && edition !== null) {
         input.edition = edition;
       }
@@ -1876,10 +2016,16 @@
         gameType,
         rankingConfig: rankingEnabled
           ? { enabled: true, tier: selectedTier }
-          : { enabled: false },
-        // Use Firestore dot notation for nested field update
-        'groupStage.qualificationMode': qualificationMode
+          : { enabled: false }
       };
+
+      // Dot-notation update CREATES the nested map if missing — only touch
+      // groupStage.qualificationMode when the tournament actually has a group
+      // stage (upcoming tournaments don't; a phantom groupStage broke every
+      // consumer that gates on its presence).
+      if (editingTournament?.groupStage) {
+        updates['groupStage.qualificationMode'] = qualificationMode;
+      }
 
       if (edition !== undefined && edition !== null) {
         updates.edition = edition;
@@ -1934,8 +2080,14 @@
       let success: boolean | string | null;
 
       if (isEditMode && editTournamentId) {
-        // Update existing tournament (completing an upcoming tournament)
-        success = await completeUpcomingTournament(editTournamentId, input);
+        // Update existing tournament (completing an upcoming tournament).
+        // Pass the roster as loaded at wizard-open so registrations that
+        // arrived meanwhile are merged in instead of overwritten.
+        success = await completeUpcomingTournament(
+          editTournamentId,
+          input,
+          (editingTournament?.participants || []).map(p => ({ userId: p.userId, name: p.name }))
+        );
         if (success) {
           clearDraft();
           showToastMessage(m.import_success(), 'success');
@@ -1983,19 +2135,44 @@
       // Fall back to internal brackets state otherwise.
       let knockoutBrackets;
       if (knockoutParseResult?.success && knockoutParseResult.brackets && knockoutParseResult.brackets.length > 0) {
-        knockoutBrackets = knockoutParseResult.brackets.map((b, index) => ({
+        // The raw parse result was never BYE-normalized (unlike the `brackets`
+        // state, which goes through addByeMatchesToBrackets) — normalize it
+        // here or the transformed bracket loses BYE matches and match order.
+        const genericBrackets = knockoutParseResult.brackets.map((b, index) => ({
           name: b.name,
           label: b.label,
           // sourcePositions not in ParsedKnockoutBracket; compute from index or look up from brackets state
           sourcePositions: brackets.find(wb => wb.label === b.label)?.sourcePositions ?? [index * 2 + 1, index * 2 + 2],
           rounds: b.rounds.map(r => ({
+            id: crypto.randomUUID(),
+            name: r.name,
+            matches: r.matches.map(match => ({
+              id: crypto.randomUUID(),
+              participantAId: '',
+              participantAName: match.participantAName,
+              participantBId: '',
+              participantBName: match.participantBName,
+              scoreA: match.scoreA ?? 0,
+              scoreB: match.scoreB ?? 0,
+              twentiesA: 0,
+              twentiesB: 0,
+              isWalkover: false,
+              rounds: match.rounds  // Preserve round data
+            }))
+          }))
+        }));
+        knockoutBrackets = addByeMatchesToBrackets(genericBrackets).map(b => ({
+          name: b.name,
+          label: b.label,
+          sourcePositions: b.sourcePositions,
+          rounds: b.rounds.map(r => ({
             name: r.name,
             matches: r.matches.map(match => ({
               participantAName: match.participantAName,
               participantBName: match.participantBName,
-              scoreA: match.scoreA ?? 0,
-              scoreB: match.scoreB ?? 0,
-              rounds: match.rounds  // Preserve round data
+              scoreA: match.scoreA,
+              scoreB: match.scoreB,
+              rounds: (match as { rounds?: Array<{ pointsA: number; pointsB: number; twentiesA: number; twentiesB: number }> }).rounds ?? []
             }))
           }))
         }));
@@ -2011,7 +2188,7 @@
               participantBName: match.participantBName || participants.find(p => p.id === match.participantBId)?.name || '',
               scoreA: match.scoreA,
               scoreB: match.scoreB,
-              rounds: []
+              rounds: match.rounds ?? []
             }))
           }))
         }));

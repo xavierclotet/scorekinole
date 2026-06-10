@@ -453,4 +453,143 @@ Alice,Bob,6,2
 		// First group has participants, second group (after blank line) detected
 		// Match lines should be parsed as part of some group
 	});
+
+	it('REGRESSION: matches separated from standings by a blank line attach to the group just closed (not silently dropped)', () => {
+		// This is exactly the shape our own serializer emits.
+		const text = `Grupo 1
+Alice,4,2
+Bob,2,1
+
+Alice,Bob,6,2
+2,0,1,0`;
+
+		const result = parseGroupStageText(text);
+		expect(result.success).toBe(true);
+		expect(result.groups).toHaveLength(1);
+		expect(result.groups[0].matches).toHaveLength(1);
+		expect(result.groups[0].matches![0]).toMatchObject({
+			participantAName: 'Alice',
+			participantBName: 'Bob',
+			scoreA: 6,
+			scoreB: 2
+		});
+		expect(result.groups[0].matches![0].rounds).toHaveLength(1);
+	});
+
+	it('orphan matches do not bleed into the NEXT group', () => {
+		const text = `Grupo 1
+Alice,4,2
+Bob,2,1
+
+Alice,Bob,6,2
+
+Grupo 2
+Carol,4,1
+Dave,2,0`;
+
+		const result = parseGroupStageText(text);
+		expect(result.success).toBe(true);
+		expect(result.groups).toHaveLength(2);
+		expect(result.groups[0].matches).toHaveLength(1);
+		expect(result.groups[1].matches).toBeUndefined();
+	});
+
+	it('full round-trip: serialize (standings + matches) → parse preserves the matches', () => {
+		const groups = [{
+			name: 'Grupo 1',
+			standings: [
+				{ participantName: 'Alice', points: 2, total20s: 3 },
+				{ participantName: 'Bob', points: 0, total20s: 1 }
+			],
+			matches: [{
+				participantAName: 'Alice',
+				participantBName: 'Bob',
+				scoreA: 6,
+				scoreB: 2,
+				rounds: [{ pointsA: 2, pointsB: 0, twentiesA: 1, twentiesB: 0 }]
+			}]
+		}];
+
+		const text = serializeGroupStageData(groups);
+		const parsed = parseGroupStageText(text);
+
+		expect(parsed.success).toBe(true);
+		expect(parsed.groups).toHaveLength(1);
+		expect(parsed.groups[0].participants).toHaveLength(2);
+		expect(parsed.groups[0].matches).toHaveLength(1);
+		expect(parsed.groups[0].matches![0].scoreA).toBe(6);
+		expect(parsed.groups[0].matches![0].rounds).toHaveLength(1);
+	});
+
+	it('warns when a "match" line looks like a standings row with a comma inside the name', () => {
+		const text = `Grupo 1
+Alice,60,20
+Rowe, Harry,63,90`;
+
+		const result = parseGroupStageText(text);
+		// Still parses (we can't know the intent), but the admin gets a heads-up
+		expect(result.warnings.some(w => w.includes('Rowe'))).toBe(true);
+	});
+
+	it('does NOT warn for a normal match line with plausible scores', () => {
+		const text = `Grupo 1
+Alice,4,2
+Bob,2,1
+Alice,Bob,6,2`;
+
+		const result = parseGroupStageText(text);
+		expect(result.warnings).toHaveLength(0);
+	});
+});
+
+// ============================================================================
+// parseGroupStageText — totalRounds exposure (round-based format)
+// ============================================================================
+
+describe('parseGroupStageText — totalRounds from SS/RR headers', () => {
+	it('exposes the real round count on each parsed group', () => {
+		const text = `SS R1
+Alice,Bob,6,2
+Carol,Dave,4,4
+
+SS R2
+Alice,Carol,6,0
+Bob,Dave,2,6`;
+
+		const result = parseGroupStageText(text);
+		expect(result.success).toBe(true);
+		expect(result.groups[0].totalRounds).toBe(2);
+	});
+
+	it('Swiss data with fewer rounds than N-1 produces no phantom BYE wins', () => {
+		// 4 players, only 2 rounds played (full RR would be 3). Everyone played
+		// both rounds, so nobody may receive a BYE bonus.
+		const text = `SS R1
+Alice,Bob,6,2
+Carol,Dave,4,4
+
+SS R2
+Alice,Carol,6,0
+Bob,Dave,2,6`;
+
+		const result = parseGroupStageText(text, 'singles', 'WINS');
+		expect(result.success).toBe(true);
+		const byName = new Map(result.groups[0].participants.map(p => [p.name, p]));
+		// WINS mode: win=2, draw=1. Alice 2 wins → 4. Dave 1 win + 1 draw → 3.
+		// Bob 0+0 → 0. Carol 1 draw → 1.
+		expect(byName.get('Alice')!.points).toBe(4);
+		expect(byName.get('Dave')!.points).toBe(3);
+		expect(byName.get('Carol')!.points).toBe(1);
+		expect(byName.get('Bob')!.points).toBe(0);
+	});
+
+	it('standings-format groups have no totalRounds (left to schedule inference)', () => {
+		const text = `Grupo 1
+Alice,60,20
+Bob,50,15`;
+
+		const result = parseGroupStageText(text);
+		expect(result.success).toBe(true);
+		expect(result.groups[0].totalRounds).toBeUndefined();
+	});
 });

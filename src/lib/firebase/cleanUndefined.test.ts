@@ -515,3 +515,36 @@ describe('cleanUndefined: real tournament configurations', () => {
     expect(result[1].totalPointsScored).toBe(10);
   });
 });
+
+describe('cleanUndefined — FieldValue sentinel passthrough', () => {
+  /** Structural stand-in for the modular SDK's FieldValue (deleteField(), serverTimestamp(), ...) */
+  function fakeSentinel(methodName: string) {
+    return {
+      _methodName: methodName,
+      isEqual(other: unknown) {
+        return other === this;
+      }
+    };
+  }
+
+  it('passes deleteField()-like sentinels through untouched (same reference)', () => {
+    const sentinel = fakeSentinel('deleteField');
+    const result = cleanUndefined({ description: sentinel, name: 'Open' });
+    expect((result as Record<string, unknown>).description).toBe(sentinel);
+    expect((result as Record<string, unknown>).name).toBe('Open');
+  });
+
+  it('passes nested sentinels through (recursion does not strip the prototype)', () => {
+    const sentinel = fakeSentinel('serverTimestamp');
+    const result = cleanUndefined({ meta: { updatedAt: sentinel } }) as { meta: { updatedAt: unknown } };
+    expect(result.meta.updatedAt).toBe(sentinel);
+  });
+
+  it('does not mistake ordinary objects for sentinels', () => {
+    const ordinary = { _methodName: 123, isEqual: 'nope', keep: undefined };
+    const result = cleanUndefined({ data: ordinary }) as { data: Record<string, unknown> };
+    // Recursed into like a normal object: undefined stripped
+    expect('keep' in result.data).toBe(false);
+    expect(result.data._methodName).toBe(123);
+  });
+});

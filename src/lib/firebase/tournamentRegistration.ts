@@ -407,7 +407,8 @@ export interface EditBaseline {
  *    waitlist (covers the concurrent unregister→promotion case where the
  *    promoted user would otherwise appear in both lists).
  *
- * Identity: participants by `id`, waitlist entries by `userId`.
+ * Identity: participants by `id` for baseline/edited matching, then de-duped by
+ * user identity (`participantIdentityKey`); waitlist entries by `userId`.
  *
  * Pure function — no Firebase side effects. The caller MUST run it inside the
  * same transaction that reads `current` and writes the result, so the
@@ -428,7 +429,27 @@ export function reconcileEditedRegistration(
   const concurrentParticipants = current.participants.filter(
     p => !baselineParticipantIds.has(p.id) && !editedParticipantIds.has(p.id)
   );
-  const participants = [...edited.participants, ...concurrentParticipants];
+  const mergedParticipants = [...edited.participants, ...concurrentParticipants];
+
+  // De-dup by user identity, not just row id: the admin may have manually added
+  // a player (fresh local id) who self-registered concurrently (different id).
+  // Without this, the same user ends up twice as a primary participant.
+  // Preference: keep the concurrent Firestore row (it carries registration-time
+  // data like userKey/partner) over an admin-added stub, unless the kept row was
+  // already part of the baseline (a pre-existing row with admin edits).
+  const concurrentIds = new Set(concurrentParticipants.map(p => p.id));
+  const indexByIdentity = new Map<string, number>();
+  const participants: TournamentParticipant[] = [];
+  for (const p of mergedParticipants) {
+    const identity = participantIdentityKey(p);
+    const existingIdx = indexByIdentity.get(identity);
+    if (existingIdx === undefined) {
+      indexByIdentity.set(identity, participants.length);
+      participants.push(p);
+    } else if (concurrentIds.has(p.id) && !baselineParticipantIds.has(participants[existingIdx].id)) {
+      participants[existingIdx] = p;
+    }
+  }
 
   // Waitlist entries added concurrently.
   const concurrentWaitlist = current.waitlist.filter(

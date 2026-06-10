@@ -2030,17 +2030,28 @@ export async function transformImportedToLive(
       return false;
     }
 
-    // Build name → participant ID map
+    // Build name → participant ID map. Doubles results may reference the team
+    // by "Player1 / Player2" or by its artistic team name, so both must resolve.
     const participantMap = new Map<string, string>();
     for (const p of tournament.participants || []) {
       participantMap.set(p.name.toLowerCase().trim(), p.id);
       if (p.partner?.name) {
         participantMap.set(p.partner.name.toLowerCase().trim(), p.id);
+        participantMap.set(`${p.name} / ${p.partner.name}`.toLowerCase().trim(), p.id);
+      }
+      if (p.teamName) {
+        participantMap.set(p.teamName.toLowerCase().trim(), p.id);
       }
     }
 
+    const unknownParticipants = new Set<string>();
     const findParticipantId = (name: string): string => {
-      return participantMap.get(name.toLowerCase().trim()) || `unknown-${name}`;
+      const foundId = participantMap.get(name.toLowerCase().trim());
+      if (!foundId) {
+        unknownParticipants.add(name);
+        return `unknown-${name}`;
+      }
+      return foundId;
     };
 
     // Update groupStage config fields
@@ -2063,14 +2074,18 @@ export async function transformImportedToLive(
     const buildBracket = (bracketInput: TransformBracket, bracketCfg: TransformBracketConfig = config.bracketConfig) => {
       const rounds = bracketInput.rounds.map((r, rIndex) => {
         const matches: BracketMatch[] = r.matches.map((m, mIndex) => {
-          const isBye = m.participantBName === 'BYE' || m.participantAName === 'BYE';
-          const participantA = findParticipantId(m.participantAName);
-          const participantB = isBye && m.participantBName === 'BYE'
-            ? ''
-            : findParticipantId(m.participantBName);
+          // BYE can appear on EITHER side; never run "BYE" through the
+          // participant lookup (it used to persist participantA: "unknown-BYE").
+          const aIsBye = m.participantAName.toUpperCase() === 'BYE';
+          const bIsBye = m.participantBName.toUpperCase() === 'BYE';
+          const isBye = aIsBye || bIsBye;
+          const participantA = aIsBye ? '' : findParticipantId(m.participantAName);
+          const participantB = bIsBye ? '' : findParticipantId(m.participantBName);
+          // A tied score between two real players has no winner (the old
+          // `scoreA > scoreB ? A : B` silently crowned B on ties).
           const winner = isBye
-            ? (m.participantBName === 'BYE' ? participantA : participantB)
-            : (m.scoreA > m.scoreB ? participantA : participantB);
+            ? (aIsBye ? participantB : participantA)
+            : (m.scoreA > m.scoreB ? participantA : (m.scoreB > m.scoreA ? participantB : undefined));
 
           const total20sA = m.rounds.length > 0 ? m.rounds.reduce((s, rr) => s + rr.twentiesA, 0) : 0;
           const total20sB = m.rounds.length > 0 ? m.rounds.reduce((s, rr) => s + rr.twentiesB, 0) : 0;
@@ -2081,7 +2096,7 @@ export async function transformImportedToLive(
             participantA,
             ...(participantB ? { participantB } : {}),
             status: isBye ? 'WALKOVER' : 'COMPLETED',
-            winner,
+            ...(winner ? { winner } : {}),
             totalPointsA: m.scoreA,
             totalPointsB: m.scoreB,
             total20sA,
@@ -2168,6 +2183,16 @@ export async function transformImportedToLive(
           ...(firstWinner ? { winner: firstWinner } : {})
         };
       }
+    }
+
+    if (unknownParticipants.size > 0) {
+      // Abort instead of persisting `unknown-<name>` participant IDs (same
+      // rationale as createHistoricalTournament): those matches can't be
+      // resolved by any view and silently corrupt the bracket.
+      console.error(
+        `❌ Transform aborted — ${unknownParticipants.size} name(s) in the knockout data don't match any participant: ${[...unknownParticipants].join(', ')}`
+      );
+      return false;
     }
 
     // Build the updates

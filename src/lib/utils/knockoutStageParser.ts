@@ -557,11 +557,21 @@ export function addByeMatchesToBrackets<T extends GenericBracketEntry>(brackets:
 			const usedPositions = new Set<number>();
 
 			for (const match of currentRound.matches) {
-				// Determine winner of this match
-				const winner = match.scoreA > match.scoreB ? match.participantAName : match.participantBName;
-
-				// Find where this winner appears in next round
-				const position = winnerToPosition.get(winner);
+				// The advancer is whichever participant appears in the next round —
+				// robust to tied scores (a draw decided on 20s, or a data-entry slip),
+				// where "scoreA > scoreB ? A : B" would wrongly pick B, orphan the
+				// match (_position -1) AND fabricate a duplicate "A vs BYE" match.
+				const aPosition = winnerToPosition.get(match.participantAName);
+				const bPosition = winnerToPosition.get(match.participantBName);
+				let position: number | undefined;
+				if (aPosition !== undefined && bPosition === undefined) {
+					position = aPosition;
+				} else if (bPosition !== undefined && aPosition === undefined) {
+					position = bPosition;
+				} else if (aPosition !== undefined && bPosition !== undefined) {
+					// Both appear in the next round (corrupt data) — fall back to score
+					position = match.scoreA >= match.scoreB ? aPosition : bPosition;
+				}
 
 				if (position !== undefined) {
 					positionedMatches.push({ ...match, _position: position });

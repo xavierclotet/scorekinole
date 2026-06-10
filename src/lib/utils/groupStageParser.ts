@@ -46,6 +46,9 @@ export interface ParsedGroup {
 	name: string;
 	participants: ParsedParticipant[];
 	matches?: ParsedGroupMatch[];  // Optional, present if match lines were found
+	/** Real round count from "SS Rn"/"RR Rn" headers (round-based format only).
+	 * Consumers should prefer this over re-inferring rounds from the match list. */
+	totalRounds?: number;
 }
 
 export interface ParseResult {
@@ -426,7 +429,8 @@ function parseRoundBasedGroupStage(
 		return {
 			name: components.length > 1 ? `Grupo ${idx + 1}` : 'Grupo 1',
 			participants: computeStandingsFromMatches(playerSet, groupMatches, qualificationMode, totalRounds),
-			matches: groupMatches
+			matches: groupMatches,
+			totalRounds
 		};
 	});
 
@@ -467,6 +471,7 @@ export function parseGroupStageText(
 	const lines = text.split('\n');
 	let currentGroup: { name: string; participants: Omit<ParsedParticipant, 'position'>[]; matches: ParsedGroupMatch[] } | null = null;
 	let currentMatch: ParsedGroupMatch | null = null;
+	let lastFinalizedGroup: ParsedGroup | null = null;
 	let lineNumber = 0;
 
 	function finalizeCurrentGroup() {
@@ -479,6 +484,7 @@ export function parseGroupStageText(
 			group.matches = currentGroup.matches;
 		}
 		groups.push(group);
+		lastFinalizedGroup = group;
 	}
 
 	for (const rawLine of lines) {
@@ -515,10 +521,6 @@ export function parseGroupStageText(
 
 		if (lineType === 'match') {
 			// Match line: Name,Name,Score,Score → add to group matches
-			if (!currentGroup) {
-				currentGroup = { name: 'Grupo 1', participants: [], matches: [] };
-				warnings.push(`Línea ${lineNumber}: partida sin grupo definido, asignada a "Grupo 1"`);
-			}
 			const parts = line.split(',');
 			const newMatch: ParsedGroupMatch = {
 				participantAName: parts[0].trim(),
@@ -527,6 +529,23 @@ export function parseGroupStageText(
 				scoreB: parseInt(parts[3].trim(), 10),
 				rounds: []
 			};
+			// A standings line whose name contains a comma ("Rowe, Harry,63,90")
+			// parses as a match with implausibly large scores — flag it.
+			if (newMatch.scoreA >= 20 && newMatch.scoreB >= 20) {
+				warnings.push(`Línea ${lineNumber}: "${line}" interpretada como partida ${newMatch.scoreA}-${newMatch.scoreB}. Si es una línea de clasificación con coma en el nombre, corrígela.`);
+			}
+			if (!currentGroup) {
+				if (lastFinalizedGroup) {
+					// Matches separated from their group's standings by a blank line
+					// (the shape our own serializer emits) belong to the group that
+					// was just closed — they used to be silently dropped.
+					(lastFinalizedGroup.matches ??= []).push(newMatch);
+					currentMatch = newMatch;
+					continue;
+				}
+				currentGroup = { name: 'Grupo 1', participants: [], matches: [] };
+				warnings.push(`Línea ${lineNumber}: partida sin grupo definido, asignada a "Grupo 1"`);
+			}
 			currentGroup.matches.push(newMatch);
 			currentMatch = newMatch;
 			continue;

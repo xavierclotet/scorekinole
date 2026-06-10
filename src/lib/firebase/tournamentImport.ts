@@ -30,6 +30,7 @@ import {
   getDocs,
   setDoc,
   updateDoc,
+  runTransaction,
   query,
   where,
   orderBy,
@@ -39,6 +40,7 @@ import {
 } from 'firebase/firestore';
 import { get } from 'svelte/store';
 import { browser } from '$app/environment';
+import { participantIdentityKey } from './tournamentRegistration';
 
 /**
  * Input structure for creating a historical tournament
@@ -57,6 +59,7 @@ export interface HistoricalTournamentInput {
   rankingConfig: RankingConfig;
   externalLink?: string;
   posterUrl?: string;
+  venueId?: string;
 
   // Structure
   phaseType: 'ONE_PHASE' | 'TWO_PHASE' | 'GROUP_ONLY';
@@ -96,6 +99,10 @@ export interface HistoricalGroupInput {
   name: string;
   standings: HistoricalStandingInput[];
   schedule?: HistoricalGroupRoundInput[];
+  /** Real number of rounds played (from "SS Rn" / "RR Rn" headers). When absent,
+   * it is inferred from `schedule.length` — which over-counts if the schedule was
+   * re-segmented from an unordered match list. Used for the BYE bonus. */
+  totalRounds?: number;
 }
 
 export interface HistoricalGroupRoundInput {
@@ -269,8 +276,10 @@ function buildGroupStageFromInput(
       }
     }
 
-    // Calculate totalRounds and BYE bonus
-    const totalRounds = g.schedule?.length || 0;
+    // Calculate totalRounds and BYE bonus. Prefer the real round count from the
+    // parser (SS/RR headers): the re-segmented schedule can over-count rounds for
+    // unordered match lists, which used to award phantom BYE wins to everyone.
+    const totalRounds = g.totalRounds ?? (g.schedule?.length || 0);
     const allScores = totalRounds > 0
       ? g.schedule!.flatMap(r => r.matches.flatMap(m => [m.scoreA, m.scoreB]))
       : [];
@@ -344,7 +353,7 @@ function buildGroupStageFromInput(
     type: 'ROUND_ROBIN',
     groups,
     currentRound: 0,
-    totalRounds: groups[0]?.schedule?.length || 0,
+    totalRounds: groupStageInput.groups[0]?.totalRounds ?? (groups[0]?.schedule?.length || 0),
     isComplete: true,
     gameMode: 'points',
     pointsToWin: 7,
@@ -855,6 +864,9 @@ export async function createHistoricalTournament(
     if (input.tournamentTime) {
       tournament.tournamentTime = input.tournamentTime;
     }
+    if (input.venueId) {
+      tournament.venueId = input.venueId;
+    }
 
     if (unknownParticipants.size > 0) {
       // Abort instead of writing `unknown-<name>` participant IDs: those rows can't be
@@ -917,8 +929,10 @@ export async function updateHistoricalTournament(
       return false;
     }
 
+    // stripUndefined: optional fields arrive as `undefined` when cleared (e.g.
+    // tournamentTime) and Firestore rejects undefined field values outright.
     await updateDoc(tournamentRef, {
-      ...updates,
+      ...stripUndefined(updates),
       updatedAt: serverTimestamp()
     });
 
@@ -945,6 +959,7 @@ export interface UpcomingTournamentInput {
   rankingConfig: RankingConfig;
   externalLink?: string;
   posterUrl?: string;
+  venueId?: string;
   isTest?: boolean;
 }
 
@@ -978,9 +993,9 @@ export async function createUpcomingTournament(
     const profile = await getUserProfileById(user.id);
     const userName = profile?.playerName || user.name || 'Unknown';
 
-    // Generate tournament ID and key
+    // Generate tournament ID and key (uniqueness-checked, no confusing 0/O/1/I chars)
     const tournamentId = `tournament-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-    const tournamentKey = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const tournamentKey = await generateUniqueKey();
 
     // Build minimal tournament document (no finalStage, no groupStage, no participants)
     const tournament: Partial<Tournament> = {
@@ -1025,6 +1040,9 @@ export async function createUpcomingTournament(
     if (input.tournamentTime) {
       tournament.tournamentTime = input.tournamentTime;
     }
+    if (input.venueId) {
+      tournament.venueId = input.venueId;
+    }
 
     console.log('📦 Upcoming tournament to save:', JSON.stringify(tournament, null, 2));
 
@@ -1046,12 +1064,19 @@ export async function createUpcomingTournament(
 /**
  * Complete an upcoming tournament by adding full configuration
  * This rebuilds the tournament with participants, groups, brackets, etc.
- * and sets isImported=false (converting from upcoming to normal tournament)
+ *
+ * The write runs inside a transaction: participants who self-registered while
+ * the admin had the wizard open (upcoming tournaments accept registrations) are
+ * merged in instead of being clobbered by the wizard's stale roster.
+ *
+ * @param baselineParticipants roster as loaded when the wizard opened — rows in
+ *   Firestore that are in neither this baseline nor the new roster are treated
+ *   as concurrent registrations and preserved.
  */
 export async function completeUpcomingTournament(
   id: string,
   input: HistoricalTournamentInput,
-  keepAsUpcoming: boolean = false
+  baselineParticipants?: Array<{ userId?: string; name?: string }>
 ): Promise<boolean> {
   if (!browser || !isFirebaseEnabled() || !db) {
     console.warn('Firebase disabled');
@@ -1370,8 +1395,8 @@ export async function completeUpcomingTournament(
       startedAt: input.tournamentDate,
       completedAt: input.tournamentDate,
       updatedAt: serverTimestamp(),
-      // Convert from upcoming to imported (completed historical)
-      isImported: keepAsUpcoming ? true : true // Keep as imported for historical tournaments
+      // Keep as imported for historical tournaments
+      isImported: true
     };
 
     // Add optional fields
@@ -1390,6 +1415,9 @@ export async function completeUpcomingTournament(
     if (input.tournamentTime) {
       updateData.tournamentTime = input.tournamentTime;
     }
+    if (input.venueId) {
+      updateData.venueId = input.venueId;
+    }
 
     if (unknownParticipants.size > 0) {
       // Abort instead of writing `unknown-<name>` participant IDs (see
@@ -1400,7 +1428,30 @@ export async function completeUpcomingTournament(
       return false;
     }
 
-    await updateDoc(tournamentRef, updateData);
+    // Transactional write: merge registrations that arrived after the wizard
+    // loaded its roster instead of overwriting them (lost-update bug class).
+    await runTransaction(db, async (transaction) => {
+      const txnSnapshot = await transaction.get(tournamentRef);
+      if (!txnSnapshot.exists()) {
+        throw new Error('Tournament not found: ' + id);
+      }
+
+      if (baselineParticipants) {
+        const baselineKeys = new Set(baselineParticipants.map(participantIdentityKey));
+        const newRosterKeys = new Set(participants.map(participantIdentityKey));
+        const currentParticipants = (txnSnapshot.data().participants || []) as TournamentParticipant[];
+        const concurrent = currentParticipants.filter(p => {
+          const key = participantIdentityKey(p);
+          return !baselineKeys.has(key) && !newRosterKeys.has(key);
+        });
+        if (concurrent.length > 0) {
+          console.warn(`⚠️ Preserving ${concurrent.length} concurrent registration(s):`, concurrent.map(p => p.name));
+          updateData.participants = [...participants, ...concurrent];
+        }
+      }
+
+      transaction.update(tournamentRef, updateData);
+    });
 
     console.log('✅ Upcoming tournament completed:', id);
     return true;

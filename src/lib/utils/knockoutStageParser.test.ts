@@ -721,6 +721,80 @@ describe('addByeMatchesToBrackets', () => {
 		expect(semiMatches).toHaveLength(2);
 		expect(semiMatches.every(m => m.participantBName !== 'BYE')).toBe(true);
 	});
+
+	it('REGRESSION: a tied match where A advanced is positioned by next-round presence, not score', () => {
+		// Semi: Alice vs Bob 6-6 (draw decided on 20s — Alice advanced), Carol vs Dave 8-2
+		// Final: Alice vs Carol
+		// The old `scoreA > scoreB ? A : B` picked Bob as "winner" of the tie, found
+		// no Bob in the final (position -1), AND fabricated a phantom "Alice vs BYE".
+		const brackets: GenericBracketEntry[] = [
+			{
+				name: 'Test',
+				label: 'A',
+				sourcePositions: [1, 2],
+				rounds: [
+					{
+						id: '1',
+						name: 'Semi',
+						matches: [
+							makeMatch('m1', 'Alice', 'Bob', 6, 6),
+							makeMatch('m2', 'Carol', 'Dave', 8, 2)
+						]
+					},
+					{
+						id: '2',
+						name: 'Final',
+						matches: [makeMatch('m3', 'Alice', 'Carol', 8, 4)]
+					}
+				]
+			}
+		];
+
+		const result = addByeMatchesToBrackets(brackets);
+		const semiMatches = result[0].rounds[0].matches;
+
+		// Exactly the two real matches — no phantom duplicate "Alice vs BYE"
+		expect(semiMatches).toHaveLength(2);
+		expect(semiMatches.every(m => m.participantBName !== 'BYE')).toBe(true);
+		// Alice appears as participantA of the final → her semi occupies position 0
+		expect(semiMatches[0].participantAName).toBe('Alice');
+		expect(semiMatches[1].participantAName).toBe('Carol');
+	});
+
+	it('tied match where B advanced also resolves via next-round presence', () => {
+		// Semi: Alice vs Bob 5-5 (Bob advanced), Carol vs Dave 8-2
+		// Final: Carol vs Bob → Bob is slot B → his semi is position 1
+		const brackets: GenericBracketEntry[] = [
+			{
+				name: 'Test',
+				label: 'A',
+				sourcePositions: [1, 2],
+				rounds: [
+					{
+						id: '1',
+						name: 'Semi',
+						matches: [
+							makeMatch('m1', 'Alice', 'Bob', 5, 5),
+							makeMatch('m2', 'Carol', 'Dave', 8, 2)
+						]
+					},
+					{
+						id: '2',
+						name: 'Final',
+						matches: [makeMatch('m3', 'Carol', 'Bob', 8, 4)]
+					}
+				]
+			}
+		];
+
+		const result = addByeMatchesToBrackets(brackets);
+		const semiMatches = result[0].rounds[0].matches;
+
+		expect(semiMatches).toHaveLength(2);
+		expect(semiMatches[0].participantAName).toBe('Carol');
+		expect(semiMatches[1].participantAName).toBe('Alice'); // Alice-Bob match at position 1
+		expect(semiMatches.every(m => m.participantBName !== 'BYE')).toBe(true);
+	});
 });
 
 // ─── getKnockoutPlaceholderText ─────────────────────────────────────────────

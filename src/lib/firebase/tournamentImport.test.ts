@@ -71,6 +71,16 @@ vi.mock('firebase/firestore', () => ({
   updateDoc: async (ref: { path: string }, data: Record<string, unknown>) => {
     capturedDocs[ref.path] = data;
   },
+  runTransaction: async (_db: unknown, fn: (txn: unknown) => Promise<unknown>) =>
+    fn({
+      get: async () => ({
+        exists: () => mockExistingDoc !== null,
+        data: () => (mockExistingDoc ? JSON.parse(JSON.stringify(mockExistingDoc)) : undefined)
+      }),
+      update: (ref: { path: string }, data: Record<string, unknown>) => {
+        capturedDocs[ref.path] = data;
+      }
+    }),
   getDocs: async () => ({ empty: true, forEach: () => {} }),
   collection: (_db: unknown, name: string) => ({ name }),
   query: (...args: unknown[]) => args,
@@ -87,7 +97,7 @@ vi.mock('firebase/firestore', () => ({
 }));
 
 // Import AFTER mocks
-const { createHistoricalTournament, completeUpcomingTournament } = await import('./tournamentImport');
+const { createHistoricalTournament, completeUpcomingTournament, updateHistoricalTournament } = await import('./tournamentImport');
 
 // ─── Setup ──────────────────────────────────────────────────────────────────
 
@@ -1169,6 +1179,146 @@ describe('completeUpcomingTournament', () => {
     const bob = group.standings.find((s: any) => s.participantId === bobId);
     expect(bob.matchesTied).toBe(1);
     expect(bob.points).toBe(1); // 0 wins + 1 tie
+  });
+
+  it('REGRESSION: preserves a registration that arrived while the wizard was open (lost-update)', async () => {
+    const eve = {
+      id: 'participant-eve',
+      type: 'REGISTERED',
+      userId: 'user-eve',
+      name: 'Eve',
+      rankingSnapshot: 0,
+      status: 'ACTIVE'
+    };
+    mockExistingDoc = {
+      ...upcomingDoc(),
+      participants: [
+        { id: 'p-alice', type: 'GUEST', name: 'Alice', rankingSnapshot: 0, status: 'ACTIVE' },
+        // Eve self-registered AFTER the admin loaded the wizard
+        eve
+      ]
+    };
+    // Baseline = roster as loaded at wizard-open (Eve was not there yet)
+    const baseline = [{ name: 'Alice' }, { name: 'Bob' }, { name: 'Charlie' }, { name: 'Diana' }];
+
+    const ok = await completeUpcomingTournament('upc-1', inputWithMatches(), baseline);
+
+    expect(ok).toBe(true);
+    const doc = capturedDocs['tournaments/upc-1'];
+    const names = (doc.participants as Array<{ name: string }>).map(p => p.name);
+    expect(names).toContain('Eve');
+    // The rebuilt roster is intact too
+    expect(names).toEqual(expect.arrayContaining(['Alice', 'Bob', 'Charlie', 'Diana']));
+    // Eve's row is preserved verbatim (not rebuilt)
+    const savedEve = (doc.participants as Array<{ id: string }>).find(p => p.id === 'participant-eve');
+    expect(savedEve).toBeDefined();
+  });
+
+  it('does NOT resurrect a participant the admin deliberately removed', async () => {
+    mockExistingDoc = {
+      ...upcomingDoc(),
+      participants: [
+        // Frank was in the roster when the wizard opened; the admin removed him
+        { id: 'p-frank', type: 'GUEST', name: 'Frank', rankingSnapshot: 0, status: 'ACTIVE' }
+      ]
+    };
+    const baseline = [
+      { name: 'Alice' }, { name: 'Bob' }, { name: 'Charlie' }, { name: 'Diana' },
+      { name: 'Frank' }
+    ];
+
+    const ok = await completeUpcomingTournament('upc-1', inputWithMatches(), baseline);
+
+    expect(ok).toBe(true);
+    const doc = capturedDocs['tournaments/upc-1'];
+    const names = (doc.participants as Array<{ name: string }>).map(p => p.name);
+    expect(names).not.toContain('Frank');
+  });
+});
+
+// ─── Regression: BYE bonus must use the REAL round count, not schedule length ─
+
+describe('BYE bonus with explicit totalRounds', () => {
+  /** 4 players, full RR (3 real rounds) but the schedule arrives over-segmented
+   * into 6 single-match "rounds" (what the old greedy round inference produced
+   * for player-grouped match lists). */
+  const overSegmentedGroup = (totalRounds?: number) => ({
+    numGroups: 1,
+    qualificationMode: 'WINS' as const,
+    groups: [{
+      name: 'Grupo A',
+      standings: [
+        { participantName: 'Alice', position: 1, points: 6 },
+        { participantName: 'Bob', position: 2, points: 4 },
+        { participantName: 'Charlie', position: 3, points: 2 },
+        { participantName: 'Diana', position: 4, points: 0 }
+      ],
+      schedule: [
+        { roundNumber: 1, matches: [{ participantAName: 'Alice', participantBName: 'Bob', scoreA: 8, scoreB: 2 }] },
+        { roundNumber: 2, matches: [{ participantAName: 'Alice', participantBName: 'Charlie', scoreA: 8, scoreB: 2 }] },
+        { roundNumber: 3, matches: [{ participantAName: 'Alice', participantBName: 'Diana', scoreA: 8, scoreB: 2 }] },
+        { roundNumber: 4, matches: [{ participantAName: 'Bob', participantBName: 'Charlie', scoreA: 8, scoreB: 2 }] },
+        { roundNumber: 5, matches: [{ participantAName: 'Bob', participantBName: 'Diana', scoreA: 8, scoreB: 2 }] },
+        { roundNumber: 6, matches: [{ participantAName: 'Charlie', participantBName: 'Diana', scoreA: 8, scoreB: 2 }] }
+      ],
+      ...(totalRounds ? { totalRounds } : {})
+    }]
+  });
+
+  const inputFor = (totalRounds?: number) => baseInput({
+    participants: [
+      { name: 'Alice' }, { name: 'Bob' }, { name: 'Charlie' }, { name: 'Diana' }
+    ],
+    groupStage: overSegmentedGroup(totalRounds)
+  });
+
+  async function importedAliceStats(totalRounds?: number) {
+    const id = await createHistoricalTournament(inputFor(totalRounds));
+    expect(id).toBeTruthy();
+    const doc = getCapturedTournament()!;
+    const participants = doc.participants as Array<{ id: string; name: string }>;
+    const aliceId = participants.find(p => p.name === 'Alice')!.id;
+    const group = (doc.groupStage as any).groups[0];
+    return group.standings.find((s: any) => s.participantId === aliceId);
+  }
+
+  it('with totalRounds=3 nobody gets phantom BYE wins', async () => {
+    const alice = await importedAliceStats(3);
+    // Alice played and won exactly her 3 real matches
+    expect(alice.matchesPlayed).toBe(3);
+    expect(alice.matchesWon).toBe(3);
+    expect(alice.points).toBe(6); // WINS mode: 3 wins * 2
+  });
+
+  it('characterization: WITHOUT totalRounds the schedule length (6) still drives the bonus', async () => {
+    const alice = await importedAliceStats(undefined);
+    // 6 - 3 played = 3 phantom byes — this is the legacy fallback behaviour
+    // that providing totalRounds avoids.
+    expect(alice.matchesWon).toBe(6);
+  });
+});
+
+// ─── Regression: updateHistoricalTournament must strip undefined values ──────
+
+describe('updateHistoricalTournament', () => {
+  it('strips undefined optional fields instead of sending them to Firestore', async () => {
+    mockExistingDoc = {
+      id: 'hist-1',
+      status: 'COMPLETED',
+      isImported: true,
+      createdBy: { userId: 'admin-user-1' },
+      name: 'Old Open'
+    };
+
+    const ok = await updateHistoricalTournament('hist-1', {
+      name: 'New Open',
+      tournamentTime: undefined // cleared time input — used to make updateDoc throw
+    });
+
+    expect(ok).toBe(true);
+    const doc = capturedDocs['tournaments/hist-1'];
+    expect(doc.name).toBe('New Open');
+    expect('tournamentTime' in doc).toBe(false);
   });
 });
 

@@ -22,6 +22,7 @@
   import { goto } from '$app/navigation';
   import { createTournament, getTournament, updateTournament, updateDraftTournamentMergingRegistration, searchTournamentNames, checkTournamentKeyExists, checkTournamentQuota, type TournamentNameInfo } from '$lib/firebase/tournaments';
   import { addParticipants } from '$lib/firebase/tournamentParticipants';
+  import { deleteField } from 'firebase/firestore';
   import { buildRegistrationConfig, adminPromoteFromWaitlist, adminRemoveFromWaitlist, validateRegistrationDeadline } from '$lib/firebase/tournamentRegistration';
   import type { TournamentParticipant, WaitlistEntry, RankingConfig, TournamentTier, ScoringSystem } from '$lib/types/tournament';
   import { normalizeTier } from '$lib/types/tournament';
@@ -89,6 +90,10 @@
   let regAllowWaitlist = $state(true);
   let regNotify = $state(true);
   let regShowList = $state(true);
+  // Deadline as loaded in edit mode: an already-expired deadline that the admin
+  // did NOT touch must not block saving (typical case: editing the roster on
+  // tournament morning, after registration closed).
+  let editOriginalDeadlineMs = $state<number | null>(null);
 
   /** Validate the registration deadline against the tournamentDate.
    * Returns an i18n message key when invalid, or null when valid / not applicable. */
@@ -101,6 +106,10 @@
       : undefined;
     const result = validateRegistrationDeadline(deadlineMs, tournamentMs);
     if (result.valid) return null;
+    if (result.reason === 'in_past' && editMode && deadlineMs === editOriginalDeadlineMs) {
+      // Unchanged pre-existing deadline that simply expired: not an input error.
+      return null;
+    }
     switch (result.reason) {
       case 'in_past': return 'registration_deadlineErrorPast' as const;
       case 'after_tournament': return 'registration_deadlineErrorAfterTournament' as const;
@@ -268,7 +277,8 @@
   // Field-specific error checks
   let keyHasError = $derived(touchedFields.has('key') && (!/^[A-Z0-9]{6}$/.test(key) || keyCheckResult?.exists));
   let nameHasError = $derived(touchedFields.has('name') && !name.trim());
-  let editionHasError = $derived(touchedFields.has('edition') && edition !== undefined && (edition < 1 || edition > 1000));
+  // `edition` is null (not undefined) when the number input is cleared
+  let editionHasError = $derived(touchedFields.has('edition') && edition != null && (edition < 1 || edition > 1000));
 
   // Loading state
   let creating = $state(false);
@@ -665,12 +675,16 @@
         }
         if (p.teamName) participant.teamName = p.teamName;
         if (p.email) participant.email = p.email;
+        if (p.userKey) participant.userKey = p.userKey;
         if (p.photoURL && !participant.photoURL) participant.photoURL = p.photoURL;
         if (p.partner) {
           participant.partner = {
             type: p.partner.type,
             name: p.partner.name,
             ...(p.partner.userId && { userId: p.partner.userId }),
+            ...(p.partner.userKey && { userKey: p.partner.userKey }),
+            ...(p.partner.email && { email: p.partner.email }),
+            ...(p.partner.rankingSnapshot !== undefined && { rankingSnapshot: p.partner.rankingSnapshot }),
             ...(p.partner.photoURL && { photoURL: p.partner.photoURL })
           };
           // Refresh partner name from profile too
@@ -706,8 +720,20 @@
       // Registration config
       const reg = tournament.registration;
       regEnabled = reg?.enabled ?? false;
-      regDeadlineDate = reg?.deadline ? new Date(reg.deadline).toISOString().split('T')[0] : '';
-      regDeadlineTime = reg?.deadline ? new Date(reg.deadline).toTimeString().slice(0, 5) : '';
+      if (reg?.deadline) {
+        // Date AND time must come from the same (local) basis. The previous
+        // toISOString() date + local time mix shifted the deadline a full day
+        // back for local times earlier than the UTC offset.
+        const d = new Date(reg.deadline);
+        const pad = (n: number) => String(n).padStart(2, '0');
+        regDeadlineDate = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        regDeadlineTime = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        editOriginalDeadlineMs = new Date(`${regDeadlineDate}T${regDeadlineTime}`).getTime();
+      } else {
+        regDeadlineDate = '';
+        regDeadlineTime = '';
+        editOriginalDeadlineMs = null;
+      }
       regMaxParticipants = reg?.maxParticipants;
       regEntryFee = reg?.entryFee ?? '';
       regAllowWaitlist = reg?.allowWaitlist !== false;
@@ -1027,7 +1053,7 @@
       descriptionLanguage = data.descriptionLanguage || 'es';
       externalLink = data.externalLink || '';
       posterUrl = data.posterUrl || '';
-      edition = data.edition || 1;
+      edition = data.edition ?? undefined;
       country = data.country || '';
       city = data.city || '';
       address = data.address || '';
@@ -1110,9 +1136,13 @@
       // Step 4: Ranking
       rankingEnabled = data.rankingEnabled ?? false;
       selectedTier = normalizeTier(data.selectedTier);
+      selectedScoringSystem = data.selectedScoringSystem === 'FSI' ? 'FSI' : 'CLASSIC';
 
-      // Step 3: Participants
-      participants = data.participants || [];
+      // Step 3: Participants — backfill ids for drafts saved by older builds
+      // (the keyed {#each} and removeParticipant() need a unique id per row)
+      participants = (data.participants || []).map((p: any) =>
+        p && p.id ? p : { ...p, id: crypto.randomUUID() }
+      );
 
       // Step 5 - Time configuration
       tcMinutesPer4RoundsSingles = data.tcMinutesPer4RoundsSingles ?? DEFAULT_TIME_CONFIG.minutesPer4RoundsSingles;
@@ -1224,6 +1254,7 @@
         isTest,
         rankingEnabled,
         selectedTier,
+        selectedScoringSystem,
         participants,
         // Time configuration
         tcMinutesPer4RoundsSingles,
@@ -1292,7 +1323,8 @@
   // Handle key input change
   function handleKeyInput(e: Event) {
     const target = e.target as HTMLInputElement;
-    const newKey = target.value.replace(/[^A-Z0-9]/g, '').toUpperCase().substring(0, 6);
+    // Uppercase BEFORE stripping, otherwise typed/pasted lowercase letters are deleted
+    const newKey = target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 6);
     key = newKey;
     checkKeyExists(newKey);
   }
@@ -1419,7 +1451,7 @@
     if (keyCheckResult?.exists) {
       errors.push(m.wizard_errorKeyInUse({ key }));
     }
-    if (edition !== undefined && (edition < 1 || edition > 1000)) {
+    if (edition != null && (edition < 1 || edition > 1000)) {
       errors.push(m.wizard_errorEditionRange());
     }
     if (!country) {
@@ -1436,6 +1468,21 @@
     return errors;
   }
 
+  /** A phase game-config is invalid when the value for its active mode is
+   * missing (cleared number inputs become null) or below 1. `!(x >= 1)` also
+   * catches null/undefined/NaN. */
+  function phaseConfigInvalid(
+    mode: 'points' | 'rounds',
+    pointsToWinValue: number | null | undefined,
+    roundsToPlayValue: number | null | undefined,
+    matchesToWinValue: number | null | undefined
+  ): boolean {
+    if (mode === 'points' && !(Number(pointsToWinValue) >= 1)) return true;
+    if (mode === 'rounds' && !(Number(roundsToPlayValue) >= 1)) return true;
+    if (!(Number(matchesToWinValue) >= 1)) return true;
+    return false;
+  }
+
   function getStep2Errors(): string[] {
     const errors: string[] = [];
     if (numTables < 1) {
@@ -1446,6 +1493,26 @@
     }
     if ((phaseType === 'TWO_PHASE' || phaseType === 'GROUP_ONLY') && groupStageType === 'SWISS' && numSwissRounds < 3) {
       errors.push(m.wizard_errorSwissMinRounds());
+    }
+    // Cleared/invalid numeric game-config inputs used to pass validation and be
+    // silently dropped from the payload (the tournament then ran with hidden
+    // defaults). Validate every phase block that is active for this phaseType.
+    let configInvalid = false;
+    if (phaseType === 'TWO_PHASE' || phaseType === 'GROUP_ONLY') {
+      configInvalid ||= phaseConfigInvalid(groupGameMode, groupPointsToWin, groupRoundsToPlay, groupMatchesToWin);
+    }
+    if (phaseType === 'TWO_PHASE' || phaseType === 'ONE_PHASE') {
+      configInvalid ||= phaseConfigInvalid(earlyRoundsGameMode, earlyRoundsPointsToWin, earlyRoundsToPlay, earlyRoundsMatchesToWin);
+      configInvalid ||= phaseConfigInvalid(semifinalGameMode, semifinalPointsToWin, semifinalRoundsToPlay, semifinalMatchesToWin);
+      configInvalid ||= phaseConfigInvalid(bracketFinalGameMode, bracketFinalPointsToWin, bracketFinalRoundsToPlay, bracketFinalMatchesToWin);
+    }
+    if (phaseType === 'TWO_PHASE' && finalStageMode === 'SPLIT_DIVISIONS') {
+      configInvalid ||= phaseConfigInvalid(silverEarlyRoundsGameMode, silverEarlyRoundsPointsToWin, silverEarlyRoundsToPlay, silverEarlyRoundsMatchesToWin);
+      configInvalid ||= phaseConfigInvalid(silverSemifinalGameMode, silverSemifinalPointsToWin, silverSemifinalRoundsToPlay, silverSemifinalMatchesToWin);
+      configInvalid ||= phaseConfigInvalid(silverBracketFinalGameMode, silverBracketFinalPointsToWin, silverBracketFinalRoundsToPlay, silverBracketFinalMatchesToWin);
+    }
+    if (configInvalid) {
+      errors.push(m.wizard_errorGameConfigIncomplete());
     }
     return errors;
   }
@@ -1462,6 +1529,15 @@
     const errors: string[] = [];
     if (participants.length < 2) {
       errors.push(m.wizard_errorMinParticipants());
+    }
+    // Switching gameType after adding participants used to pass validation and
+    // create structurally broken tournaments (doubles without partners, or
+    // singles rows carrying stale partner objects).
+    if (gameType === 'doubles' && participants.some(p => !p.partner?.name)) {
+      errors.push(m.wizard_errorDoublesPartnersMissing());
+    }
+    if (gameType === 'singles' && participants.some(p => p.partner)) {
+      errors.push(m.wizard_errorSinglesWithPartners());
     }
     return errors;
   }
@@ -1571,8 +1647,15 @@
   }
 
   async function createTournamentSubmit() {
+    // Guard against double-submit BEFORE any await: the key/quota checks take
+    // hundreds of ms, and a double-click during that window used to enter this
+    // function twice and create two tournaments with the same key.
+    if (creating) return;
+    creating = true;
+
     // Validate EVERY config step, not just the visible one
     if (!validateAllSteps()) {
+      creating = false;
       return;
     }
 
@@ -1588,6 +1671,7 @@
       keyCheckResult = keyCheck;
       currentStep = 1;
       validationErrors = getStep1Errors();
+      creating = false;
       return;
     }
 
@@ -1600,11 +1684,10 @@
           .replace('{limit}', freshQuota.limit.toString());
         toastType = 'error';
         showToast = true;
+        creating = false;
         return;
       }
     }
-
-    creating = true;
 
     try {
       const rankingConfig: RankingConfig = {
@@ -1825,6 +1908,41 @@
 
       // Clean undefined values before sending to Firebase
       const cleanedData = cleanObject(tournamentData);
+
+      if (editMode && editTournamentId) {
+        // Firestore update() never deletes absent keys, so a field the admin
+        // CLEARED in the wizard would silently resurrect (cleanObject strips it
+        // from the payload). Map cleared optional fields to deleteField().
+        const optionalFieldValues: Record<string, unknown> = {
+          description: description.trim(),
+          descriptionLanguage: description.trim(),
+          externalLink: externalLink.trim(),
+          posterUrl: posterUrl.trim(),
+          address: address.trim(),
+          venueId,
+          tournamentDate,
+          tournamentTime,
+          edition
+        };
+        for (const [field, value] of Object.entries(optionalFieldValues)) {
+          if (value === '' || value === null || value === undefined) {
+            cleanedData[field] = deleteField();
+          }
+        }
+        // Same for whole phase objects: switching phaseType used to leave the
+        // stale groupStage/finalStage of the previous type in the document.
+        if (phaseType === 'GROUP_ONLY') {
+          cleanedData.finalStage = deleteField();
+          cleanedData.finalStageMinQualifiers = deleteField();
+        } else if (phaseType === 'ONE_PHASE') {
+          cleanedData.groupStage = deleteField();
+          cleanedData.finalStageMinQualifiers = deleteField();
+        } else if (phaseType === 'TWO_PHASE' && finalStageMinQualifiers === 8) {
+          // 8 is the implicit default and is omitted from the payload; delete a
+          // stale non-default value instead of letting it linger.
+          cleanedData.finalStageMinQualifiers = deleteField();
+        }
+      }
 
       if (editMode && editTournamentId) {
         // UPDATE MODE — merge participants/waitlist against live Firestore state
