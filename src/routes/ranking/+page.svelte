@@ -18,6 +18,7 @@
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import PullToRefresh from '$lib/components/PullToRefresh.svelte';
 	import { getFlagUrl } from '$lib/utils/countryFlags';
+	import { buildUserProfileParam } from '$lib/utils/userProfileUrl';
 	import { theme } from '$lib/stores/theme';
 	import SEO from '$lib/components/SEO.svelte';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
@@ -250,7 +251,8 @@
 				{#each availableYears as year}
 					<option value={year}>{year}</option>
 				{/each}
-				{#if availableYears.length === 0}
+				{#if !availableYears.includes(selectedYear)}
+					<!-- ?year= outside the known list (deep link): show it so the select matches the table -->
 					<option value={selectedYear}>{selectedYear}</option>
 				{/if}
 			</select>
@@ -337,7 +339,7 @@
 											{player.playerName.charAt(0).toUpperCase()}
 										</div>
 									{/if}
-									<a href="/users/{player.key || player.odId}" class="player-name-link">
+									<a href="/users/{buildUserProfileParam(player.playerName, player.key, player.odId)}" class="player-name-link">
 										{player.playerName}
 										{#if player.country}
 											<img class="player-country-flag" src={getFlagUrl(player.country)} alt={player.country} />

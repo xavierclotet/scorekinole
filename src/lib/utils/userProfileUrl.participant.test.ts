@@ -63,7 +63,8 @@ describe('Singles participant with userKey', () => {
 			authProvider: 'google.com'
 		});
 		expect(participant.userKey).toBe('JOA001');
-		expect(getUserProfileUrl(participant)).toBe('/users/JOA001');
+		// Friendly URL: name slug + key (only the trailing key resolves the user)
+		expect(getUserProfileUrl(participant)).toBe('/users/joan-garcia-JOA001');
 	});
 
 	it('registered user without key falls back to userId', () => {
@@ -98,7 +99,7 @@ describe('Singles participant with userKey', () => {
 			isDoubles: false,
 			tournamentName: 'Copa 2025'
 		});
-		expect(url).toBe('/users/JOA001');
+		expect(url).toBe('/users/joan-JOA001');
 		expect(url).not.toContain('tournament');
 	});
 });
@@ -123,12 +124,12 @@ describe('Doubles pair with userKey', () => {
 			isDoubles: true,
 			tournamentName: 'Dobles Open'
 		});
-		expect(url).toBe('/users/JOA001?tournament=Dobles%20Open');
+		expect(url).toBe('/users/joan-JOA001?tournament=Dobles%20Open');
 	});
 
 	it('partner URL uses userKey with tournament param', () => {
 		const url = getPartnerProfileUrl(pair.partner!, 'Dobles Open');
-		expect(url).toBe('/users/MAR002?tournament=Dobles%20Open');
+		expect(url).toBe('/users/marc-MAR002?tournament=Dobles%20Open');
 	});
 });
 
@@ -160,7 +161,7 @@ describe('Mixed: one player with key, partner without', () => {
 
 	it('primary uses userKey', () => {
 		const url = getUserProfileUrl(pair, { isDoubles: true, tournamentName: 'T' });
-		expect(url).toBe('/users/JOA001?tournament=T');
+		expect(url).toBe('/users/joan-JOA001?tournament=T');
 	});
 
 	it('partner falls back to userId', () => {

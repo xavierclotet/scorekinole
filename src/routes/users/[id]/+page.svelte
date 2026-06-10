@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { onMount } from 'svelte';
+	import { untrack } from 'svelte';
 	import * as m from '$lib/paraglide/messages.js';
+	import { buildUserProfileParam, extractUserKeyFromParam } from '$lib/utils/userProfileUrl';
 	import { getUserProfileById, getUserProfileByKey, type UserProfile } from '$lib/firebase/userProfile';
 	import { getTournamentMatchesForUser } from '$lib/firebase/firestore';
 	import type { MatchHistory } from '$lib/types/history';
@@ -22,10 +23,6 @@
 	// Resolved Firestore user ID (after key lookup if needed)
 	let resolvedUserId = $state<string | null>(null);
 
-	function isLikelyKey(param: string): boolean {
-		return /^[A-Za-z0-9]{6}$/.test(param);
-	}
-
 	// Data state
 	let isLoading = $state(true);
 	let profile = $state<UserProfile | null>(null);
@@ -33,36 +30,66 @@
 	let tournamentRecords: TournamentRecord[] = $state([]);
 	let notFound = $state(false);
 
-	onMount(() => {
-		loadData();
+	// Canonical route param (slug-key) for the SEO tag — one canonical URL per
+	// profile no matter which form (key, uid, slug-key) the visitor arrived with.
+	let canonicalParam = $derived(
+		(profile && resolvedUserId
+			? buildUserProfileParam(profile.playerName, profile.key, resolvedUserId)
+			: null) ?? urlParam
+	);
+
+	// Guards against a slow/stale load overwriting a newer one (e.g. fast navigation
+	// between profiles, or a late 15s timeout rejection after a pull-to-refresh).
+	let loadSeq = 0;
+
+	// Reload whenever the route param changes — SvelteKit reuses this component
+	// when navigating /users/A → /users/B, so onMount alone would show stale data.
+	// Skip the reload when the new param still points to the already-loaded profile
+	// (i.e. the canonical slug redirect below rewrote the URL).
+	$effect(() => {
+		const param = urlParam;
+		const alreadyLoaded = untrack(() => {
+			if (!profile) return false;
+			if (param === resolvedUserId) return true;
+			const key = extractUserKeyFromParam(param);
+			return !!key && !!profile.key && profile.key.toUpperCase() === key.toUpperCase();
+		});
+		if (!alreadyLoaded) loadData();
 	});
 
 	async function loadData() {
+		const seq = ++loadSeq;
 		isLoading = true;
 		notFound = false;
+		profile = null;
+		resolvedUserId = null;
+		matches = [];
+		tournamentRecords = [];
 		try {
 			const timeout = new Promise<never>((_, reject) =>
 				setTimeout(() => reject(new Error('Timeout')), 15000)
 			);
 
-			// Resolve user: try key first (6-char), then Firebase ID
+			// Resolve user: try the trailing 6-char key first (handles both
+			// `xavi-clotet-4A7ZV2` and bare `4A7ZV2`), then fall back to Firebase ID
 			let userProfile: UserProfile | null = null;
-			let userId: string;
+			let userId: string = urlParam;
 
-			if (isLikelyKey(urlParam)) {
-				const result = await Promise.race([getUserProfileByKey(urlParam), timeout]);
+			const keyFromParam = extractUserKeyFromParam(urlParam);
+			if (keyFromParam) {
+				const result = await Promise.race([getUserProfileByKey(keyFromParam), timeout]);
 				if (result) {
 					userProfile = result;
 					userId = result.odId;
-				} else {
-					notFound = true;
-					return;
 				}
-			} else {
-				userId = urlParam;
+			}
+
+			if (!userProfile) {
+				// Not a key, or key lookup failed — try the param as a document ID
 				userProfile = await Promise.race([getUserProfileById(userId), timeout]) as UserProfile | null;
 			}
 
+			if (seq !== loadSeq) return;
 			if (!userProfile) {
 				notFound = true;
 				return;
@@ -71,18 +98,39 @@
 			resolvedUserId = userId;
 			profile = userProfile;
 
-			const tournamentMatches = await Promise.race([
+			// Normalize the address bar to the canonical slug-key form
+			// (e.g. /users/4A7ZV2 or /users/<uid> → /users/xavi-clotet-4A7ZV2).
+			// The $effect above detects this rewrite and skips the redundant reload.
+			const canonical = buildUserProfileParam(userProfile.playerName, userProfile.key, userId);
+			if (canonical && canonical !== urlParam) {
+				goto(`/users/${canonical}${page.url.search}`, {
+					replaceState: true,
+					keepFocus: true,
+					noScroll: true
+				});
+			}
+
+			const { matches: tournamentMatches, completedTournamentIds } = await Promise.race([
 				getTournamentMatchesForUser(userId),
 				timeout
-			]) as MatchHistory[];
+			]) as Awaited<ReturnType<typeof getTournamentMatchesForUser>>;
+			if (seq !== loadSeq) return;
 
 			matches = tournamentMatches;
-			tournamentRecords = userProfile.tournaments ?? [];
+			// Mirror /ranking: drop records from test or deleted tournaments.
+			// completedTournamentIds === null means the query failed — keep all records.
+			const records = userProfile.tournaments ?? [];
+			tournamentRecords = completedTournamentIds
+				? records.filter((r) => completedTournamentIds.has(r.tournamentId))
+				: records;
 		} catch (error) {
+			if (seq !== loadSeq) return;
 			console.error('Error loading user profile:', error);
-			notFound = true;
+			// Only "not found" if the profile itself failed; a matches timeout
+			// still shows the profile (with empty match list).
+			notFound = !profile;
 		} finally {
-			isLoading = false;
+			if (seq === loadSeq) isLoading = false;
 		}
 	}
 
@@ -112,7 +160,7 @@
 <SEO
 	title={profile ? `${profile.playerName} - Crokinole Stats | Scorekinole` : 'Player Profile - Scorekinole'}
 	description={profile ? `Crokinole tournament statistics for ${profile.playerName}. View match history, win rate, and 20s accuracy.` : 'Player profile and statistics.'}
-	canonical="https://scorekinole.web.app/users/{urlParam}"
+	canonical="https://scorekinole.web.app/users/{canonicalParam}"
 />
 
 <div class="profile-container" data-theme={$theme}>

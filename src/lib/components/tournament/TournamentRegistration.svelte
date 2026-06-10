@@ -4,6 +4,7 @@
   import { currentUser } from '$lib/firebase/auth';
   import { registerForTournament, unregisterFromTournament, leaveWaitlist, filterEligiblePartners, getRegistrationErrorMessageKey } from '$lib/firebase/tournamentRegistration';
   import { createRequestSequencer } from '$lib/utils/requestSequencer';
+  import { buildUserProfileParam } from '$lib/utils/userProfileUrl';
   import * as Dialog from '$lib/components/ui/dialog';
   import LoginModal from '$lib/components/LoginModal.svelte';
   import * as m from '$lib/paraglide/messages.js';
@@ -76,13 +77,10 @@
     })();
   });
 
-  function profileHref(userId: string | undefined, userKey: string | undefined): string | null {
-    if (userKey) return `/users/${userKey}`;
-    if (userId) {
-      const cached = resolvedKeys.get(userId);
-      if (cached) return `/users/${cached}`;
-    }
-    return null;
+  function profileHref(userId: string | undefined, userKey: string | undefined, name?: string): string | null {
+    const key = userKey || (userId ? resolvedKeys.get(userId) : null);
+    if (!key) return null;
+    return `/users/${buildUserProfileParam(name, key)}`;
   }
   let isFull = $derived(reg.maxParticipants ? participantCount >= reg.maxParticipants : false);
   let waitlistAllowed = $derived(reg.allowWaitlist !== false);
@@ -583,8 +581,8 @@
     </div>
     <ul class="enrolled-grid">
       {#each tournament.participants as p (p.id)}
-        {@const mainHref = profileHref(p.userId, p.userKey)}
-        {@const partnerHref = p.partner ? profileHref(p.partner.userId, p.partner.userKey) : null}
+        {@const mainHref = profileHref(p.userId, p.userKey, p.name)}
+        {@const partnerHref = p.partner ? profileHref(p.partner.userId, p.partner.userKey, p.partner.name) : null}
         <li class="enrolled-item">
           {#if p.photoURL}
             <img src={p.photoURL} alt="" class="enrolled-avatar" referrerpolicy="no-referrer" />

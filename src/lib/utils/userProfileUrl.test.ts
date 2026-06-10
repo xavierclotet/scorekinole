@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { getUserProfileUrl, getPartnerProfileUrl } from './userProfileUrl';
+import {
+	getUserProfileUrl,
+	getPartnerProfileUrl,
+	slugifyPlayerName,
+	buildUserProfileParam,
+	extractUserKeyFromParam
+} from './userProfileUrl';
 
 describe('getUserProfileUrl', () => {
 	// --- Basic resolution ---
@@ -109,5 +115,97 @@ describe('getPartnerProfileUrl', () => {
 	it('appends encoded tournament name', () => {
 		expect(getPartnerProfileUrl({ userKey: 'PAR001' }, 'Torneo Dobles #2'))
 			.toBe('/users/PAR001?tournament=Torneo%20Dobles%20%232');
+	});
+});
+
+// ─────────────────────────────────────────────────
+// Friendly slug URLs (slug-KEY scheme)
+// ─────────────────────────────────────────────────
+
+describe('slugifyPlayerName', () => {
+	it('lowercases and replaces spaces with dashes', () => {
+		expect(slugifyPlayerName('Xavi Clotet')).toBe('xavi-clotet');
+	});
+
+	it('strips accents and diacritics', () => {
+		expect(slugifyPlayerName('José María Aznárez')).toBe('jose-maria-aznarez');
+		expect(slugifyPlayerName('Núria Güell')).toBe('nuria-guell');
+	});
+
+	it('converts ñ and ç', () => {
+		expect(slugifyPlayerName('Begoña Muñoz')).toBe('begona-munoz');
+		expect(slugifyPlayerName('Çelik França')).toBe('celik-franca');
+	});
+
+	it('collapses consecutive non-alphanumeric characters', () => {
+		expect(slugifyPlayerName("Joan  (el 'Crack') !!")).toBe('joan-el-crack');
+	});
+
+	it('trims leading and trailing dashes', () => {
+		expect(slugifyPlayerName('--Marc--')).toBe('marc');
+	});
+
+	it('returns empty string for names with nothing usable', () => {
+		expect(slugifyPlayerName('🎯🎯🎯')).toBe('');
+		expect(slugifyPlayerName('')).toBe('');
+	});
+
+	it('caps very long names without trailing dash', () => {
+		const slug = slugifyPlayerName('A'.repeat(30) + ' ' + 'B'.repeat(30));
+		expect(slug.length).toBeLessThanOrEqual(40);
+		expect(slug.endsWith('-')).toBe(false);
+	});
+
+	it('keeps numbers', () => {
+		expect(slugifyPlayerName('Player 99')).toBe('player-99');
+	});
+});
+
+describe('buildUserProfileParam', () => {
+	it('builds slug-key when name and key exist', () => {
+		expect(buildUserProfileParam('Xavi Clotet', '4A7ZV2')).toBe('xavi-clotet-4A7ZV2');
+	});
+
+	it('returns bare key when name yields no slug', () => {
+		expect(buildUserProfileParam('🎯', 'ABC123')).toBe('ABC123');
+		expect(buildUserProfileParam(undefined, 'ABC123')).toBe('ABC123');
+	});
+
+	it('falls back to userId when no key (no slug prefix — the uid must stay resolvable)', () => {
+		expect(buildUserProfileParam('Xavi Clotet', undefined, 'firebaseUid123')).toBe('firebaseUid123');
+	});
+
+	it('returns null when neither key nor id exist', () => {
+		expect(buildUserProfileParam('Xavi Clotet', undefined)).toBeNull();
+		expect(buildUserProfileParam(undefined, undefined, undefined)).toBeNull();
+	});
+});
+
+describe('extractUserKeyFromParam', () => {
+	it('extracts trailing key from slug-key param', () => {
+		expect(extractUserKeyFromParam('xavi-clotet-4A7ZV2')).toBe('4A7ZV2');
+	});
+
+	it('accepts a bare 6-char key (legacy links)', () => {
+		expect(extractUserKeyFromParam('4A7ZV2')).toBe('4A7ZV2');
+	});
+
+	it('takes only the last token even if the slug has 6-char words', () => {
+		expect(extractUserKeyFromParam('andreu-soldevila-AB12CD')).toBe('AB12CD');
+	});
+
+	it('returns null for Firebase UIDs (long, no dash before last 6 chars)', () => {
+		expect(extractUserKeyFromParam('dG0LKFPimJP0fXqucKoxofcfNS73')).toBeNull();
+	});
+
+	it('returns null for short or non-matching params', () => {
+		expect(extractUserKeyFromParam('abc')).toBeNull();
+		expect(extractUserKeyFromParam('xavi-cl')).toBeNull(); // last token is not 6 chars
+	});
+
+	it('a trailing 6-letter name token is indistinguishable from a key (resolution falls back to ID lookup)', () => {
+		// Documented limitation: "clotet" is 6 alphanumeric chars, so it parses as a key.
+		// The /users/[id] page handles this: key lookup fails → tries the param as doc ID.
+		expect(extractUserKeyFromParam('xavi-clotet')).toBe('clotet');
 	});
 });

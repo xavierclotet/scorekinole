@@ -596,16 +596,22 @@ export async function getUserTournamentMatches(): Promise<MatchHistory[]> {
 		return [];
 	}
 
-	return _fetchTournamentMatchesForUser(user.id);
+	return (await _fetchTournamentMatchesForUser(user.id)).matches;
 }
 
 /**
- * Get tournament matches for any user by ID (public — no auth required)
+ * Public tournament data for a user profile (no auth required).
+ * Returns the user's tournament matches plus the set of completed non-test tournament IDs,
+ * so callers can filter profile tournament records the same way /ranking does
+ * (test and deleted tournaments excluded). `completedTournamentIds` is null when the
+ * query failed — callers should then skip filtering rather than drop everything.
  */
-export async function getTournamentMatchesForUser(userId: string): Promise<MatchHistory[]> {
+export async function getTournamentMatchesForUser(
+	userId: string
+): Promise<{ matches: MatchHistory[]; completedTournamentIds: Set<string> | null }> {
 	if (!browser || !isFirebaseEnabled()) {
 		console.warn('Firebase disabled - returning empty tournament matches');
-		return [];
+		return { matches: [], completedTournamentIds: null };
 	}
 
 	return _fetchTournamentMatchesForUser(userId);
@@ -614,16 +620,26 @@ export async function getTournamentMatchesForUser(userId: string): Promise<Match
 /**
  * Shared helper: fetch and convert tournament matches for a given userId
  */
-async function _fetchTournamentMatchesForUser(userId: string): Promise<MatchHistory[]> {
+async function _fetchTournamentMatchesForUser(
+	userId: string
+): Promise<{ matches: MatchHistory[]; completedTournamentIds: Set<string> | null }> {
 	try {
 		const tournamentsRef = collection(db!, 'tournaments');
 		const completedQuery = query(tournamentsRef, where('status', '==', 'COMPLETED'));
 		const snapshot = await getDocs(completedQuery);
 
 		const tournamentMatches: MatchHistory[] = [];
+		const completedTournamentIds = new Set<string>();
 
 		snapshot.forEach((docSnap) => {
 			const data = docSnap.data();
+
+			// Skip test tournaments — /ranking excludes them, public profiles must match
+			if (data.isTest === true) {
+				return;
+			}
+
+			completedTournamentIds.add(docSnap.id);
 
 			// Convert timestamps
 			const tournament: Tournament = {
@@ -922,9 +938,9 @@ async function _fetchTournamentMatchesForUser(userId: string): Promise<MatchHist
 		tournamentMatches.sort((a, b) => b.startTime - a.startTime);
 
 		console.log(`✅ Retrieved ${tournamentMatches.length} tournament matches for user`);
-		return tournamentMatches;
+		return { matches: tournamentMatches, completedTournamentIds };
 	} catch (error) {
 		console.error('❌ Error getting tournament matches:', error);
-		return [];
+		return { matches: [], completedTournamentIds: null };
 	}
 }
