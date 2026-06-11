@@ -27,6 +27,11 @@
     probabilities = null
   }: Props = $props();
 
+  // Responsive: below this width, standings and schedule stack vertically
+  // inside each group (resizable side-by-side panes are unusable that narrow)
+  let viewportWidth = $state(typeof window !== 'undefined' ? window.innerWidth : 1280);
+  let stackColumns = $derived(viewportWidth < 720);
+
   let expandedGroups = $state<Set<string>>(new Set());
   let generatingRound = $state(false);
   let groupExpandedRounds = $state<Record<string, Set<number>>>({}); // Track expanded rounds per group
@@ -342,6 +347,8 @@
   }
 </script>
 
+<svelte:window bind:innerWidth={viewportWidth} />
+
 <div class="groups-view">
   <!-- Header with progress (hidden for single-group Swiss as info moves to group header) -->
   {#if !(isSwiss && groups.length === 1)}
@@ -535,49 +542,65 @@
                 </div>
               {/if}
 
-              <!-- Resizable: Standings + Schedule side by side -->
-              <div class="group-content resizable-wrapper">
-                <Resizable.PaneGroup direction="horizontal" class="admin-resizable-group">
-                  <Resizable.Pane defaultSize={50} minSize={45}>
-                    <div class="resizable-column standings-col">
-                      <h4 class="column-label">{m.tournament_standings()}</h4>
-                      <GroupStandings
-                        standings={group.standings}
-                        participants={tournament.participants}
-                        {isSwiss}
-                        {qualificationMode}
-                        enableTiebreaker={false}
-                        isDoubles={tournament.gameType === 'doubles'}
-                      />
-                    </div>
-                  </Resizable.Pane>
+              {#snippet standingsBlock()}
+                <h4 class="column-label">{m.tournament_standings()}</h4>
+                <GroupStandings
+                  standings={group.standings}
+                  participants={tournament.participants}
+                  {isSwiss}
+                  {qualificationMode}
+                  enableTiebreaker={false}
+                  isDoubles={tournament.gameType === 'doubles'}
+                />
+              {/snippet}
 
-                  <Resizable.Handle />
+              {#snippet scheduleBlock()}
+                <h4 class="column-label">{m.tournament_schedule()}</h4>
+                <MatchSchedule
+                  rounds={rounds as any}
+                  participants={tournament.participants}
+                  {currentRound}
+                  onMatchClick={(match) => handleMatchClick(group.id, match)}
+                  {filterTable}
+                  {filterStatus}
+                  {filterParticipant}
+                  gameMode={tournament.groupStage?.gameMode || 'rounds'}
+                  expandedRoundsState={groupExpandedRounds[group.id] || null}
+                  onExpandedRoundsChange={(expanded) => setGroupExpandedRounds(group.id, expanded)}
+                  {totalRounds}
+                  isDoubles={tournament.gameType === 'doubles'}
+                  matchesToWin={tournament.groupStage?.matchesToWin || 1}
+                  {probabilities}
+                  groupStageType={tournament.groupStage?.type}
+                />
+              {/snippet}
 
-                  <Resizable.Pane defaultSize={50} minSize={25}>
-                    <div class="resizable-column schedule-col">
-                      <h4 class="column-label">{m.tournament_schedule()}</h4>
-                      <MatchSchedule
-                        rounds={rounds as any}
-                        participants={tournament.participants}
-                        {currentRound}
-                        onMatchClick={(match) => handleMatchClick(group.id, match)}
-                        {filterTable}
-                        {filterStatus}
-                        {filterParticipant}
-                        gameMode={tournament.groupStage?.gameMode || 'rounds'}
-                        expandedRoundsState={groupExpandedRounds[group.id] || null}
-                        onExpandedRoundsChange={(expanded) => setGroupExpandedRounds(group.id, expanded)}
-                        {totalRounds}
-                        isDoubles={tournament.gameType === 'doubles'}
-                        matchesToWin={tournament.groupStage?.matchesToWin || 1}
-                        {probabilities}
-                        groupStageType={tournament.groupStage?.type}
-                      />
-                    </div>
-                  </Resizable.Pane>
-                </Resizable.PaneGroup>
-              </div>
+              {#if stackColumns}
+                <!-- Small screens: standings stacked above schedule -->
+                <div class="group-content stacked-content">
+                  <div class="stacked-section">{@render standingsBlock()}</div>
+                  <div class="stacked-section">{@render scheduleBlock()}</div>
+                </div>
+              {:else}
+                <!-- Resizable: Standings + Schedule side by side -->
+                <div class="group-content resizable-wrapper">
+                  <Resizable.PaneGroup direction="horizontal" class="admin-resizable-group">
+                    <Resizable.Pane defaultSize={50} minSize={45}>
+                      <div class="resizable-column standings-col">
+                        {@render standingsBlock()}
+                      </div>
+                    </Resizable.Pane>
+
+                    <Resizable.Handle />
+
+                    <Resizable.Pane defaultSize={50} minSize={25}>
+                      <div class="resizable-column schedule-col">
+                        {@render scheduleBlock()}
+                      </div>
+                    </Resizable.Pane>
+                  </Resizable.PaneGroup>
+                </div>
+              {/if}
             </div>
           {/if}
         </div>
@@ -726,9 +749,13 @@
   }
 
   /* Accordion styles */
+  /* Each expanded group holds standings + schedule side by side, so it needs
+     real width to be readable: floor of 560px per column. Result: 1 column on
+     small screens, 2 on laptops, 3-4 only on wide monitors — never 4 cramped
+     columns on a small screen. min(100%, …) avoids horizontal overflow. */
   .groups-accordions {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 560px), 1fr));
     gap: 0.6rem;
     align-items: start;
   }
@@ -873,6 +900,17 @@
     gap: 0.5rem;
     margin-bottom: 0.5rem;
     flex-wrap: wrap;
+  }
+
+  /* Stacked layout (small screens): standings above schedule */
+  .stacked-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .stacked-section {
+    min-width: 0;
   }
 
   /* Resizable layout */

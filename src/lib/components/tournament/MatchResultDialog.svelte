@@ -140,6 +140,21 @@
   let rounds = $state<RoundData[]>([]);
   let initialized = $state(false);
 
+  // Concurrent-edit protection: if this match is updated from another device
+  // while the admin has unsaved local edits, we must NOT reinitialize (that
+  // would silently discard their work). Instead a banner offers to reload.
+  let userEdited = $state(false);
+  let externalUpdateAvailable = $state(false);
+  let loadedRemoteSnapshot = $state('');
+
+  function remoteSnapshot(): string {
+    return JSON.stringify({
+      r: match?.rounds ?? [],
+      s: match?.status ?? '',
+      w: match?.winner ?? null
+    });
+  }
+
   // Video attachment
   let videoUrl = $state('');
   let videoId = $derived(extractYouTubeId(videoUrl));
@@ -346,6 +361,9 @@
       original20s = rounds.map(r => ({ twentiesA: r.twentiesA, twentiesB: r.twentiesB }));
       save20sError = null;
 
+      loadedRemoteSnapshot = remoteSnapshot();
+      userEdited = false;
+      externalUpdateAvailable = false;
       initialized = true;
     }
   });
@@ -363,15 +381,37 @@
       videoUrl = '';
       original20s = [];
       save20sError = null;
+      userEdited = false;
+      externalUpdateAvailable = false;
+      loadedRemoteSnapshot = '';
     }
   });
 
-  // Reinicializar cuando match.rounds cambia (actualización de Firebase)
+  // External update detection (Firebase real-time): if the match changes while
+  // the dialog is open, live-sync the view — unless the user has unsaved local
+  // edits, in which case their work is kept and a banner offers to reload.
   $effect(() => {
-    if (visible && match?.rounds && match.rounds.length > rounds.length) {
+    if (!visible || !initialized) return;
+    const remote = remoteSnapshot();
+    if (remote === loadedRemoteSnapshot) {
+      externalUpdateAvailable = false;
+      return;
+    }
+    if (userEdited) {
+      externalUpdateAvailable = true;
+    } else {
       initialized = false;
     }
   });
+
+  /** Discard local edits and reload the match data received from Firebase */
+  function loadExternalUpdate() {
+    userEdited = false;
+    externalUpdateAvailable = false;
+    extraRoundsCount = 0;
+    gamesWonInitialized = false;
+    initialized = false;
+  }
 
   // Computed values for current game (points mode brackets only)
   let currentGameRounds = $derived(rounds.filter(r => r.gameNumber === currentGameNumber));
@@ -471,7 +511,12 @@
         return allRoundsPlayed;
       }
     } else {
-      return false;
+      // Group stage in points mode (non-bracket): uses the same fixed-rounds
+      // editor as rounds mode (one 0/1/2 round per game). Allow saving once
+      // every round is filled — ties are allowed in groups. Without this
+      // branch canSave was always false and results could only be saved
+      // through the "force finish" warning flow.
+      return rounds.length > 0 && rounds.every(r => r.pointsA !== null && r.pointsB !== null);
     }
   })());
 
@@ -533,6 +578,7 @@
 
     const nextRoundInGame = currentGameRounds.length + 1;
 
+    userEdited = true;
     rounds = [
       ...rounds,
       {
@@ -551,6 +597,7 @@
    */
   function removeRound(roundIndex: number) {
     if (roundIndex < 0 || roundIndex >= rounds.length) return;
+    userEdited = true;
     const removedGame = rounds[roundIndex].gameNumber;
     const filtered = rounds.filter((_, i) => i !== roundIndex);
     let counter = 0;
@@ -571,6 +618,7 @@
     if (!isBracket || !isRoundsMode) return;
     if (!needsExtraRound) return;
 
+    userEdited = true;
     extraRoundsCount++;
     const nextRoundNum = rounds.length + 1;
 
@@ -674,6 +722,7 @@
    */
   function handlePointsChange(roundIndex: number, player: 'A' | 'B', value: number) {
     const round = rounds[roundIndex];
+    userEdited = true;
 
     // Validate input: only allow 0, 1, or 2
     if (value < 0 || value > 2 || !Number.isInteger(value)) {
@@ -732,6 +781,7 @@
   function handleTwentiesChange(roundIndex: number, player: 'A' | 'B', value: number) {
     const round = rounds[roundIndex];
     const maxTwenties = tournament.gameType === 'singles' ? 8 : 12;
+    userEdited = true;
 
     // Validate input: only allow 0 to maxTwenties
     if (value < 0 || value > maxTwenties || !Number.isInteger(value)) {
@@ -789,6 +839,19 @@
       </div>
 
       <div class="dialog-content">
+
+        {#if externalUpdateAvailable}
+          <div class="external-update-banner" role="status">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 12a9 9 0 1 1-2.64-6.36"/>
+              <path d="M21 3v6h-6"/>
+            </svg>
+            <span>{m.tournament_externalUpdateWarning()}</span>
+            <button type="button" class="external-update-btn" onclick={loadExternalUpdate}>
+              {m.tournament_externalUpdateLoad()}
+            </button>
+          </div>
+        {/if}
 
         {#if isBye}
           <div class="bye-notice">
@@ -2491,6 +2554,53 @@
     width: 14px;
     height: 14px;
     flex-shrink: 0;
+  }
+
+  /* ── External Update Banner (concurrent edit protection) ── */
+  .external-update-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0 0 0.75rem 0;
+    padding: 0.625rem 0.875rem;
+    background: #fffbeb;
+    color: #92400e;
+    border: 1px solid #fde68a;
+    border-radius: 10px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+  }
+
+  .external-update-banner svg {
+    flex-shrink: 0;
+  }
+
+  .external-update-banner span {
+    flex: 1;
+    line-height: 1.3;
+  }
+
+  .external-update-btn {
+    flex-shrink: 0;
+    padding: 0.375rem 0.75rem;
+    background: #f59e0b;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: filter 0.15s;
+  }
+
+  .external-update-btn:hover {
+    filter: brightness(1.08);
+  }
+
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .external-update-banner {
+    background: rgba(245, 158, 11, 0.08);
+    border-color: rgba(251, 191, 36, 0.25);
+    color: #fbbf24;
   }
 
   /* ── Tiebreak Section ───────────────────────── */

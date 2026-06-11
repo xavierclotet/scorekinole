@@ -512,6 +512,8 @@
   "tournament_didNotShowUp": "{name} no s'ha presentat",
   "tournament_enterKey": "Introdueix la Clau del Torneig",
   "tournament_errorStarting": "Error en iniciar el partit",
+  "tournament_externalUpdateWarning": "Aquest partit s'ha actualitzat des d'un altre dispositiu. Els teus canvis sense desar es conserven.",
+  "tournament_externalUpdateLoad": "Carregar canvis",
   "tournament_exitMessage": "Què vols fer amb aquest partit?",
   "tournament_exitMode": "Sortir del Mode Torneig",
   "tournament_expandAllGroups": "Expandir tots els grups",

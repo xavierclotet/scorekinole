@@ -512,6 +512,8 @@
   "tournament_didNotShowUp": "{name} did not show up",
   "tournament_enterKey": "Enter Tournament Key",
   "tournament_errorStarting": "Error starting match",
+  "tournament_externalUpdateWarning": "This match was updated from another device. Your unsaved changes are kept.",
+  "tournament_externalUpdateLoad": "Load changes",
   "tournament_exitMessage": "What do you want to do with this match?",
   "tournament_exitMode": "Exit Tournament Mode",
   "tournament_expandAllGroups": "Expand all groups",

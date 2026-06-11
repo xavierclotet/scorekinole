@@ -127,6 +127,44 @@ function reassignFreedTable(
  * @param result Match result data
  * @returns true if successful
  */
+/**
+ * True when an error looks like transaction contention (too many concurrent
+ * writers on the tournament document) rather than a validation/data error.
+ */
+function isContentionError(error: unknown): boolean {
+  const code = (error as { code?: string })?.code;
+  if (code === 'aborted' || code === 'failed-precondition' || code === 'deadline-exceeded' || code === 'unavailable' || code === 'resource-exhausted') {
+    return true;
+  }
+  const msg = error instanceof Error ? error.message : String(error);
+  return /transaction|contention|aborted/i.test(msg);
+}
+
+/**
+ * Outer retry with jittered backoff for transactions on the single tournament
+ * document. With 50-100 matches in play, bursts of simultaneous writes can
+ * exhaust Firestore's internal transaction retries; re-entering after a random
+ * delay spreads the herd so every write eventually lands. Non-contention
+ * errors (match not found, invalid data) are NOT retried.
+ */
+async function withContentionRetry<T>(label: string, fn: () => Promise<T>, outerRetries = 5): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= outerRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (!isContentionError(error)) throw error;
+      lastError = error;
+      if (attempt < outerRetries) {
+        const delay = 25 + Math.random() * 150 * (attempt + 1);
+        console.warn(`⏳ ${label}: write contention, retry ${attempt + 2}/${outerRetries + 1} in ${Math.round(delay)}ms`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  throw lastError;
+}
+
 export async function updateMatchResult(
   tournamentId: string,
   matchId: string,
@@ -164,7 +202,7 @@ export async function updateMatchResult(
   try {
     const tournamentRef = doc(db, 'tournaments', tournamentId);
 
-    await runTransaction(db, async (transaction) => {
+    await withContentionRetry('updateMatchResult', () => runTransaction(db!, async (transaction) => {
       const snapshot = await transaction.get(tournamentRef);
       if (!snapshot.exists()) throw new Error('Tournament not found');
 
@@ -281,6 +319,11 @@ export async function updateMatchResult(
         match.videoId = result.videoId;
       }
 
+      // Clear stale walkover metadata when a WALKOVER is overwritten with a
+      // real result (otherwise the match keeps noShowParticipant while COMPLETED)
+      delete match.noShowParticipant;
+      delete match.walkedOverAt;
+
       // Reassign the freed table to a pending match without a table
       const freedTableNum = match.tableNumber;
       if (freedTableNum) {
@@ -341,7 +384,7 @@ export async function updateMatchResult(
 
       // Single atomic write: match result + standings + optional timer reset
       transaction.update(tournamentRef, updateData);
-    }, { maxAttempts: 10 });
+    }, { maxAttempts: 10 }));
 
     return true;
   } catch (error) {
@@ -489,7 +532,7 @@ export async function markNoShow(
   try {
     const tournamentRef = doc(db, 'tournaments', tournamentId);
 
-    await runTransaction(db, async (transaction) => {
+    await withContentionRetry('markNoShow', () => runTransaction(db!, async (transaction) => {
       const snapshot = await transaction.get(tournamentRef);
       if (!snapshot.exists()) throw new Error('Tournament not found');
 
@@ -570,6 +613,15 @@ export async function markNoShow(
         match.gamesWonB = requiredWins;
       }
 
+      // Clear stale result data if this match was previously COMPLETED —
+      // calculateStandings counts totalPoints/total20s of WALKOVER matches,
+      // so leftovers from the old result would corrupt standings/tiebreakers
+      delete match.totalPointsA;
+      delete match.totalPointsB;
+      delete match.total20sA;
+      delete match.total20sB;
+      delete match.rounds;
+
       // Calculate standings inline (atomic with match update)
       calculateStandings(tournament, groupIndex);
 
@@ -579,7 +631,7 @@ export async function markNoShow(
         groupStage: cleanedGroupStage,
         updatedAt: serverTimestamp()
       });
-    }, { maxAttempts: 10 });
+    }, { maxAttempts: 10 }));
 
     return true;
   } catch (error) {
@@ -696,8 +748,18 @@ export function calculateStandings(tournament: Tournament, groupIndex: number): 
   }
 
   // Apply tiebreaker and sort (includes H2H, Buchholz, etc.)
+  // Must honor the tournament's custom tiebreakerPriority — manual recalcs
+  // (recalculateStandings) already do, so omitting it here would make the
+  // standings order flip between automatic and manual recalculations.
   const standings = Array.from(standingsMap.values());
-  const sortedStandings = resolveTiebreaker(standings, tournament.participants, isSwiss, qualificationMode, tournament.show20s !== false);
+  const sortedStandings = resolveTiebreaker(
+    standings,
+    tournament.participants,
+    isSwiss,
+    qualificationMode,
+    tournament.show20s !== false,
+    tournament.groupStage.tiebreakerPriority
+  );
 
   // Update standings in-memory
   group.standings = sortedStandings;
@@ -2474,7 +2536,7 @@ export async function updateTournamentMatchRounds(
   try {
     const tournamentRef = doc(db, 'tournaments', tournamentId);
 
-    const matchFound = await runTransaction(db, async (transaction) => {
+    const matchFound = await withContentionRetry('updateTournamentMatchRounds', () => runTransaction(db!, async (transaction) => {
       const snapshot = await transaction.get(tournamentRef);
       if (!snapshot.exists()) return false;
 
@@ -2657,7 +2719,7 @@ export async function updateTournamentMatchRounds(
       }
 
       return found;
-    }, { maxAttempts: 10 });
+    }, { maxAttempts: 10 }));
 
     return matchFound;
   } catch (error) {

@@ -156,6 +156,16 @@ export async function generateSwissPairings(
         throw new Error(`Round ${roundNumber} already exists`);
       }
 
+      // Guard: only the next sequential round can be generated. A stale client
+      // (lagging subscription, second admin) could otherwise skip rounds and
+      // corrupt the tournament structure (e.g. generate round 4 after round 2).
+      const currentRoundInTxn = tournament.groupStage.currentRound || 1;
+      if (roundNumber !== currentRoundInTxn + 1) {
+        throw new Error(
+          `Cannot generate round ${roundNumber}: current round is ${currentRoundInTxn}`
+        );
+      }
+
       // Recalculate standings in-memory from match results (avoids separate read/write)
       const standingsMap = new Map<string, GroupStanding>();
       group.participants.forEach(participantId => {
@@ -355,11 +365,16 @@ export async function updateSwissRoundsConfig(
   try {
     const tournamentRef = doc(db, 'tournaments', tournamentId);
 
+    if (!Number.isInteger(numRounds) || numRounds < 1) {
+      console.error(`Invalid Swiss rounds value: ${numRounds}`);
+      return false;
+    }
+
     await runTransaction(db, async (transaction) => {
       const snapshot = await transaction.get(tournamentRef);
       if (!snapshot.exists()) throw new Error('Tournament not found');
 
-      const data = snapshot.data();
+      const data = parseTournamentData(snapshot.data());
       if (data.groupStage?.type !== 'SWISS') {
         throw new Error('Tournament is not Swiss type');
       }
@@ -367,6 +382,25 @@ export async function updateSwissRoundsConfig(
       const currentRound = data.groupStage?.currentRound || 1;
       if (numRounds < currentRound) {
         throw new Error(`Cannot set Swiss rounds to ${numRounds}, current round is ${currentRound}`);
+      }
+
+      // Setting the total to the current round (early finalization) is only
+      // allowed once the current round is fully played — mirrors the client
+      // guard (canSaveSwissRounds) so a stale/buggy client can't trap the
+      // tournament with an unfinished final round.
+      if (numRounds === currentRound) {
+        const roundComplete = data.groupStage.groups.every(g => {
+          const pairing = g.pairings?.find(p => p.roundNumber === currentRound);
+          if (!pairing) return false;
+          return pairing.matches.every(
+            m => m.status === 'COMPLETED' || m.status === 'WALKOVER' || m.participantB === 'BYE'
+          );
+        });
+        if (!roundComplete) {
+          throw new Error(
+            `Cannot set Swiss rounds to ${numRounds}: round ${currentRound} is still in progress`
+          );
+        }
       }
 
       // Dot notation: only updates these specific nested fields
@@ -383,89 +417,6 @@ export async function updateSwissRoundsConfig(
     return true;
   } catch (error) {
     console.error('❌ Error updating Swiss rounds config:', error);
-    return false;
-  }
-}
-
-/**
- * Update group match result
- *
- * @param tournamentId Tournament ID
- * @param groupId Group ID
- * @param matchId Match ID
- * @param result Match result data
- * @returns true if successful
- */
-export async function updateGroupMatch(
-  tournamentId: string,
-  groupId: string,
-  matchId: string,
-  result: Partial<GroupMatch>
-): Promise<boolean> {
-  const tournament = await getTournament(tournamentId);
-  if (!tournament || !tournament.groupStage) {
-    console.error('Tournament or group stage not found');
-    return false;
-  }
-
-  try {
-    const groupStage = tournament.groupStage;
-    const group = groupStage.groups.find(g => g.id === groupId);
-    if (!group) {
-      console.error('Group not found');
-      return false;
-    }
-
-    // Update match in schedule or pairings
-    let matchUpdated = false;
-
-    if (groupStage.type === 'ROUND_ROBIN' && group.schedule) {
-      for (const round of group.schedule) {
-        const matchIndex = round.matches.findIndex(m => m.id === matchId);
-        if (matchIndex !== -1) {
-          const existing = round.matches[matchIndex];
-          const completedAt = result.status === 'COMPLETED' ? Date.now() : undefined;
-          round.matches[matchIndex] = {
-            ...existing,
-            ...result,
-            completedAt,
-            duration: (result.status === 'COMPLETED' && completedAt && existing.startedAt)
-              ? completedAt - existing.startedAt : undefined
-          };
-          matchUpdated = true;
-          break;
-        }
-      }
-    } else if (groupStage.type === 'SWISS' && group.pairings) {
-      for (const pairing of group.pairings) {
-        const matchIndex = pairing.matches.findIndex(m => m.id === matchId);
-        if (matchIndex !== -1) {
-          const existing = pairing.matches[matchIndex];
-          const completedAt = result.status === 'COMPLETED' ? Date.now() : undefined;
-          pairing.matches[matchIndex] = {
-            ...existing,
-            ...result,
-            completedAt,
-            duration: (result.status === 'COMPLETED' && completedAt && existing.startedAt)
-              ? completedAt - existing.startedAt : undefined
-          };
-          matchUpdated = true;
-          break;
-        }
-      }
-    }
-
-    if (!matchUpdated) {
-      console.error('Match not found');
-      return false;
-    }
-
-    // Recalculate standings
-    await recalculateStandings(tournamentId, groupId);
-
-    return true;
-  } catch (error) {
-    console.error('❌ Error updating group match:', error);
     return false;
   }
 }
@@ -622,70 +573,6 @@ export async function recalculateStandings(
     console.error('❌ Error recalculating standings:', error);
     return false;
   }
-}
-
-/**
- * Mark participant as no-show (walkover)
- *
- * @param tournamentId Tournament ID
- * @param groupId Group ID
- * @param matchId Match ID
- * @param participantId Participant who didn't show
- * @returns true if successful
- */
-export async function markNoShow(
-  tournamentId: string,
-  groupId: string,
-  matchId: string,
-  participantId: string
-): Promise<boolean> {
-  const tournament = await getTournament(tournamentId);
-  if (!tournament || !tournament.groupStage) {
-    console.error('Tournament or group stage not found');
-    return false;
-  }
-
-  const group = tournament.groupStage.groups.find(g => g.id === groupId);
-  if (!group) {
-    console.error('Group not found');
-    return false;
-  }
-
-  // Find match
-  let match: GroupMatch | undefined;
-
-  if (group.schedule) {
-    for (const round of group.schedule) {
-      match = round.matches.find(m => m.id === matchId);
-      if (match) break;
-    }
-  }
-
-  if (group.pairings && !match) {
-    for (const pairing of group.pairings) {
-      match = pairing.matches.find(m => m.id === matchId);
-      if (match) break;
-    }
-  }
-
-  if (!match) {
-    console.error('Match not found');
-    return false;
-  }
-
-  // Determine winner (opponent)
-  const winner =
-    match.participantA === participantId ? match.participantB : match.participantA;
-
-  // Update match as walkover
-  return await updateGroupMatch(tournamentId, groupId, matchId, {
-    status: 'WALKOVER',
-    winner,
-    gamesWonA: match.participantA === winner ? 2 : 0,
-    gamesWonB: match.participantB === winner ? 2 : 0,
-    noShowParticipant: participantId,
-    walkedOverAt: Date.now()
-  });
 }
 
 /**

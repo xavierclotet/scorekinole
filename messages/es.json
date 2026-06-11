@@ -1216,6 +1216,8 @@
   "tournament_errorMatchInProgress": "El partido ya está en progreso en otro dispositivo",
   "tournament_errorMatchNotFound": "Partido no encontrado",
   "tournament_errorStarting": "Error al iniciar el partido",
+  "tournament_externalUpdateWarning": "Este partido se ha actualizado desde otro dispositivo. Tus cambios sin guardar se conservan.",
+  "tournament_externalUpdateLoad": "Cargar cambios",
   "tournament_exitMessage": "¿Qué quieres hacer con este partido?",
   "tournament_exitMode": "Salir del Modo Torneo",
   "tournament_expandAllGroups": "Expandir todos los grupos",
