@@ -1097,7 +1097,8 @@ export function cascadeByeWins(consolationBracket: ConsolationBracket): Consolat
 
         // Case B: COMPLETED with winner, one participant is BYE → ensure BYE loser advanced
         // This handles matches auto-completed by replaceLoserPlaceholder that only advanced the winner
-        if (match.status === 'COMPLETED' && match.winner &&
+        // (never propagate a LOSER:x placeholder as a "winner" — defensive for legacy data)
+        if (match.status === 'COMPLETED' && match.winner && !isLoserPlaceholder(match.winner) &&
             (isBye(match.participantA) || isBye(match.participantB))) {
           // Ensure winner is advanced (may already be done by replaceLoserPlaceholder)
           if (match.nextMatchId) {
@@ -1114,7 +1115,13 @@ export function cascadeByeWins(consolationBracket: ConsolationBracket): Consolat
         }
 
         // Case C: PENDING with both participants set, at least one is BYE → auto-complete
-        if (match.status === 'PENDING' && match.participantA && match.participantB) {
+        // CRITICAL: a LOSER:x placeholder is NOT a participant yet. A match like
+        // "LOSER:R16:2 vs BYE" must wait for the real loser to arrive — auto-completing
+        // it would crown the placeholder STRING as winner and advance it to the next
+        // round, leaving the consolation bracket permanently stuck (seen with 13-14
+        // players where the consolation has internal BYEs).
+        if (match.status === 'PENDING' && match.participantA && match.participantB &&
+            !isLoserPlaceholder(match.participantA) && !isLoserPlaceholder(match.participantB)) {
           const aIsBye = isBye(match.participantA);
           const bIsBye = isBye(match.participantB);
 

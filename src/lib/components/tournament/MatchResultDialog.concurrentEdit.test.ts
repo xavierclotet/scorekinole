@@ -19,7 +19,9 @@ function remoteSnapshot(match: Partial<GroupMatch> | null): string {
   return JSON.stringify({
     r: match?.rounds ?? [],
     s: match?.status ?? '',
-    w: match?.winner ?? null
+    w: match?.winner ?? null,
+    a: match?.participantA ?? null,
+    b: match?.participantB ?? null
   });
 }
 
@@ -142,6 +144,32 @@ describe('MatchResultDialog concurrent-edit decision', () => {
         userEdited: true
       })
     ).toBe('ignore');
+  });
+
+  it('participant replacement (consolation placeholder → real loser) is detected', () => {
+    const placeholderMatch = { ...pendingMatch, participantB: 'LOSER:QF:1' };
+    const loaded = remoteSnapshot(placeholderMatch);
+    const resolved = { ...pendingMatch, participantB: 'p9' };
+    // Viewing → live-sync shows the real participant
+    expect(
+      decideOnRemoteChange({
+        visible: true,
+        initialized: true,
+        match: resolved,
+        loadedRemoteSnapshot: loaded,
+        userEdited: false
+      })
+    ).toBe('reinitialize');
+    // Editing → banner, local work preserved
+    expect(
+      decideOnRemoteChange({
+        visible: true,
+        initialized: true,
+        match: resolved,
+        loadedRemoteSnapshot: loaded,
+        userEdited: true
+      })
+    ).toBe('show-banner');
   });
 
   it('after "Cargar cambios" (reload) the new snapshot is considered current', () => {

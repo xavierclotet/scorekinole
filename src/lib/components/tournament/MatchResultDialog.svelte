@@ -151,7 +151,11 @@
     return JSON.stringify({
       r: match?.rounds ?? [],
       s: match?.status ?? '',
-      w: match?.winner ?? null
+      w: match?.winner ?? null,
+      // Participants can change while the dialog is open (e.g. a consolation
+      // LOSER:x placeholder replaced by the real loser) — must be detected too
+      a: match?.participantA ?? null,
+      b: match?.participantB ?? null
     });
   }
 

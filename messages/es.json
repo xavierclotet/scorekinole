@@ -578,6 +578,7 @@
   "bracket_consolation": "Consolación",
   "bracket_consolationBrackets": "Rondas de Consolación",
   "bracket_consolationGenerated": "Rondas de consolación generados correctamente",
+  "bracket_consolationEmptyNote": "Sin partidos de consolación en esta franja: solo hubo un perdedor real en la ronda correspondiente, por lo que ocupa la posición {position} automáticamente.",
   "bracket_consolationNotGenerated": "No se pudieron generar brackets - verifica que la ronda (cuartos u octavos) esté completa",
   "bracket_earlyPhases": "Tempranas",
   "bracket_errorGenerateConsolation": "Error al generar rondas de consolación",

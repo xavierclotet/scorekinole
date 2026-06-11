@@ -590,14 +590,35 @@ interface BracketMatch {
 
 ```typescript
 interface ConsolationBracket {
-  source: 'QF' | 'R16';                     // Which round's losers
+  source: 'QF' | 'R16' | 'R32' | 'R64';     // Which round's losers
   rounds: BracketRound[];
   totalRounds: number;
-  startPosition: number;                    // Starting position (5 for QF, 9 for R16)
+  startPosition: number;                    // Starting position (5 for QF, 9 for R16, 17 for R32, 33 for R64)
   numLosers?: number;                       // Actual losers count (may be less due to BYEs)
   isComplete: boolean;
 }
 ```
+
+### Consolation limits
+
+- **Maximum source round is R64 → fully-ranked brackets support up to 64 players.**
+  Consolation sources go up to `R64` (first round of a 64-slot bracket). With
+  **65+ participants** the bracket grows to 128 slots and the losers of the
+  round-of-128 have **no consolation bracket**: they finish without playing for
+  an exact position. Verified by playthrough tests up to 64 players
+  (`tournamentBracket.playthrough.test.ts`). Extending beyond 64 requires an
+  `R128` source (positions 65-128) in `src/lib/algorithms/bracket.ts`
+  (`ConsolationSource`, `getSourcePositions`, `getSourceStartPosition`,
+  `getAvailableConsolationSources`) plus `getByePositionsInRound` in
+  `src/lib/firebase/tournamentBracket.ts`.
+- **A source with fewer than 2 real losers produces an empty consolation**
+  (`rounds: []`, `isComplete: true`). Happens at counts just above a power of 2
+  (e.g. 9, 17 or 33 players: the only real first-round loser has nobody to
+  play). That player's position is implicit. The admin bracket page shows an
+  informational note for these empty consolations.
+- BYE handling inside consolations: `LOSER:source:position` placeholders are
+  only resolved with **real** losers; a placeholder-vs-BYE match stays PENDING
+  until the real loser arrives (never auto-completed — see `cascadeByeWins`).
 
 ---
 

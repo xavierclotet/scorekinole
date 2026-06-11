@@ -306,6 +306,7 @@
   "bracket_consolation": "Consolation",
   "bracket_consolationBrackets": "Consolation Rounds",
   "bracket_consolationGenerated": "Consolation brackets generated successfully",
+  "bracket_consolationEmptyNote": "No consolation matches in this band: the corresponding round had a single real loser, so they take position {position} automatically.",
   "bracket_consolationNotGenerated": "Could not generate brackets - verify that the round (quarters or eighths) is complete",
   "bracket_earlyPhases": "Early Phases",
   "bracket_errorGenerateConsolation": "Error generating consolation brackets",

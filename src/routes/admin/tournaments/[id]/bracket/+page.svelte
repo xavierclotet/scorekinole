@@ -736,6 +736,10 @@
     roundNumber: number
   ) {
     if (!match.participantA || !match.participantB) return;
+    // Never open the result dialog for matches whose participants are not real
+    // yet (LOSER:x placeholders waiting for a loser, or BYE slots)
+    if (isLoserPlaceholder(match.participantA) || isLoserPlaceholder(match.participantB)) return;
+    if (isBye(match.participantA) || isBye(match.participantB)) return;
     selectedMatch = match;
     selectedBracketType = activeTab;
     selectedRoundNumber = roundNumber;
@@ -2362,8 +2366,6 @@
               </button>
             </div>
           {:else if consolationEnabledValue && consolationBrackets.length > 0}
-            {@const r16Bracket = consolationBrackets.find(c => c.source === 'R16')}
-            {@const qfBracket = consolationBrackets.find(c => c.source === 'QF')}
             <div class="consolation-section" data-theme={$adminTheme}>
               <div class="consolation-header">
                 <h3 class="consolation-title">🏅 {m.bracket_consolationBrackets()}</h3>
@@ -2383,10 +2385,19 @@
                 {/if}
               </div>
               <div class="consolation-unified">
-                <!-- R16 consolation (9º-16º) -->
-                {#if r16Bracket}
-                  {#each r16Bracket.rounds as round, roundIndex}
-                    <div class="bracket-round consolation-round" data-source="R16">
+                <!-- ALL consolation brackets, widest position band first (R64 → R32 → R16 → QF).
+                     Generic iteration: tournaments with 17+ players have R32/R64 sources too. -->
+                {#each [...consolationBrackets].sort((a, b) => b.startPosition - a.startPosition) as cb (cb.source)}
+                  {#if cb.rounds.length === 0}
+                    <!-- Empty consolation: the source round had a single real loser
+                         (e.g. 9, 17 or 33 players) — nobody to play against -->
+                    <div class="consolation-empty-note">
+                      <span class="note-icon">ℹ️</span>
+                      <span>{m.bracket_consolationEmptyNote({ position: `${cb.startPosition + consolationPosOffset}º` })}</span>
+                    </div>
+                  {/if}
+                  {#each cb.rounds as round, roundIndex}
+                    <div class="bracket-round consolation-round" class:qf-start={cb.source === 'QF' && roundIndex === 0} data-source={cb.source}>
                       <div class="round-header">
                         {m.tournament_round()} {roundIndex + 1}
                       </div>
@@ -2402,8 +2413,8 @@
                           {@const isMatchClickable = hasRealParticipants}
                           {@const isBothBye = isByeA && isByeB}
                           {@const isMatchBye = (isByeA || isByeB) && !isBothBye}
-                          {@const finalRoundMatches = r16Bracket.rounds[r16Bracket.totalRounds - 1]?.matches.length || 1}
-                          {@const positionLabel = getConsolationPositionLabel(r16Bracket.startPosition + consolationPosOffset, r16Bracket.totalRounds, roundIndex, matchIndex, match.isThirdPlace || false, finalRoundMatches)}
+                          {@const finalRoundMatches = cb.rounds[cb.totalRounds - 1]?.matches.length || 1}
+                          {@const positionLabel = getConsolationPositionLabel(cb.startPosition + consolationPosOffset, cb.totalRounds, roundIndex, matchIndex, match.isThirdPlace || false, finalRoundMatches)}
                           {@const consDisqualifiedA = isParticipantDisqualified(match.participantA)}
                           {@const consDisqualifiedB = isParticipantDisqualified(match.participantB)}
                           {#if !isBothBye}
@@ -2416,8 +2427,8 @@
                               class:clickable={isMatchClickable}
                               class:bye-match={isMatchBye}
                               class:has-placeholder={isPlaceholderA || isPlaceholderB}
-                              onclick={() => isMatchClickable && handleConsolationMatchClick(match, 'R16', roundIndex + 1)}
-                              onkeydown={(e) => e.key === 'Enter' && isMatchClickable && handleConsolationMatchClick(match, 'R16', roundIndex + 1)}
+                              onclick={() => isMatchClickable && handleConsolationMatchClick(match, cb.source, roundIndex + 1)}
+                              onkeydown={(e) => e.key === 'Enter' && isMatchClickable && handleConsolationMatchClick(match, cb.source, roundIndex + 1)}
                               role="button"
                               tabindex={isMatchClickable ? 0 : -1}
                             >
@@ -2498,124 +2509,7 @@
                       </div>
                     </div>
                   {/each}
-                {/if}
-
-                <!-- QF consolation (5º-8º) -->
-                {#if qfBracket}
-                  {#each qfBracket.rounds as round, roundIndex}
-                    <div class="bracket-round consolation-round" class:qf-start={roundIndex === 0} data-source="QF">
-                      <div class="round-header">
-                        {m.tournament_round()} {roundIndex + 1}
-                      </div>
-                      <div class="matches-container">
-                        {#each round.matches as match, matchIndex}
-                          {@const isByeA = isBye(match.participantA)}
-                          {@const isByeB = isBye(match.participantB)}
-                          {@const isPlaceholderA = !isByeA && isLoserPlaceholder(match.participantA)}
-                          {@const isPlaceholderB = !isByeB && isLoserPlaceholder(match.participantB)}
-                          {@const displayNameA = isPlaceholderA ? getLoserPlaceholderDisplay(match.participantA) : getParticipantName(match.participantA)}
-                          {@const displayNameB = isPlaceholderB ? getLoserPlaceholderDisplay(match.participantB) : getParticipantName(match.participantB)}
-                          {@const hasRealParticipants = !isPlaceholderA && !isPlaceholderB && !isByeA && !isByeB && match.participantA && match.participantB}
-                          {@const isMatchClickable = hasRealParticipants}
-                          {@const isBothBye = isByeA && isByeB}
-                          {@const isMatchBye = (isByeA || isByeB) && !isBothBye}
-                          {@const finalRoundMatches = qfBracket.rounds[qfBracket.totalRounds - 1]?.matches.length || 1}
-                          {@const positionLabel = getConsolationPositionLabel(qfBracket.startPosition + consolationPosOffset, qfBracket.totalRounds, roundIndex, matchIndex, match.isThirdPlace || false, finalRoundMatches)}
-                          {@const qfDisqualifiedA = isParticipantDisqualified(match.participantA)}
-                          {@const qfDisqualifiedB = isParticipantDisqualified(match.participantB)}
-                          {#if !isBothBye}
-                          <div class="consolation-match-wrapper">
-                            {#if positionLabel}
-                              <div class="position-label">{positionLabel}</div>
-                            {/if}
-                            <div
-                              class="bracket-match"
-                              class:clickable={isMatchClickable}
-                              class:bye-match={isMatchBye}
-                              class:has-placeholder={isPlaceholderA || isPlaceholderB}
-                              onclick={() => isMatchClickable && handleConsolationMatchClick(match, 'QF', roundIndex + 1)}
-                              onkeydown={(e) => e.key === 'Enter' && isMatchClickable && handleConsolationMatchClick(match, 'QF', roundIndex + 1)}
-                              role="button"
-                              tabindex={isMatchClickable ? 0 : -1}
-                            >
-                              <div
-                                class="match-participant"
-                                class:winner={match.winner === match.participantA}
-                                class:loser={match.winner && match.winner !== match.participantA && !isByeA}
-                                class:tbd={!match.participantA || isPlaceholderA}
-                                class:bye={isByeA}
-                                class:disqualified={qfDisqualifiedA}
-                              >
-                                {#if !isPlaceholderA && !isByeA}
-                                  {@render participantAvatar(match.participantA, 'sm')}
-                                {/if}
-                                <span class="participant-name" class:disqualified={qfDisqualifiedA}>{displayNameA}</span>
-                                {#if qfDisqualifiedA}
-                                  <span class="dsq-badge">DSQ</span>
-                                {/if}
-                                {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
-                                  <span class="score">{showGamesWon ? (match.gamesWonA || 0) : (match.totalPointsA || 0)}</span>
-                                  {#if tournament.show20s && match.total20sA !== undefined}
-                                    <span class="twenties">🎯{match.total20sA}</span>
-                                  {/if}
-                                {:else if match.status === 'IN_PROGRESS'}
-                                  <span class="score in-progress">{showGamesWon ? (match.gamesWonA || 0) : (match.totalPointsA || 0)}</span>
-                                  {#if tournament.show20s && match.total20sA}
-                                    <span class="twenties">🎯{match.total20sA}</span>
-                                  {/if}
-                                {/if}
-                              </div>
-
-                              <div class="vs-divider">{@render bracketProbability(match)}</div>
-
-                              <div
-                                class="match-participant"
-                                class:winner={match.winner === match.participantB}
-                                class:loser={match.winner && match.winner !== match.participantB && !isByeB}
-                                class:tbd={!match.participantB || isPlaceholderB}
-                                class:bye={isByeB}
-                                class:disqualified={qfDisqualifiedB}
-                              >
-                                {#if !isPlaceholderB && !isByeB}
-                                  {@render participantAvatar(match.participantB, 'sm')}
-                                {/if}
-                                <span class="participant-name" class:disqualified={qfDisqualifiedB}>{displayNameB}</span>
-                                {#if qfDisqualifiedB}
-                                  <span class="dsq-badge">DSQ</span>
-                                {/if}
-                                {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
-                                  <span class="score">{showGamesWon ? (match.gamesWonB || 0) : (match.totalPointsB || 0)}</span>
-                                  {#if tournament.show20s && match.total20sB !== undefined}
-                                    <span class="twenties">🎯{match.total20sB}</span>
-                                  {/if}
-                                {:else if match.status === 'IN_PROGRESS'}
-                                  <span class="score in-progress">{showGamesWon ? (match.gamesWonB || 0) : (match.totalPointsB || 0)}</span>
-                                  {#if tournament.show20s && match.total20sB}
-                                    <span class="twenties">🎯{match.total20sB}</span>
-                                  {/if}
-                                {/if}
-                              </div>
-
-                              {#if hasRealParticipants}
-                                {@const statusInfo = getMatchStatusDisplay(match)}
-                                <div class="status-badge" style="background: {statusInfo.color}">
-                                  {statusInfo.text}
-                                </div>
-                              {/if}
-
-                              {#if hasRealParticipants && !isMatchBye && match.tableNumber}
-                                <div class="table-badge">
-                                  {m.tournament_tableShort()}{match.tableNumber}
-                                </div>
-                              {/if}
-                            </div>
-                          </div>
-                          {/if}
-                        {/each}
-                      </div>
-                    </div>
-                  {/each}
-                {/if}
+                {/each}
               </div>
             </div>
           {/if}
@@ -4553,6 +4447,32 @@
     overflow-x: auto;
     padding: 0.5rem 0;
     align-items: flex-start;
+  }
+
+  .consolation-empty-note {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    align-self: center;
+    max-width: 260px;
+    padding: 0.625rem 0.875rem;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    color: #1e40af;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    flex-shrink: 0;
+  }
+
+  .consolation-empty-note .note-icon {
+    flex-shrink: 0;
+  }
+
+  .consolation-section:is([data-theme='dark'], [data-theme='violet']) .consolation-empty-note {
+    background: rgba(59, 130, 246, 0.08);
+    border-color: rgba(96, 165, 250, 0.25);
+    color: #93c5fd;
   }
 
   .regenerate-consolation-btn {

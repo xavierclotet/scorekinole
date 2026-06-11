@@ -306,6 +306,7 @@
   "bracket_consolation": "Consolació",
   "bracket_consolationBrackets": "Rondes de Consolació",
   "bracket_consolationGenerated": "Rondes de consolació generats correctament",
+  "bracket_consolationEmptyNote": "Sense partits de consolació en aquesta franja: només hi va haver un perdedor real a la ronda corresponent, per la qual cosa ocupa la posició {position} automàticament.",
   "bracket_consolationNotGenerated": "No s'han pogut generar brackets - verifica que la ronda (quarts o vuitens) estigui completa",
   "bracket_earlyPhases": "Primeres",
   "bracket_errorGenerateConsolation": "Error en generar rondes de consolació",
