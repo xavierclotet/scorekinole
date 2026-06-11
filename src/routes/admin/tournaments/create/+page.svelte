@@ -33,6 +33,7 @@
   import { getUserProfileById, createGuestUserProfile } from '$lib/firebase/userProfile';
   import { DEFAULT_TIME_CONFIG } from '$lib/firebase/timeConfig';
   import { calculateTournamentTimeEstimate, formatDuration } from '$lib/utils/tournamentTime';
+  import { duplicateParticipants } from '$lib/utils/tournamentDuplication';
   import type { TournamentTimeConfig } from '$lib/types/tournament';
   import * as m from '$lib/paraglide/messages.js';
   import { getLocale } from '$lib/paraglide/runtime.js';
@@ -760,6 +761,13 @@
         return;
       }
 
+      // Imported tournaments duplicate through the import wizard (different
+      // data shape); a hand-crafted URL landing here would build a broken copy.
+      if (tournament.isImported) {
+        await goto(`/admin/tournaments/import?duplicate=${tournamentId}`, { replaceState: true });
+        return;
+      }
+
       // Generate new key for the duplicate
       key = generateRandomKey();
 
@@ -774,6 +782,7 @@
       country = tournament.country || '';
       city = tournament.city || '';
       address = tournament.address || '';
+      venueId = tournament.venueId || undefined;
       // Keep original tournament date
       tournamentDate = tournament.tournamentDate ? new Date(tournament.tournamentDate).toISOString().split('T')[0] : '';
       tournamentTime = tournament.tournamentTime || '';
@@ -934,75 +943,13 @@
       selectedTier = normalizeTier(tournament.rankingConfig?.tier);
       selectedScoringSystem = (tournament.rankingConfig?.scoringSystem as 'CLASSIC' | 'FSI') ?? 'CLASSIC';
 
-      // Step 3: Participants - Copy and refresh photos from user profiles
-      // Also migrate old pair format (name with " / " but no partner field) to new format
-      participants = await Promise.all(tournament.participants.map(async (p) => {
-        let photoURL = p.photoURL;
-        let partnerPhotoURL = p.partner?.photoURL;
-        let rankingSnapshot = 0;
-        let partnerRankingSnapshot = 0;
-
-        // For singles or first member of doubles, refresh photo + ranking from profile
-        if (p.userId && p.type === 'REGISTERED') {
-          const profile = await getUserProfileById(p.userId);
-          if (profile?.photoURL) {
-            photoURL = profile.photoURL;
-          }
-          rankingSnapshot = estimateParticipantRanking(profile?.tournaments);
-        }
-
-        // For doubles with partner, refresh partner photo + ranking
-        if (p.partner?.userId && p.partner.type === 'REGISTERED') {
-          const partnerProfile = await getUserProfileById(p.partner.userId);
-          if (partnerProfile?.photoURL) {
-            partnerPhotoURL = partnerProfile.photoURL;
-          }
-          partnerRankingSnapshot = estimateParticipantRanking(partnerProfile?.tournaments);
-        }
-
-        // MIGRATION: Convert old pair format to new format
-        // Old format: name = "Player1 / Player2", partner = undefined
-        // New format: name = "Player1", partner = { name: "Player2", ... }
-        if (tournament.gameType === 'doubles' && !p.partner && p.name.includes(' / ')) {
-          const [player1Name, player2Name] = p.name.split(' / ').map(n => n.trim());
-          console.log(`🔄 Migrating old pair format: "${p.name}" → "${player1Name}" + "${player2Name}"`);
-          return {
-            type: 'GUEST' as const,
-            name: player1Name,
-            teamName: undefined,  // Old format had no separate team name
-            partner: {
-              type: 'GUEST' as const,
-              name: player2Name
-            }
-          };
-        }
-
-        return {
-          type: p.type,
-          userId: p.userId,
-          name: p.name,
-          teamName: p.teamName,
-          email: p.email,
-          partner: p.partner ? {
-            ...p.partner,
-            photoURL: partnerPhotoURL,
-            rankingSnapshot: partnerRankingSnapshot
-          } : undefined,
-          photoURL,
-          rankingSnapshot
-        };
-      }));
-
-      // participants array is already populated from the map above — no conversion needed
-
-      // Assign IDs to duplicated participants (they need new unique IDs)
-      // rankingSnapshot is preserved from the profile fetch above (estimate for FSI preview)
-      participants = participants.map(p => ({
-        ...p,
-        id: crypto.randomUUID(),
-        rankingSnapshot: p.rankingSnapshot ?? 0,
-        status: 'ACTIVE' as const
-      }));
+      // Step 3: Participants — fresh ids/status, profile-refreshed names/photos,
+      // userKey preserved, old pair format migrated. Logic + edge cases live in
+      // tournamentDuplication.ts (unit-tested).
+      participants = await duplicateParticipants(tournament.participants, tournament.gameType, {
+        getProfile: getUserProfileById,
+        estimateRanking: estimateParticipantRanking
+      });
 
       // Step 5 - Copy time configuration
       if (tournament.timeConfig) {
@@ -1021,7 +968,9 @@
       // Go directly to step 6 (review) since all data is pre-filled
       currentStep = 6;
 
-      toastMessage = `Torneo cargado para duplicar (Edición #${edition})`;
+      toastMessage = edition != null
+        ? `Torneo cargado para duplicar (Edición #${edition})`
+        : 'Torneo cargado para duplicar';
       toastType = 'success';
       showToast = true;
       console.log('✅ Tournament loaded for duplication');
@@ -2007,8 +1956,10 @@
           return;
         }
 
-        // Clear draft after successful creation
-        clearDraft();
+        // Clear draft after successful creation. NOT in duplicate mode: the
+        // stored draft belongs to a different, unfinished new tournament and
+        // duplicate mode never reads nor writes it.
+        if (!duplicateMode) clearDraft();
 
         // Show success toast
         toastMessage = 'Torneo creado exitosamente';

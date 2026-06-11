@@ -33,6 +33,23 @@ export const currentUser = writable<User | null>(null);
 // Flag to indicate Firebase Auth has completed its first check (restored session or confirmed no session)
 export const authInitialized = writable<boolean>(false);
 
+/**
+ * Resolves once Firebase Auth has completed its first session check.
+ * Permission checks that run in a page's onMount on a direct URL load race
+ * against session restoration (currentUser is still null) — await this first.
+ */
+export function waitForAuthInit(): Promise<void> {
+  return new Promise((resolve) => {
+    const unsubscribe = authInitialized.subscribe((ready) => {
+      if (!ready) return;
+      resolve();
+      // subscribe() fires synchronously with the current value; on an
+      // already-initialized store `unsubscribe` is not assigned yet — defer.
+      queueMicrotask(() => unsubscribe());
+    });
+  });
+}
+
 // Flag to indicate user needs to complete their profile (no document in users collection)
 export const needsProfileSetup = writable<boolean>(false);
 

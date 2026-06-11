@@ -23,6 +23,7 @@
     type UpcomingTournamentInput
   } from '$lib/firebase/tournamentImport';
   import { searchUsers, getTournament, transformImportedToLive } from '$lib/firebase/tournaments';
+  import { waitForAuthInit } from '$lib/firebase/auth';
   import type { UserProfile } from '$lib/firebase/userProfile';
   import type { TournamentTier, TournamentParticipant, Tournament, TiebreakerCriterion } from '$lib/types/tournament';
   import { getParticipantDisplayName, normalizeTier } from '$lib/types/tournament';
@@ -95,6 +96,10 @@
 
   // Check permission on mount and load edit data if applicable
   onMount(async () => {
+    // On a direct URL load this onMount races Firebase session restoration:
+    // canImportTournaments() saw currentUser === null and showed "no
+    // permission" to legitimately-permitted admins. Wait for auth first.
+    await waitForAuthInit();
     hasPermission = await canImportTournaments();
 
     // Check for edit, duplicate, or transform mode
@@ -140,6 +145,7 @@
       address = tournament.address || '';
       city = tournament.city || '';
       country = tournament.country || 'España';
+      venueId = tournament.venueId || undefined;
       tournamentDate = tournament.tournamentDate
         ? new Date(tournament.tournamentDate).toISOString().split('T')[0]
         : new Date().toISOString().split('T')[0];
@@ -318,12 +324,22 @@
         return;
       }
 
+      // Live tournaments duplicate through the create wizard (different data
+      // shape); a hand-crafted URL landing here would build a broken historical
+      // copy. Await the navigation so onMount doesn't drop isLoading and flash
+      // the no-permission screen underneath it.
+      if (!tournament.isImported) {
+        await goto(`/admin/tournaments/create?duplicate=${tournamentId}`, { replaceState: true });
+        return;
+      }
+
       // Pre-populate Step 1: Basic Info (increment edition, reset date to today)
       name = tournament.name || '';
       edition = tournament.edition != null ? tournament.edition + 1 : undefined;  // Increment edition only if original had one
       address = tournament.address || '';
       city = tournament.city || '';
       country = tournament.country || 'España';
+      venueId = tournament.venueId || undefined;
       tournamentDate = new Date().toISOString().split('T')[0];  // Today's date for new tournament
       tournamentTime = tournament.tournamentTime || '';
       gameType = tournament.gameType || 'singles';
@@ -461,6 +477,7 @@
       address = tournament.address || '';
       city = tournament.city || '';
       country = tournament.country || 'España';
+      venueId = tournament.venueId || undefined;
       tournamentDate = tournament.tournamentDate
         ? new Date(tournament.tournamentDate).toISOString().split('T')[0]
         : new Date().toISOString().split('T')[0];
