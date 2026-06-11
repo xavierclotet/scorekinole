@@ -2,6 +2,19 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.49] - 2026-06-11
+- Fix (groups): converting a completed match to walkover no longer counts the old points/20s in standings; overwriting a walkover clears its no-show metadata
+- Fix (groups): standings now honor the tournament's custom tiebreaker priority on every result write (order no longer flips between automatic and manual recalcs)
+- Fix (groups): Swiss round generation rejects skipped/duplicated rounds server-side; Swiss rounds config validated in the transaction; group points-mode results can be saved normally
+- Fix (scale): jittered contention retry on hot write paths — zero lost writes at 100 simultaneous match completions/round syncs (validated by stress tests)
+- Fix (dialog): concurrent-edit protection — real-time updates no longer clobber an admin's unsaved result edits (amber reload banner); participant replacements detected too
+- Fix (transition): manual tie resolutions and qualifier selection survive page reloads; bracket regeneration refuses to wipe played matches; DSQ/withdrawn players excluded from Silver; numeric configs sanitized
+- Fix (brackets): consolation matches no longer hang with LOSER placeholders (13-14 players); R32/R64 consolations now visible and playable in the admin page (17+ players); empty consolation bands explained with an info note
+- Fix (tables): Swiss table rotation works again from round 2 (history read from playedOnTable); Round Robin gains the pairwise-swap optimization so players stop repeating tables while others sit unvisited
+- Fix (auth): unverified email sign-in routes to the verify-email view; reset-password validates format and redirects Gmail accounts; profile saves no longer fail silently; custom profile photos survive name/country edits
+- UI: mini-league tiebreaker dialog shows the full criteria cascade (total 20s, PTV, Buchholz); admin groups page responsive (1-2 groups per row on small/medium screens, stacked standings/schedule on mobile)
+- Tests: +85 across 8 new/extended suites (playthrough 4-64 players, 50-100 concurrency stress, table rotation, auth/profile) — 2645 passing
+
 ## [2.5.48] - 2026-06-10
 - Fix (wizard create): double-submit guard — a fast double-click no longer creates two tournaments with the same key
 - Fix (wizard create): an expired, untouched registration deadline no longer blocks edit-mode saves (roster edits on tournament morning)
