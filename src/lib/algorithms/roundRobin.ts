@@ -9,6 +9,7 @@ import type {
   GroupMatch,
   TournamentParticipant
 } from '$lib/types/tournament';
+import { optimizeTablesBySwap } from './swiss';
 
 /**
  * Generate Round Robin schedule using circle method
@@ -250,6 +251,12 @@ export function assignTablesToRounds(
       tablesUsedByRound?.get(round.roundNumber) || []
     );
 
+    // Snapshot of history BEFORE this round: both the greedy pass and the
+    // swap optimization score against it, so swaps are sound regardless of
+    // the greedy processing order (same structure as Swiss assignTablesWithVariety)
+    const historyBefore = new Map<string, number[]>();
+    for (const [p, h] of tableHistory) historyBefore.set(p, [...h]);
+
     // For each match in this round
     for (let matchIndex = 0; matchIndex < round.matches.length; matchIndex++) {
       const match = round.matches[matchIndex];
@@ -260,8 +267,8 @@ export function assignTablesToRounds(
       }
 
       // Get tables already used by these participants historically
-      const usedByA = tableHistory.get(match.participantA) || [];
-      const usedByB = tableHistory.get(match.participantB) || [];
+      const usedByA = historyBefore.get(match.participantA) || [];
+      const usedByB = historyBefore.get(match.participantB) || [];
 
       // Build usage maps for O(1) lookup
       const usageMapA = new Map<number, number>();
@@ -282,7 +289,7 @@ export function assignTablesToRounds(
       // Track global table usage across ALL matches (for diversity tiebreak)
       // Build once: count how many times each table has been assigned so far
       const globalTableUsage = new Map<number, number>();
-      for (const hist of tableHistory.values()) {
+      for (const hist of historyBefore.values()) {
         for (const t of hist) {
           globalTableUsage.set(t, (globalTableUsage.get(t) || 0) + 1);
         }
@@ -351,24 +358,33 @@ export function assignTablesToRounds(
 
       // Mark table as used in this round (for this group)
       tablesUsedInRound.add(bestTable);
+    }
 
-      // Also update the shared map so other groups know this table is taken
+    // Pairwise-swap optimization within this round: greedy is myopic and can
+    // corner a later match into a table one of its players keeps repeating
+    // while another table sits unvisited. Swaps only permute tables among
+    // this round's matches, so cross-group uniqueness is preserved.
+    optimizeTablesBySwap(round.matches, totalTables, historyBefore);
+
+    // Persist FINAL (post-swap) assignments to the shared round map + history
+    for (const match of round.matches) {
+      if (!match.tableNumber || match.participantB === 'BYE') continue;
+
       if (tablesUsedByRound) {
         if (!tablesUsedByRound.has(round.roundNumber)) {
           tablesUsedByRound.set(round.roundNumber, new Set());
         }
-        tablesUsedByRound.get(round.roundNumber)!.add(bestTable);
+        tablesUsedByRound.get(round.roundNumber)!.add(match.tableNumber);
       }
 
-      // Update historical usage
       if (!tableHistory.has(match.participantA)) {
         tableHistory.set(match.participantA, []);
       }
       if (!tableHistory.has(match.participantB)) {
         tableHistory.set(match.participantB, []);
       }
-      tableHistory.get(match.participantA)!.push(bestTable);
-      tableHistory.get(match.participantB)!.push(bestTable);
+      tableHistory.get(match.participantA)!.push(match.tableNumber);
+      tableHistory.get(match.participantB)!.push(match.tableNumber);
     }
   }
 

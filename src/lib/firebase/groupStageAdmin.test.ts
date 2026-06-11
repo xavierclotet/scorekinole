@@ -357,7 +357,82 @@ describe('updateSwissRoundsConfig server-side validation', () => {
   });
 });
 
-// ─── 6. recalculateStandings preserves admin qualifier selection ─────────────
+// ─── 6. Swiss table rotation across rounds (fair table rotation) ─────────────
+
+describe('Swiss table rotation between rounds', () => {
+  /** Map participantId → table they played in a given pairing (tableNumber or playedOnTable) */
+  function tablesPlayedIn(tournament: Tournament, roundNumber: number): Map<string, number> {
+    const result = new Map<string, number>();
+    const pairing = tournament.groupStage!.groups[0].pairings!.find(p => p.roundNumber === roundNumber);
+    for (const match of pairing?.matches || []) {
+      const table = match.tableNumber ?? match.playedOnTable;
+      if (!table || match.participantB === 'BYE') continue;
+      result.set(match.participantA, table);
+      result.set(match.participantB, table);
+    }
+    return result;
+  }
+
+  it('round 2 never repeats a player\'s round-1 table when enough tables exist', async () => {
+    // 4 players, 4 tables: every player has 3 unvisited tables after round 1,
+    // so a repeat-free assignment always exists — the algorithm must find it.
+    // REGRESSION: the round-2 history was built from match.tableNumber only,
+    // but completed matches move it to playedOnTable → empty history → repeats.
+    const tournament = createSwissTournament({ numParticipants: 4, swissRounds: 3 });
+    seedTournament(tournament);
+
+    await completeSwissRound(tournament.id, 1);
+    expect(await generateSwissPairings(tournament.id, 2)).toBe(true);
+
+    const after = readTournament(tournament.id);
+    const r1Tables = tablesPlayedIn(after, 1);
+    const r2Tables = tablesPlayedIn(after, 2);
+
+    expect(r2Tables.size).toBeGreaterThan(0);
+    for (const [participantId, r2Table] of r2Tables) {
+      expect(
+        r2Table,
+        `${participantId} repeated table ${r2Table} from round 1`
+      ).not.toBe(r1Tables.get(participantId));
+    }
+
+    // And no duplicate tables within round 2
+    const r2Pairing = after.groupStage!.groups[0].pairings!.find(p => p.roundNumber === 2)!;
+    const tables = r2Pairing.matches.map(m => m.tableNumber).filter(Boolean);
+    expect(new Set(tables).size).toBe(tables.length);
+  });
+
+  it('across 3 rounds no player is stuck on a single table (6 players, 4 tables)', async () => {
+    const tournament = createSwissTournament({ numParticipants: 6, swissRounds: 3 });
+    seedTournament(tournament);
+
+    for (let round = 1; round <= 3; round++) {
+      await completeSwissRound(tournament.id, round);
+      if (round < 3) {
+        expect(await generateSwissPairings(tournament.id, round + 1)).toBe(true);
+      }
+    }
+
+    const after = readTournament(tournament.id);
+    const tablesPerPlayer = new Map<string, number[]>();
+    for (let round = 1; round <= 3; round++) {
+      for (const [pid, table] of tablesPlayedIn(after, round)) {
+        if (!tablesPerPlayer.has(pid)) tablesPerPlayer.set(pid, []);
+        tablesPerPlayer.get(pid)!.push(table);
+      }
+    }
+
+    for (const [pid, tables] of tablesPerPlayer) {
+      const distinct = new Set(tables).size;
+      expect(
+        distinct,
+        `${pid} played tables [${tables.join(',')}] — fair rotation should give at least 2 distinct`
+      ).toBeGreaterThanOrEqual(2);
+    }
+  });
+});
+
+// ─── 7. recalculateStandings preserves admin qualifier selection ─────────────
 
 describe('recalculateStandings qualifier preservation', () => {
   it('keeps qualifiedForFinal flags (admin selection is not derived from matches)', async () => {

@@ -445,7 +445,12 @@ function scoreMatchTable(
   return [primary, consecutiveRepeat, Math.max(uA, uB), uA + uB];
 }
 
-function optimizeTablesBySwap(
+/**
+ * Pairwise-swap optimization for one round's table assignments.
+ * Exported so Round Robin (assignTablesToRounds) can reuse it — greedy alone
+ * can leave a player stuck repeating a table while another sits unvisited.
+ */
+export function optimizeTablesBySwap(
   matches: GroupMatch[],
   totalTables: number,
   history: Map<string, number[]>

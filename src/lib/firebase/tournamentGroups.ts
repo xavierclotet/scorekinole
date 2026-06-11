@@ -266,15 +266,20 @@ export async function generateSwissPairings(
         roundNumber
       );
 
-      // Assign tables with variety
+      // Assign tables with variety.
+      // CRITICAL: completed matches no longer carry tableNumber (it is moved to
+      // playedOnTable when the match completes and the table is freed). Reading
+      // only tableNumber left the history EMPTY when generating the next round,
+      // so the fair-rotation algorithm had no memory and players repeated tables.
       const tableHistory = new Map<string, number[]>();
       previousPairings.forEach(pairing => {
         pairing.matches.forEach(match => {
-          if (match.tableNumber) {
+          const playedTable = match.tableNumber ?? match.playedOnTable;
+          if (playedTable) {
             if (!tableHistory.has(match.participantA)) tableHistory.set(match.participantA, []);
             if (match.participantB !== 'BYE' && !tableHistory.has(match.participantB)) tableHistory.set(match.participantB, []);
-            tableHistory.get(match.participantA)!.push(match.tableNumber);
-            if (match.participantB !== 'BYE') tableHistory.get(match.participantB)!.push(match.tableNumber);
+            tableHistory.get(match.participantA)!.push(playedTable);
+            if (match.participantB !== 'BYE') tableHistory.get(match.participantB)!.push(playedTable);
           }
         });
       });
