@@ -1683,6 +1683,7 @@
   "registration_pairsSpotsLeft": "{count} available pairs",
   "registration_pairs": "Couples",
   "registration_guestPartnerNameTaken": "There is already a couple invited with that name. Please add a surname or initial to differentiate them.",
+  "registration_guestTag": "Guest",
   "registration_emailNotVerified": "Verify your email before registering for a tournament.",
   "rules_fieldStrength": "Field Level (FSI):",
   "rules_fieldStrengthWinner": "the winner takes {pts} pts",

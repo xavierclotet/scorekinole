@@ -10,6 +10,8 @@
   import { adminTheme } from '$lib/stores/theme';
   import { currentUser } from '$lib/firebase/auth';
   import { getTournament, cancelTournament as cancelTournamentFirebase, updateTournament } from '$lib/firebase/tournaments';
+  import { deleteField } from 'firebase/firestore';
+  import { safeHostname } from '$lib/utils/safeUrl';
   import { adminPromoteFromWaitlistFirestore, adminRemoveFromWaitlistFirestore } from '$lib/firebase/tournamentRegistration';
   import { transitionTournament } from '$lib/utils/tournamentStateMachine';
   import { type Tournament, type TournamentTier, getParticipantDisplayName, normalizeTier } from '$lib/types/tournament';
@@ -361,9 +363,14 @@
         show20s: editShow20s,
         showHammer: editShowHammer,
         isTest: editIsTest,
+        // Preserve scoringSystem: overwriting the whole rankingConfig used to
+        // silently revert FSI tournaments to the CLASSIC default.
         rankingConfig: {
           enabled: editRankingEnabled,
-          tier: editRankingTier
+          tier: editRankingTier,
+          ...(tournament.rankingConfig?.scoringSystem
+            ? { scoringSystem: tournament.rankingConfig.scoringSystem }
+            : {})
         },
         // Metadata fields
         description: editDescription.trim() || undefined,
@@ -404,6 +411,26 @@
         updates.timeEstimate = calculateTournamentTimeEstimate(tempTournament);
       }
 
+      // updateTournament strips undefined from the payload, so a field the
+      // admin CLEARED would silently keep its old value. Map cleared optional
+      // fields to deleteField() (after the time estimate is computed, so the
+      // calculation never sees FieldValue sentinels).
+      const clearedOptionalValues: Record<string, unknown> = {
+        description: editDescription.trim(),
+        edition: editEdition,
+        address: editAddress.trim(),
+        venueId: editVenueId,
+        externalLink: editExternalLink.trim(),
+        posterUrl: editPosterUrl.trim(),
+        tournamentDate: editDate,
+        tournamentTime: editTime
+      };
+      for (const [field, value] of Object.entries(clearedOptionalValues)) {
+        if (value === '' || value === null || value === undefined) {
+          (updates as Record<string, unknown>)[field] = deleteField();
+        }
+      }
+
       const success = await updateTournament(tournamentId, { ...updates, ...finalStageFieldUpdates } as Partial<Tournament>);
 
       if (success) {
@@ -435,9 +462,14 @@
   // Registration section state
   let isAdminActioning = $state<string | null>(null);
 
-  let regRegisteredPlayers = $derived(
+  // ALL active participants (self-registered AND admin-added guests): the
+  // capacity logic (countActiveParticipants in tournamentRegistration) counts
+  // both, so showing only REGISTERED here under-reported how full the
+  // tournament is and made guests invisible (the participants card is hidden
+  // while this section is shown).
+  let regActiveParticipants = $derived(
     tournament?.status === 'DRAFT'
-      ? tournament.participants.filter(p => p.type === 'REGISTERED')
+      ? tournament.participants.filter(p => !p.status || p.status === 'ACTIVE')
       : []
   );
   let regWaitlist = $derived(tournament?.waitlist ?? []);
@@ -762,7 +794,7 @@
                   <span class="config-label">{m.import_externalLink()}:</span>
                   <span class="config-value">
                     <a href={tournament.externalLink} target="_blank" rel="noopener noreferrer" class="external-link-value">
-                      {new URL(tournament.externalLink).hostname} ↗
+                      {safeHostname(tournament.externalLink)} ↗
                     </a>
                   </span>
                 </div>
@@ -819,7 +851,7 @@
               <div class="reg-metrics">
                 <div class="reg-metric">
                   <span class="reg-metric-value">
-                    {regRegisteredPlayers.length}{tournament.registration?.maxParticipants ? `/${tournament.registration.maxParticipants}` : ''}
+                    {regActiveParticipants.length}{tournament.registration?.maxParticipants ? `/${tournament.registration.maxParticipants}` : ''}
                   </span>
                   <span class="reg-metric-label">{m.registration_participants()}</span>
                 </div>
@@ -843,15 +875,18 @@
 
               <!-- Registered players -->
               <div class="reg-subsection">
-                <h3>{m.registration_participants()} ({regRegisteredPlayers.length})</h3>
-                {#if regRegisteredPlayers.length === 0}
+                <h3>{m.registration_participants()} ({regActiveParticipants.length})</h3>
+                {#if regActiveParticipants.length === 0}
                   <p class="reg-empty">{m.registration_noParticipantsYet()}</p>
                 {:else}
                   <div class="reg-list">
-                    {#each regRegisteredPlayers as p (p.id)}
+                    {#each regActiveParticipants as p (p.id)}
                       <div class="reg-entry">
                         <div class="reg-entry-info">
                           <span class="reg-entry-name">{p.name}</span>
+                          {#if p.type === 'GUEST'}
+                            <span class="reg-guest-tag">{m.registration_guestTag()}</span>
+                          {/if}
                           {#if p.partner}
                             <span class="reg-partner">
                               + {p.partner.name}
@@ -906,7 +941,8 @@
                 <button class="edit-participants-btn" onclick={handleCopyRegistrationLink}>
                   🔗 {m.registration_copyLink()}
                 </button>
-                <button class="edit-participants-btn" onclick={() => goto(`/admin/tournaments/create?edit=${tournamentId}&step=2`)}>
+                <!-- Registration settings live in wizard step 1 (deadline, max, fee) -->
+                <button class="edit-participants-btn" onclick={() => goto(`/admin/tournaments/create?edit=${tournamentId}&step=1`)}>
                   ✏️ {m.registration_editSettings()}
                 </button>
               </div>
@@ -3019,6 +3055,23 @@
 
   .tournament-page:is([data-theme='dark'], [data-theme='violet']) .reg-partner {
     color: #64748b;
+  }
+
+  .reg-guest-tag {
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 0.1rem 0.4rem;
+    border-radius: 999px;
+    color: #92400e;
+    background: #fef3c7;
+    margin-left: 0.35rem;
+  }
+
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .reg-guest-tag {
+    color: #fbbf24;
+    background: rgba(251, 191, 36, 0.12);
   }
 
   .reg-entry-actions {

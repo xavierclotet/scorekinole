@@ -1097,6 +1097,16 @@ export async function deleteTournament(id: string): Promise<boolean> {
  * @returns true if successful
  */
 export async function cancelTournament(id: string): Promise<boolean> {
+  // Status guard: a stale tab can hold a DRAFT view of a tournament that has
+  // since COMPLETED (ranking points already distributed by the Cloud Function)
+  // or been CANCELLED — flipping those to CANCELLED corrupts the record.
+  const current = await getTournament(id);
+  if (!current) return false;
+  if (current.status === 'COMPLETED' || current.status === 'CANCELLED') {
+    console.error(`Cannot cancel tournament in ${current.status} status`);
+    return false;
+  }
+
   return await updateTournament(id, {
     status: 'CANCELLED',
     completedAt: Date.now()

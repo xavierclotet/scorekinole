@@ -1650,6 +1650,7 @@
   "registration_pairsSpotsLeft": "{count} parejas disponibles",
   "registration_pairs": "Parejas",
   "registration_guestPartnerNameTaken": "Ya hay una pareja invitada con ese nombre. Añade un apellido o inicial para diferenciarla.",
+  "registration_guestTag": "Invitado",
   "registration_emailNotVerified": "Verifica tu email antes de inscribirte en un torneo.",
   "registration_full": "Completo",
   "registration_errorRegister": "Error al inscribirse",
