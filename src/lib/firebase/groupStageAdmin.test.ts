@@ -77,7 +77,7 @@ vi.mock('./tournaments', () => ({
 // ─── Import functions under test (AFTER mocks) ──────────────────────────────
 
 const { updateMatchResult, markNoShow } = await import('./tournamentMatches');
-const { generateSwissPairings, updateSwissRoundsConfig } = await import('./tournamentGroups');
+const { generateSwissPairings, updateSwissRoundsConfig, recalculateStandings } = await import('./tournamentGroups');
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -354,5 +354,44 @@ describe('updateSwissRoundsConfig server-side validation', () => {
 
     expect(await updateSwissRoundsConfig(tournament.id, 7)).toBe(true);
     expect(readTournament(tournament.id).groupStage!.numSwissRounds).toBe(7);
+  });
+});
+
+// ─── 6. recalculateStandings preserves admin qualifier selection ─────────────
+
+describe('recalculateStandings qualifier preservation', () => {
+  it('keeps qualifiedForFinal flags (admin selection is not derived from matches)', async () => {
+    const tournament = createTestTournament({ numParticipants: 4 });
+    seedTournament(tournament);
+
+    // Complete one match so standings have real data
+    const match = findMatchBetween(tournament, 'player-1', 'player-2')!;
+    await updateMatchResult(tournament.id, match.id, createMatchResult(1, 0, 8, 3, 1, 0));
+
+    // Admin marks p1 and p3 as qualified (simulates updateQualifiers)
+    const stored = readTournament(tournament.id);
+    for (const standing of stored.groupStage!.groups[0].standings!) {
+      if (standing.participantId === 'player-1' || standing.participantId === 'player-3') {
+        standing.qualifiedForFinal = true;
+      }
+    }
+    mockStore.setDocument(`tournaments/${tournament.id}`, stored as unknown as Record<string, unknown>);
+
+    // Recalculate (e.g. the 🔄 button on the transition page)
+    expect(await recalculateStandings(tournament.id)).toBe(true);
+
+    const after = readTournament(tournament.id);
+    const flags = new Map(
+      after.groupStage!.groups[0].standings!.map(s => [s.participantId, s.qualifiedForFinal])
+    );
+    expect(flags.get('player-1')).toBe(true);
+    expect(flags.get('player-3')).toBe(true);
+    expect(flags.get('player-2')).toBe(false);
+    expect(flags.get('player-4')).toBe(false);
+
+    // And the match data itself is untouched
+    const m = findMatchInTournament(after, match.id)!;
+    expect(m.status).toBe('COMPLETED');
+    expect(m.totalPointsA).toBe(8);
   });
 });

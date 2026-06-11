@@ -247,15 +247,11 @@
         showToast = true;
         setTimeout(() => goto(`/admin/tournaments/${tournamentId}`), 1500);
       } else {
-        // Recalculate standings to ensure head-to-head records are up to date
-        await recalculateStandings(tournamentId);
-        // Reload tournament after recalculation
-        tournament = await getTournament(tournamentId);
-        if (!tournament) {
-          error = true;
-          loading = false;
-          return;
-        }
+        // NOTE: do NOT auto-recalculate standings here. Standings (incl. H2H)
+        // are already recalculated inline on every match write, and a recalc
+        // rebuilds them algorithmically — wiping manual tie resolutions the
+        // admin saved on a previous visit. The 🔄 button remains for an
+        // explicit recalculation (legacy/stale data).
 
         // Initialize group qualifiers from current state
         // Ensure groups is an array (Firestore may return object)
@@ -424,10 +420,39 @@
     }
   }
 
+  /**
+   * Clamp a numeric config value. Cleared number inputs bind to null/NaN in
+   * Svelte; without this, NaN would end up inside the bracket config.
+   */
+  function sanitizeNum(value: unknown, fallback: number, min: number, max: number): number {
+    const n = Math.floor(Number(value));
+    if (!Number.isFinite(n)) return fallback;
+    return Math.min(max, Math.max(min, n));
+  }
+
   async function handleGenerateBracket() {
     if (!tournamentId || !tournament || !canProceed) return;
 
     isProcessing = true;
+
+    // Sanitize all numeric config inputs before building bracket configs
+    // (reassigning the state also fixes the visible input values)
+    earlyRoundsPointsToWin = sanitizeNum(earlyRoundsPointsToWin, 7, 1, 21);
+    earlyRoundsToPlay = sanitizeNum(earlyRoundsToPlay, 4, 1, 12);
+    semifinalPointsToWin = sanitizeNum(semifinalPointsToWin, 7, 1, 21);
+    semifinalRoundsToPlay = sanitizeNum(semifinalRoundsToPlay, 4, 1, 12);
+    semifinalMatchesToWin = sanitizeNum(semifinalMatchesToWin, 1, 1, 5);
+    finalPointsToWin = sanitizeNum(finalPointsToWin, 9, 1, 21);
+    finalRoundsToPlay = sanitizeNum(finalRoundsToPlay, 4, 1, 12);
+    finalMatchesToWin = sanitizeNum(finalMatchesToWin, 1, 1, 5);
+    silverEarlyRoundsPointsToWin = sanitizeNum(silverEarlyRoundsPointsToWin, 7, 1, 21);
+    silverEarlyRoundsToPlay = sanitizeNum(silverEarlyRoundsToPlay, 4, 1, 12);
+    silverSemifinalPointsToWin = sanitizeNum(silverSemifinalPointsToWin, 7, 1, 21);
+    silverSemifinalRoundsToPlay = sanitizeNum(silverSemifinalRoundsToPlay, 4, 1, 12);
+    silverSemifinalMatchesToWin = sanitizeNum(silverSemifinalMatchesToWin, 1, 1, 5);
+    silverFinalPointsToWin = sanitizeNum(silverFinalPointsToWin, 7, 1, 21);
+    silverFinalRoundsToPlay = sanitizeNum(silverFinalRoundsToPlay, 4, 1, 12);
+    silverFinalMatchesToWin = sanitizeNum(silverFinalMatchesToWin, 1, 1, 5);
 
     try {
       // First save qualifiers (for single bracket mode)
@@ -587,9 +612,10 @@
         const participantId = standing.participantId;
         const pos = standing.position || 99;
 
-        // Skip disqualified participants - they should not be in any bracket
+        // Skip disqualified/withdrawn participants - they should not be in any
+        // bracket (a withdrawn player would otherwise be auto-placed in Silver)
         const participant = tournament?.participants.find(p => p.id === participantId);
-        if (participant?.status === 'DISQUALIFIED') {
+        if (participant?.status === 'DISQUALIFIED' || participant?.status === 'WITHDRAWN') {
           return;
         }
 

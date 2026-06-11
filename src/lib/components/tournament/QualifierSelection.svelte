@@ -403,6 +403,22 @@
     return twenties;
   }
 
+  // Buchholz for display: prefer the value persisted by resolveTiebreaker;
+  // legacy standings may not have it, so recompute it the same way
+  // (sum of the primary ranking value of every opponent faced).
+  function getBuchholz(standing: any): number {
+    if (typeof standing.buchholz === 'number') return standing.buchholz;
+    if (!standing.headToHeadRecord) return 0;
+    let total = 0;
+    for (const oppId of Object.keys(standing.headToHeadRecord)) {
+      const opp = standings.find((st: any) => st.participantId === oppId);
+      if (opp) {
+        total += qualificationMode === 'POINTS' ? (opp.totalPointsScored || 0) : (opp.points || 0);
+      }
+    }
+    return total;
+  }
+
   // Open mini-league tiebreaker modal
   function openTiebreakerModal(standing: any, event: MouseEvent) {
     event.stopPropagation();
@@ -424,16 +440,21 @@
           miniPts: calculateMiniLeaguePoints(s, tiedIds),
           mini20s: calculateMiniLeague20s(s, tiedIds),
           total20s: s.total20s || 0,
+          totalPts: s.totalPointsScored || 0,
+          buchholz: getBuchholz(s),
           hasSubTie: false
         });
       }
     }
 
-    // Sort by mini-league points, then by mini-league 20s, then by total 20s
+    // Sort mirroring the real tiebreaker cascade:
+    // mini-league points → mini-league 20s → total 20s → total points → Buchholz
     tiebreakerData.sort((a, b) => {
       if (b.miniPts !== a.miniPts) return b.miniPts - a.miniPts;
       if (b.mini20s !== a.mini20s) return b.mini20s - a.mini20s;
-      return b.total20s - a.total20s;
+      if (b.total20s !== a.total20s) return b.total20s - a.total20s;
+      if (b.totalPts !== a.totalPts) return b.totalPts - a.totalPts;
+      return b.buchholz - a.buchholz;
     });
 
     // Detect sub-ties (same miniPts AND mini20s)
@@ -606,8 +627,11 @@
             <tr>
               <th class="pos-col">#</th>
               <th class="name-col">{m.tournament_participant()}</th>
-              <th class="mini-pts-col">{m.tournament_pointsShort()}</th>
-              <th class="mini-20s-col">{m.tournament_twentiesShort()}</th>
+              <th class="mini-pts-col">{m.tournament_tieColMiniPoints()}</th>
+              <th class="mini-20s-col">{m.tournament_tieColMini20s()}</th>
+              <th class="stat-col">{m.tournament_tieColTotal20s()}</th>
+              <th class="stat-col">{m.tournament_tieColTotalPoints()}</th>
+              <th class="stat-col">Buchholz</th>
             </tr>
           </thead>
           <tbody>
@@ -621,6 +645,9 @@
                 </td>
                 <td class="mini-pts-col"><strong>{player.miniPts}</strong></td>
                 <td class="mini-20s-col">{player.mini20s}</td>
+                <td class="stat-col">{player.total20s}</td>
+                <td class="stat-col">{player.totalPts}</td>
+                <td class="stat-col">{player.buchholz}</td>
               </tr>
             {/each}
           </tbody>
@@ -1136,7 +1163,7 @@
     background: white;
     border-radius: 12px;
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
-    max-width: 400px;
+    max-width: 560px;
     width: 100%;
     max-height: 80vh;
     overflow: hidden;
@@ -1194,7 +1221,8 @@
   }
 
   .tiebreaker-table th.mini-pts-col,
-  .tiebreaker-table th.mini-20s-col {
+  .tiebreaker-table th.mini-20s-col,
+  .tiebreaker-table th.stat-col {
     width: 50px;
     text-align: center;
   }
@@ -1215,8 +1243,14 @@
 
   .tiebreaker-table td.pos-col,
   .tiebreaker-table td.mini-pts-col,
-  .tiebreaker-table td.mini-20s-col {
+  .tiebreaker-table td.mini-20s-col,
+  .tiebreaker-table td.stat-col {
     text-align: center;
+  }
+
+  .tiebreaker-table td.stat-col {
+    color: #6b7280;
+    font-size: 0.8rem;
   }
 
   .tiebreaker-table td.mini-pts-col {

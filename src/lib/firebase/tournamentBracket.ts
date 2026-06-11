@@ -672,6 +672,36 @@ export async function reassignTables(
  * @param options Configuration for both brackets
  * @returns true if successful
  */
+/**
+ * True when an existing final-stage bracket already has matches in play or
+ * decided. Regenerating over it would silently wipe those results, so bracket
+ * generation must refuse. Typical scenario: a stale transition tab (opened
+ * before another admin generated and advanced to FINAL_STAGE) clicks
+ * "Generate Bracket" again.
+ */
+function finalStageHasProgress(finalStage: Tournament['finalStage']): boolean {
+  if (!finalStage) return false;
+
+  const brackets = [
+    finalStage.goldBracket,
+    finalStage.silverBracket,
+    ...((finalStage.parallelBrackets || []).map(pb => pb?.bracket))
+  ];
+
+  for (const bracket of brackets) {
+    if (!bracket) continue;
+    const matches = [
+      ...(bracket.rounds || []).flatMap(r => r.matches || []),
+      ...(bracket.thirdPlaceMatch ? [bracket.thirdPlaceMatch] : []),
+      ...(bracket.consolationBrackets || []).flatMap(cb => (cb.rounds || []).flatMap(r => r.matches || []))
+    ];
+    if (matches.some(m => m.status === 'COMPLETED' || m.status === 'WALKOVER' || m.status === 'IN_PROGRESS')) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export async function generateSplitBrackets(
   tournamentId: string,
   options: {
@@ -689,6 +719,15 @@ export async function generateSplitBrackets(
     return false;
   }
 
+  if (tournament.status === 'COMPLETED') {
+    console.error('Cannot generate brackets: tournament is COMPLETED');
+    return false;
+  }
+  if (finalStageHasProgress(tournament.finalStage)) {
+    console.error('Cannot regenerate brackets: existing bracket already has played matches');
+    return false;
+  }
+
   try {
     const { goldParticipantIds, silverParticipantIds, goldConfig, silverConfig, consolationEnabled, thirdPlaceMatchEnabled = true } = options;
 
@@ -696,15 +735,19 @@ export async function generateSplitBrackets(
     const uniqueGoldIds = [...new Set(goldParticipantIds)];
     const uniqueSilverIds = [...new Set(silverParticipantIds)];
 
-    // Get participant objects for gold bracket
+    // Get participant objects. Never seed disqualified/withdrawn players —
+    // same rule as generateBracket(): the client lists may still contain them
+    // (stale standings, withdrawn player auto-placed in Silver).
     const goldParticipants = uniqueGoldIds
       .map(id => tournament.participants.find(p => p.id === id))
-      .filter(p => p !== undefined);
+      .filter(p => p !== undefined)
+      .filter(p => p!.status !== 'DISQUALIFIED' && p!.status !== 'WITHDRAWN');
 
     // Get participant objects for silver bracket
     const silverParticipants = uniqueSilverIds
       .map(id => tournament.participants.find(p => p.id === id))
-      .filter(p => p !== undefined);
+      .filter(p => p !== undefined)
+      .filter(p => p!.status !== 'DISQUALIFIED' && p!.status !== 'WITHDRAWN');
 
 
     if (goldParticipants.length < 2 || silverParticipants.length < 2) {
@@ -816,6 +859,15 @@ export async function generateBracket(
 
   if (tournament.phaseType === 'GROUP_ONLY') {
     console.error('Cannot generate bracket for GROUP_ONLY tournament');
+    return false;
+  }
+
+  if (tournament.status === 'COMPLETED') {
+    console.error('Cannot generate bracket: tournament is COMPLETED');
+    return false;
+  }
+  if (finalStageHasProgress(tournament.finalStage)) {
+    console.error('Cannot regenerate bracket: existing bracket already has played matches');
     return false;
   }
 

@@ -454,7 +454,14 @@ export async function recalculateStandings(
         : tournament.groupStage.groups;
 
       for (const group of groupsToUpdate) {
-        // Initialize standings
+        // Initialize standings. qualifiedForFinal is an ADMIN decision (set in
+        // the transition page), not derived from match data — preserve it so a
+        // recalculation doesn't silently wipe the qualifier selection.
+        const previouslyQualified = new Set(
+          (group.standings || [])
+            .filter(s => s.qualifiedForFinal)
+            .map(s => s.participantId)
+        );
         const standingsMap = new Map<string, GroupStanding>();
 
         group.participants.forEach(participantId => {
@@ -468,7 +475,7 @@ export async function recalculateStandings(
             points: 0,
             total20s: 0,
             totalPointsScored: 0,
-            qualifiedForFinal: false,
+            qualifiedForFinal: previouslyQualified.has(participantId),
             headToHeadRecord: {}
           });
         });
