@@ -451,6 +451,8 @@
   "auth_enterPlayerName": "Por favor, introduce un nombre de jugador",
   "auth_forgotPassword": "¿Olvidaste tu contraseña?",
   "auth_gmailUseGoogleSignIn": "Para cuentas Gmail, usa el botón 'Continuar con Google'.",
+  "auth_invalidEmailFormat": "Introduce una dirección de correo válida.",
+  "common_profileSaveError": "No se pudo guardar el perfil. Comprueba tu conexión e inténtalo de nuevo.",
   "auth_invalidCredentials": "Email o contraseña incorrectos.",
   "auth_login": "Iniciar Sesión",
   "auth_loginError": "Error al iniciar sesión",

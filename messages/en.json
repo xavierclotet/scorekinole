@@ -1475,6 +1475,8 @@
   "auth_emailAlreadyInUse": "This email address is already registered. Try logging in.",
   "auth_forgotPassword": "Forgot your password?",
   "auth_gmailUseGoogleSignIn": "For Gmail accounts, use the 'Continue with Google' button.",
+  "auth_invalidEmailFormat": "Enter a valid email address.",
+  "common_profileSaveError": "Could not save your profile. Check your connection and try again.",
   "auth_invalidCredentials": "Incorrect email or password.",
   "auth_noAccountYet": "Don't you have an account?",
   "auth_password": "Password",

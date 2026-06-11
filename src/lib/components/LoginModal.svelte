@@ -5,7 +5,8 @@
 		signUpWithEmail,
 		signInWithEmail,
 		resetPassword,
-		resendVerificationEmail
+		resendVerificationEmail,
+		isGmailDomain
 	} from '$lib/firebase/auth';
 	import Eye from '@lucide/svelte/icons/eye';
 	import EyeOff from '@lucide/svelte/icons/eye-off';
@@ -59,6 +60,7 @@
 		showGmailHint = false;
 		resent = false;
 		resetEmail = '';
+		verifyEmail = '';
 	}
 
 	function setView(newView: View) {
@@ -67,6 +69,7 @@
 	}
 
 	async function handleGoogleSignIn() {
+		if (isLoading) return;
 		isLoading = true;
 		error = '';
 
@@ -92,6 +95,7 @@
 	}
 
 	async function handleEmailSignIn() {
+		if (isLoading) return;
 		if (!email || !password) return;
 
 		isLoading = true;
@@ -103,7 +107,13 @@
 			close();
 		} catch (err: any) {
 			console.error('Email sign in error:', err);
-			if (err.code === 'GMAIL_USE_GOOGLE_SIGNIN') {
+			if (err.code === 'EMAIL_NOT_VERIFIED') {
+				// Account exists but email not verified yet: take the user to the
+				// verify-email view (with the resend button) instead of showing a
+				// generic, dead-end login error.
+				verifyEmail = email.trim().toLowerCase();
+				setView('verify-email');
+			} else if (err.code === 'GMAIL_USE_GOOGLE_SIGNIN') {
 				error = m.auth_gmailUseGoogleSignIn();
 				showGmailHint = true;
 			} else if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
@@ -123,6 +133,7 @@
 	}
 
 	async function handleEmailSignUp() {
+		if (isLoading) return;
 		if (!email || !password || !confirmPassword) return;
 
 		if (!pwAllValid) {
@@ -164,7 +175,22 @@
 	}
 
 	async function handleResetPassword() {
+		if (isLoading) return;
 		if (!resetEmail) return;
+
+		// Basic format check: Firebase silently "succeeds" on garbage input
+		// (anti-enumeration), which would show "email sent" for a typo
+		if (!/^\S+@\S+\.\S+$/.test(resetEmail.trim())) {
+			error = m.auth_invalidEmailFormat();
+			return;
+		}
+
+		// Gmail accounts have no password here — they sign in with Google
+		if (isGmailDomain(resetEmail.trim().toLowerCase())) {
+			error = m.auth_gmailUseGoogleSignIn();
+			showGmailHint = true;
+			return;
+		}
 
 		isLoading = true;
 		error = '';

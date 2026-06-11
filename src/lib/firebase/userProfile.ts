@@ -200,10 +200,18 @@ export async function saveUserProfile(
       playerName: playerName.trim(),
       playerNameLower: playerName.trim().toLowerCase(),
       email: user.email,
-      photoURL: user.photoURL,
       authProvider: getAuthProvider(),
       updatedAt: serverTimestamp()
     };
+
+    // photoURL is only written at profile CREATION (seeded from the auth
+    // provider). After that, uploadAvatar/deleteAvatar manage it directly in
+    // Firestore — rewriting it here from the in-memory currentUser would
+    // overwrite a custom photo uploaded from another device/session with a
+    // stale value on every name/country edit.
+    if (isNewUser) {
+      profile.photoURL = user.photoURL;
+    }
 
     // Add optional fields
     if (options?.country !== undefined) {

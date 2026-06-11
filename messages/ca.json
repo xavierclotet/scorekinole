@@ -1475,6 +1475,8 @@
   "auth_emailAlreadyInUse": "Aquest email ja està registrat. Proveu d'iniciar sessió.",
   "auth_forgotPassword": "Has oblidat la contrasenya?",
   "auth_gmailUseGoogleSignIn": "Per comptes Gmail, utilitza el botó 'Continuar amb Google'.",
+  "auth_invalidEmailFormat": "Introdueix una adreça de correu vàlida.",
+  "common_profileSaveError": "No s'ha pogut desar el perfil. Comprova la connexió i torna-ho a provar.",
   "auth_invalidCredentials": "Email o contrasenya incorrectes.",
   "auth_noAccountYet": "No tens compte?",
   "auth_password": "Contrasenya",

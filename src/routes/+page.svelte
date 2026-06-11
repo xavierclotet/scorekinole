@@ -14,6 +14,7 @@
 	import { saveUserProfile } from '$lib/firebase/userProfile';
 	import SEO from '$lib/components/SEO.svelte';
 	import PoweredByBadge from '$lib/components/PoweredByBadge.svelte';
+	import Toast from '$lib/components/Toast.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import Play from '@lucide/svelte/icons/play';
 	import BarChart3 from '@lucide/svelte/icons/bar-chart-3';
@@ -57,6 +58,8 @@
 	let showWhatsNew = $state(false);
 	let hasNewVersion = $state(false);
 	let showToast = $state(false);
+	let showErrorToast = $state(false);
+	let errorToastMessage = $state('');
 
 	onMount(() => {
 		if (!browser) return;
@@ -114,13 +117,16 @@
 	async function handleProfileUpdate({ playerName, country }: { playerName: string; country?: string }) {
 		try {
 			const result = await saveUserProfile(playerName, { country });
-			if (result) {
-				currentUser.update(u => u ? { ...u, name: playerName } : null);
-			}
+			if (!result) throw new Error('saveUserProfile returned null');
+			currentUser.update(u => u ? { ...u, name: playerName } : null);
+			showProfile = false;
 		} catch (error) {
+			// Keep the modal open so the user can retry — closing silently made
+			// a failed save look successful
 			console.error('Error updating profile:', error);
+			errorToastMessage = m.common_profileSaveError();
+			showErrorToast = true;
 		}
-		showProfile = false;
 	}
 
 	function goToMyStats() {
@@ -466,6 +472,8 @@
 
 <ProfileModal isOpen={showProfile} user={$currentUser} isAdmin={$canAccessAdmin} onclose={() => showProfile = false} onupdate={handleProfileUpdate} />
 <LoginModal isOpen={showLogin} onclose={() => showLogin = false} />
+
+<Toast bind:visible={showErrorToast} message={errorToastMessage} type="error" />
 <WhatsNewModal isOpen={showWhatsNew} onclose={closeWhatsNew} />
 
 <style>
