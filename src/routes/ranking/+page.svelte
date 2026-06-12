@@ -8,6 +8,8 @@
 		getCompletedTournaments,
 		getAvailableYears,
 		calculateRankings,
+		readRankingCache,
+		writeRankingCache,
 		type UserWithId,
 		type TournamentInfo,
 		type RankedPlayer,
@@ -23,14 +25,18 @@
 	import SEO from '$lib/components/SEO.svelte';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 
-	// Data state
-	let isLoading = $state(true);
-	let users = $state<UserWithId[]>([]);
-	let tournamentsMap = $state<Map<string, TournamentInfo>>(new Map());
+	// Data state — hydrated synchronously from the localStorage cache (stale-while-
+	// revalidate) so the table renders on the very first client render; onMount then
+	// refreshes from Firestore in the background. readRankingCache() is browser-guarded,
+	// so during SSR this initializes empty with the loading state.
+	const cachedAtInit = readRankingCache();
+	let isLoading = $state(cachedAtInit === null);
+	let users = $state<UserWithId[]>(cachedAtInit?.users ?? []);
+	let tournamentsMap = $state<Map<string, TournamentInfo>>(cachedAtInit?.tournamentsMap ?? new Map());
 	let rankedPlayers = $state<RankedPlayer[]>([]);
 
 	// Filter state — year and mode both live in the URL so any view is shareable/bookmarkable.
-	let availableYears = $state<number[]>([]);
+	let availableYears = $state<number[]>(cachedAtInit ? getAvailableYears(cachedAtInit.tournamentsMap) : []);
 	// Mode: ?mode=league → all tournaments of the year · default (no param) → best 2 tournaments.
 	let rankingMode = $derived<'ranking' | 'league'>(
 		page.url.searchParams.get('mode') === 'league' ? 'league' : 'ranking'
@@ -73,11 +79,16 @@
 	});
 
 	onMount(async () => {
+		// State was already hydrated from cache at init; just revalidate in background.
 		await loadData();
 	});
 
 	async function loadData() {
-		isLoading = true;
+		// Only show the spinner when there's nothing to display yet (first visit
+		// or empty cache); background refreshes must not blank the table.
+		if (users.length === 0 && tournamentsMap.size === 0) {
+			isLoading = true;
+		}
 		// Add a timeout fallback
 		const timeout = new Promise<never>((_, reject) =>
 			setTimeout(() => reject(new Error('Timeout loading data')), 15000)
@@ -98,6 +109,7 @@
 
 			// Extract available years (selectedYear is $derived and self-defaults)
 			availableYears = getAvailableYears(tournamentsMap);
+			writeRankingCache(loadedUsers, loadedTournaments);
 
 			// Rankings will be calculated by the $effect when isLoading becomes false
 		} catch (error) {
@@ -119,6 +131,12 @@
 
 		rankedPlayers = calculateRankings(users, tournamentsMap, filters);
 		visibleCount = PAGE_SIZE; // Reset visible count when filters change
+	}
+
+	// With cached data the first render must already show the table (no empty-state
+	// flash while waiting for the $effect below to run after mount).
+	if (cachedAtInit) {
+		recalculateRankings();
 	}
 
 	function loadMore() {
@@ -171,21 +189,31 @@
 		return Array.from(seen.values()).sort((a, b) => a.date - b.date);
 	})());
 
-	// Pre-build a lookup: playerId → tournamentId → points
-	let playerTournamentPoints = $derived((() => {
-		const map = new Map<string, Map<string, number>>();
+	// Pre-build a lookup: playerId → tournamentId → { points, counted }
+	// `counted` is precomputed here so each table cell is a single Map lookup
+	// instead of scanning player.tournaments per cell.
+	interface TournamentCell {
+		pts: number;
+		counted: boolean;
+	}
+
+	let playerTournamentCells = $derived((() => {
+		const map = new Map<string, Map<string, TournamentCell>>();
 		for (const player of rankedPlayers) {
-			const playerMap = new Map<string, number>();
-			for (const t of [...player.tournaments, ...player.otherTournaments]) {
-				playerMap.set(t.tournamentId, t.rankingDelta);
+			const playerMap = new Map<string, TournamentCell>();
+			for (const t of player.tournaments) {
+				playerMap.set(t.tournamentId, { pts: t.rankingDelta, counted: true });
+			}
+			for (const t of player.otherTournaments) {
+				playerMap.set(t.tournamentId, { pts: t.rankingDelta, counted: false });
 			}
 			map.set(player.odId, playerMap);
 		}
 		return map;
 	})());
 
-	function getPlayerTournamentPoints(playerId: string, tournamentId: string): number | null {
-		return playerTournamentPoints.get(playerId)?.get(tournamentId) ?? null;
+	function getPlayerTournamentCell(playerId: string, tournamentId: string): TournamentCell | null {
+		return playerTournamentCells.get(playerId)?.get(tournamentId) ?? null;
 	}
 
 	function handlePlayerClick(player: RankedPlayer) {
@@ -333,7 +361,7 @@
 							<td class="player-cell">
 								<div class="player-info">
 									{#if player.photoURL}
-										<img src={player.photoURL} alt="" class="player-avatar" referrerpolicy="no-referrer" />
+										<img src={player.photoURL} alt="" class="player-avatar" referrerpolicy="no-referrer" loading="lazy" width="32" height="32" />
 									{:else}
 										<div class="player-avatar-placeholder">
 											{player.playerName.charAt(0).toUpperCase()}
@@ -342,16 +370,16 @@
 									<a href="/users/{buildUserProfileParam(player.playerName, player.key, player.odId)}" class="player-name-link">
 										{player.playerName}
 										{#if player.country}
-											<img class="player-country-flag" src={getFlagUrl(player.country)} alt={player.country} />
+											<img class="player-country-flag" src={getFlagUrl(player.country)} alt={player.country} loading="lazy" />
 										{/if}
 									</a>
 								</div>
 							</td>
 							{#each tournamentColumns as col (col.id)}
-								{@const pts = getPlayerTournamentPoints(player.odId, col.id)}
-								<td class="tournament-pts-cell" class:has-points={pts !== null} class:counted={player.tournaments.some(t => t.tournamentId === col.id)}>
-									{#if pts !== null}
-										<span class="tournament-pts-value">{pts}</span>
+								{@const cell = getPlayerTournamentCell(player.odId, col.id)}
+								<td class="tournament-pts-cell" class:has-points={cell !== null} class:counted={cell?.counted}>
+									{#if cell !== null}
+										<span class="tournament-pts-value">{cell.pts}</span>
 									{:else}
 										<span class="tournament-pts-empty">–</span>
 									{/if}

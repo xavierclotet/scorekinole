@@ -85,6 +85,88 @@ export interface RankingFilters {
   bestOfN: number;
 }
 
+// ---------------------------------------------------------------------------
+// Field-masked fetches via the Firestore REST API.
+//
+// The web SDK has no select()/field-mask support, so getDocs() on /tournaments
+// downloads each COMPLETED tournament doc in full — including the embedded
+// matches, groups and bracket, which can be hundreds of KB per tournament —
+// only to keep 7 small fields. The REST runQuery endpoint accepts a `select`
+// projection, cutting the ranking page's network payload drastically.
+// Security rules apply identically to REST access (both collections are
+// public-read). On any REST failure we fall back to the SDK path.
+// ---------------------------------------------------------------------------
+
+/** Decode a Firestore REST `Value` into a plain JS value. */
+function decodeRestValue(v: Record<string, unknown>): unknown {
+  if ('stringValue' in v) return v.stringValue;
+  if ('integerValue' in v) return Number(v.integerValue);
+  if ('doubleValue' in v) return v.doubleValue;
+  if ('booleanValue' in v) return v.booleanValue;
+  if ('timestampValue' in v) return Date.parse(v.timestampValue as string);
+  if ('nullValue' in v) return null;
+  if ('mapValue' in v) return decodeRestFields((v.mapValue as { fields?: Record<string, never> }).fields);
+  if ('arrayValue' in v) {
+    return ((v.arrayValue as { values?: Record<string, never>[] }).values || []).map(decodeRestValue);
+  }
+  return undefined; // bytes/reference/geopoint — not used by ranking data
+}
+
+function decodeRestFields(fields?: Record<string, Record<string, unknown>>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (!fields) return out;
+  for (const key of Object.keys(fields)) {
+    out[key] = decodeRestValue(fields[key]);
+  }
+  return out;
+}
+
+interface RestDoc {
+  id: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: any;
+}
+
+async function runRestQuery(structuredQuery: object): Promise<RestDoc[]> {
+  const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
+  const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
+  if (!projectId || !apiKey) throw new Error('Missing Firebase REST config');
+
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery?key=${apiKey}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ structuredQuery })
+  });
+  if (!res.ok) throw new Error(`Firestore REST query failed: ${res.status}`);
+
+  const rows: { document?: { name: string; fields?: Record<string, Record<string, unknown>> } }[] =
+    await res.json();
+  const docs: RestDoc[] = [];
+  for (const row of rows) {
+    if (!row.document) continue; // readTime-only progress entries
+    const name = row.document.name;
+    docs.push({
+      id: name.slice(name.lastIndexOf('/') + 1),
+      data: decodeRestFields(row.document.fields)
+    });
+  }
+  return docs;
+}
+
+/** Shared filter: keep only non-merged users with tournament history. */
+function buildUsersWithTournaments(docs: RestDoc[]): UserWithId[] {
+  const users: UserWithId[] = [];
+  for (const { id, data } of docs) {
+    // Include all users (registered and guest) with tournament history
+    // Exclude merged users (mergedTo set means they've been migrated to another account)
+    if (!data.mergedTo && data.tournaments && data.tournaments.length > 0) {
+      users.push({ ...(data as UserProfile), odId: id });
+    }
+  }
+  return users;
+}
+
 /**
  * Get all users with tournament history
  * Public access - no admin check required
@@ -97,28 +179,59 @@ export async function getAllUsersWithTournaments(): Promise<UserWithId[]> {
   }
 
   try {
-    const usersRef = collection(db!, 'users');
-    const snapshot = await getDocs(usersRef);
-
-    const users: UserWithId[] = [];
-    snapshot.forEach(docSnap => {
-      const data = docSnap.data() as UserProfile;
-      // Include all users (registered and guest) with tournament history
-      // Exclude merged users (mergedTo set means they've been migrated to another account)
-      if (!data.mergedTo && data.tournaments && data.tournaments.length > 0) {
-        users.push({
-          ...data,
-          odId: docSnap.id
-        });
+    const docs = await runRestQuery({
+      from: [{ collectionId: 'users' }],
+      select: {
+        fields: [
+          { fieldPath: 'playerName' },
+          { fieldPath: 'key' },
+          { fieldPath: 'photoURL' },
+          { fieldPath: 'country' },
+          { fieldPath: 'tournaments' },
+          { fieldPath: 'mergedTo' }
+        ]
       }
     });
+    return buildUsersWithTournaments(docs);
+  } catch (restError) {
+    console.warn('REST users fetch failed, falling back to SDK:', restError);
+  }
 
-    console.log(`✅ Retrieved ${users.length} users with tournaments`);
-    return users;
+  try {
+    const usersRef = collection(db!, 'users');
+    const snapshot = await getDocs(usersRef);
+    const docs: RestDoc[] = [];
+    snapshot.forEach(docSnap => docs.push({ id: docSnap.id, data: docSnap.data() }));
+    return buildUsersWithTournaments(docs);
   } catch (error) {
     console.error('❌ Error getting users with tournaments:', error);
     return [];
   }
+}
+
+/** Shared mapping: raw tournament docs → TournamentInfo map, skipping test tournaments. */
+function buildTournamentsMap(docs: RestDoc[]): Map<string, TournamentInfo> {
+  const tournamentsMap = new Map<string, TournamentInfo>();
+  for (const { id, data } of docs) {
+    // Skip test tournaments - only include real tournaments (isTest !== true)
+    if (data.isTest === true) continue;
+
+    const completedAt = data.completedAt instanceof Timestamp
+      ? data.completedAt.toMillis()
+      : data.completedAt;
+
+    tournamentsMap.set(id, {
+      id,
+      key: data.key,
+      shortName: data.shortName,
+      edition: data.edition,
+      tier: data.rankingConfig?.tier,
+      gameType: data.gameType || 'singles',
+      country: data.country || '',
+      completedAt: completedAt || 0
+    });
+  }
+  return tournamentsMap;
 }
 
 /**
@@ -132,42 +245,86 @@ export async function getCompletedTournaments(): Promise<Map<string, TournamentI
   }
 
   try {
+    const docs = await runRestQuery({
+      from: [{ collectionId: 'tournaments' }],
+      where: {
+        fieldFilter: {
+          field: { fieldPath: 'status' },
+          op: 'EQUAL',
+          value: { stringValue: 'COMPLETED' }
+        }
+      },
+      select: {
+        fields: [
+          { fieldPath: 'key' },
+          { fieldPath: 'shortName' },
+          { fieldPath: 'edition' },
+          { fieldPath: 'rankingConfig.tier' },
+          { fieldPath: 'gameType' },
+          { fieldPath: 'country' },
+          { fieldPath: 'completedAt' },
+          { fieldPath: 'isTest' }
+        ]
+      }
+    });
+    return buildTournamentsMap(docs);
+  } catch (restError) {
+    console.warn('REST tournaments fetch failed, falling back to SDK:', restError);
+  }
+
+  try {
     const tournamentsRef = collection(db!, 'tournaments');
     const q = query(tournamentsRef, where('status', '==', 'COMPLETED'));
     const snapshot = await getDocs(q);
-
-    const tournamentsMap = new Map<string, TournamentInfo>();
-    let testCount = 0;
-    snapshot.forEach(docSnap => {
-      const data = docSnap.data();
-
-      // Skip test tournaments - only include real tournaments (isTest !== true)
-      if (data.isTest === true) {
-        testCount++;
-        return;
-      }
-
-      const completedAt = data.completedAt instanceof Timestamp
-        ? data.completedAt.toMillis()
-        : data.completedAt;
-
-      tournamentsMap.set(docSnap.id, {
-        id: docSnap.id,
-        key: data.key,
-        shortName: data.shortName,
-        edition: data.edition,
-        tier: data.rankingConfig?.tier,
-        gameType: data.gameType || 'singles',
-        country: data.country || '',
-        completedAt: completedAt || 0
-      });
-    });
-
-    console.log(`✅ Retrieved ${tournamentsMap.size} completed tournaments (excluded ${testCount} test tournaments)`);
-    return tournamentsMap;
+    const docs: RestDoc[] = [];
+    snapshot.forEach(docSnap => docs.push({ id: docSnap.id, data: docSnap.data() }));
+    return buildTournamentsMap(docs);
   } catch (error) {
     console.error('❌ Error getting completed tournaments:', error);
     return new Map();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Stale-while-revalidate cache for the ranking page.
+// The compact data (users-with-tournaments + TournamentInfo entries) is small
+// enough for localStorage, so repeat visits render instantly from cache while
+// a background fetch refreshes the data.
+// ---------------------------------------------------------------------------
+
+const RANKING_CACHE_KEY = 'rankingPageCache.v1';
+
+export interface RankingCacheData {
+  users: UserWithId[];
+  tournamentsMap: Map<string, TournamentInfo>;
+}
+
+export function readRankingCache(): RankingCacheData | null {
+  if (!browser) return null;
+  try {
+    const raw = localStorage.getItem(RANKING_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed.users) || !Array.isArray(parsed.tournaments)) return null;
+    return {
+      users: parsed.users,
+      tournamentsMap: new Map(parsed.tournaments)
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function writeRankingCache(users: UserWithId[], tournamentsMap: Map<string, TournamentInfo>): void {
+  if (!browser) return;
+  try {
+    localStorage.setItem(
+      RANKING_CACHE_KEY,
+      JSON.stringify({ users, tournaments: Array.from(tournamentsMap.entries()), savedAt: Date.now() })
+    );
+  } catch {
+    // Quota exceeded or storage unavailable — drop the cache, the page still works
+    try { localStorage.removeItem(RANKING_CACHE_KEY); } catch { /* ignore */ }
   }
 }
 
