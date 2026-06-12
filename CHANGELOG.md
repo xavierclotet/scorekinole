@@ -2,6 +2,16 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.53] - 2026-06-12
+- Performance: Firestore persistent cache (IndexedDB) — instant reads of recently seen data, writes queue offline and sync on reconnect
+- Performance: tournament tap-to-play skips redundant full-tournament fetches (in-memory cache fed by live subscriptions, unified start/resume in one transaction)
+- Performance: match completion is optimistic — result shows instantly, Firebase sync runs in background with retry; "play next match" waits for it transparently
+- Performance: starting a match writes only the affected bracket/groups subtree (KBs instead of potentially hundreds of KB on mobile upload)
+- Performance: /game heavy modals (tournament, settings, friendly, QR, winner splash…) load lazily with idle preload — ~150 KB less JS on first load
+- Performance: score-tap localStorage saves coalesce per tick (one write per burst instead of one per update)
+- Fix: cross-browser compatibility for iOS Safari and non-Chrome browsers (safe localStorage wrappers, crypto.randomUUID fallback)
+- Fix: cleaned up all svelte-plugin build warnings (a11y + unused CSS)
+
 ## [2.5.52] - 2026-06-12
 - Performance: landing page (/) is now prerendered — full HTML on first load, near-instant first paint
 - Performance: Google Fonts load without blocking first paint (preconnect + async stylesheet)
