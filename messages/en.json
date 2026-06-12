@@ -1157,7 +1157,6 @@
   "deletion_howToStep3": "We will process your request within 30 days and confirm by email.",
   "deletion_localDataTitle": "Local data",
   "deletion_localDataText": "The app also stores data on your device (localStorage). To delete it, clear the app data from your browser settings or uninstall the app.",
-  "tournaments_statusLive": "LIVE",
   "admin_addQuotaNextYear": "Add quota for {year}",
   "admin_pastQuotas": "Previous installments",
   "admin_quotaReason_autoRegister": "Self-registration",

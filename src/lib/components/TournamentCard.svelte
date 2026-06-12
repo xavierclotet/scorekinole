@@ -18,7 +18,7 @@
 	const showParticipants = $derived(isDraft && participants.length > 0);
 
 	const statusColors: Record<string, string> = {
-		DRAFT: '#22c55e', // Vibrant green for LIVE
+		DRAFT: '#8b5cf6', // Purple for pending (not yet started)
 		GROUP_STAGE: '#f59e0b',
 		TRANSITION: '#8b5cf6',
 		FINAL_STAGE: '#3b82f6',
@@ -41,11 +41,9 @@
 
 	// Use translated status labels
 	const getStatusLabel = (status: string): string => {
-		// Handle upcoming case
-		if (status === 'UPCOMING') return m.tournament_upcoming();
-
 		const labels: Record<string, () => string> = {
-			DRAFT: () => m.tournaments_statusLive(), // Show "EN VIVO" instead of "Borrador"
+			UPCOMING: () => m.tournament_pending(),
+			DRAFT: () => m.tournament_pending(),
 			GROUP_STAGE: () => m.tournament_groupStage(),
 			TRANSITION: () => m.admin_transition(),
 			FINAL_STAGE: () => m.tournament_finalStage(),

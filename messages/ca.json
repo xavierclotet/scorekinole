@@ -1158,7 +1158,6 @@
   "deletion_howToStep3": "Processarem la teva sol·licitud en un màxim de 30 dies i et confirmarem per email.",
   "deletion_localDataTitle": "Dades locals",
   "deletion_localDataText": "L'app també guarda dades al teu dispositiu (localStorage). Per eliminar-les, esborra les dades de l'aplicació des de la configuració del teu navegador o desinstal·la l'app.",
-  "tournaments_statusLive": "EN VIU",
   "admin_addQuotaNextYear": "Afegir quota per a {year}",
   "admin_pastQuotas": "Quotes anteriors",
   "admin_quotaReason_autoRegister": "Autoregistre",
