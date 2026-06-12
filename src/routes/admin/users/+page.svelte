@@ -1413,16 +1413,6 @@
     color: white;
   }
 
-  .role-badge.user {
-    background: #e5e7eb;
-    color: #6b7280;
-  }
-
-  .users-container:is([data-theme='dark'], [data-theme='violet']) .role-badge.user {
-    background: #374151;
-    color: #9ca3af;
-  }
-
   .role-badge.google {
     background: linear-gradient(135deg, #4285f4 0%, #34a853 100%);
     color: white;
@@ -1474,25 +1464,6 @@
     gap: 0.25rem;
   }
 
-  .tournaments-created {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 20px;
-    height: 20px;
-    padding: 0 0.4rem;
-    background: #f3f4f6;
-    color: #374151;
-    font-size: 0.7rem;
-    font-weight: 600;
-    border-radius: 10px;
-    margin-left: 0.35rem;
-  }
-
-  .users-container:is([data-theme='dark'], [data-theme='violet']) .tournaments-created {
-    background: #0f1419;
-    color: #8b9bb3;
-  }
 
   /* Created tournaments cell */
   .created-tournaments-cell {

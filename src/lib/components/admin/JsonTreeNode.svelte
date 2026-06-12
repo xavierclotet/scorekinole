@@ -19,6 +19,7 @@
 		onToggleKey
 	}: Props = $props();
 
+	// svelte-ignore state_referenced_locally -- intentional: only the initial depth decides the default expanded state
 	const initialDepth = depth;
 	let expanded = $state(initialDepth < 1);
 

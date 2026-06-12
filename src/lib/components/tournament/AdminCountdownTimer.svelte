@@ -28,9 +28,11 @@
 
   // Timer state
   let initialSeconds = $derived(initialMinutes * 60);
+  // svelte-ignore state_referenced_locally -- intentional initial value; the $effect below resyncs when initialMinutes changes
   let timeRemaining = $state(initialMinutes * 60);
   let running = $state(false);
   let interval: ReturnType<typeof setInterval> | null = null;
+  // svelte-ignore state_referenced_locally -- intentional snapshot to detect changes in the $effect below
   let prevInitialSeconds = initialMinutes * 60;
 
   // Reset when initialMinutes changes
@@ -506,7 +508,7 @@
       style="font-size: {fontSize}px;"
     >
       {#if isEditing}
-        <div class="edit-time" onclick={(e) => e.stopPropagation()}>
+        <div class="edit-time">
           <input
             bind:this={minutesInput}
             class="time-input"

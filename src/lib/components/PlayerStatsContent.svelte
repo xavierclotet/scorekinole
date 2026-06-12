@@ -48,7 +48,9 @@
 	let filterMode: 'all' | 'singles' | 'doubles' = $state('all');
 	let filterResult: 'all' | 'won' | 'lost' | 'tied' = $state('all');
 	let filterOpponent = $state('');
+	// svelte-ignore state_referenced_locally -- intentional: prop only seeds the initial filter values
 	let filterTournament = $state(initialTournamentFilter);
+	// svelte-ignore state_referenced_locally -- intentional: prop only seeds the initial filter values
 	let filterYear = $state(initialTournamentFilter ? '' : new Date().getFullYear().toString());
 
 	// Expanded matches for detail view

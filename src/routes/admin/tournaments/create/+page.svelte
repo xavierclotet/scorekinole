@@ -2320,9 +2320,9 @@
                   <div class="reg-config-fields">
                     <div class="reg-row">
                       <div class="info-field">
-                        <label>{m.registration_deadline()}</label>
+                        <label for="reg-deadline-date">{m.registration_deadline()}</label>
                         <div class="date-time-row">
-                          <input type="date" bind:value={regDeadlineDate} class="input-field" class:input-error={regDeadlineErrorKey} />
+                          <input id="reg-deadline-date" type="date" bind:value={regDeadlineDate} class="input-field" class:input-error={regDeadlineErrorKey} />
                           <input type="time" bind:value={regDeadlineTime} class="input-field" class:input-error={regDeadlineErrorKey} />
                         </div>
                         {#if regDeadlineErrorKey === 'registration_deadlineErrorPast'}
@@ -2332,15 +2332,15 @@
                         {/if}
                       </div>
                       <div class="info-field">
-                        <label>{m.registration_maxParticipants()}</label>
-                        <input type="number" min="2" bind:value={regMaxParticipants} class="input-field" placeholder={m.registration_maxParticipantsNoLimit()} />
+                        <label for="reg-max-participants">{m.registration_maxParticipants()}</label>
+                        <input id="reg-max-participants" type="number" min="2" bind:value={regMaxParticipants} class="input-field" placeholder={m.registration_maxParticipantsNoLimit()} />
                         <span class="field-hint">{gameType === 'doubles' ? m.registration_maxParticipantsHintDoubles() : m.registration_maxParticipantsHintSingles()}</span>
                       </div>
                     </div>
 
                     <div class="info-field">
-                      <label>{m.registration_entryFee()}</label>
-                      <input type="text" bind:value={regEntryFee} class="input-field" placeholder="Ej: 10€, Gratuito" />
+                      <label for="reg-entry-fee">{m.registration_entryFee()}</label>
+                      <input id="reg-entry-fee" type="text" bind:value={regEntryFee} class="input-field" placeholder="Ej: 10€, Gratuito" />
                     </div>
 
                     <div class="reg-toggles">
@@ -5759,12 +5759,6 @@
   .wizard-container:is([data-theme='dark'], [data-theme='violet']) .name-dropdown-edition {
     color: #a0aec0;
     background: #2d3748;
-  }
-
-  .participants-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
   }
 
   /* Review Step */

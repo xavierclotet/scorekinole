@@ -977,12 +977,11 @@
     <div
       class="modal-backdrop"
       data-theme={$adminTheme}
-      onclick={closeCompleteModal}
+      onclick={(e) => { if (e.target === e.currentTarget) closeCompleteModal(); }}
       onkeydown={(e) => e.key === 'Escape' && closeCompleteModal()}
       role="presentation"
     >
-      <!-- svelte-ignore a11y_interactive_supports_focus a11y_click_events_have_key_events -->
-      <div class="confirm-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
+      <div class="confirm-modal" role="dialog" aria-modal="true" tabindex="-1">
         <div class="modal-header">
           <div class="header-icon">
             <Check size={18} strokeWidth={2.5} />
@@ -1028,12 +1027,11 @@
     <div
       class="modal-backdrop"
       data-theme={$adminTheme}
-      onclick={() => { showAutoFillModal = false; }}
+      onclick={(e) => { if (e.target === e.currentTarget) showAutoFillModal = false; }}
       onkeydown={(e) => e.key === 'Escape' && (showAutoFillModal = false)}
       role="presentation"
     >
-      <!-- svelte-ignore a11y_interactive_supports_focus a11y_click_events_have_key_events -->
-      <div class="confirm-modal autofill-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
+      <div class="confirm-modal autofill-modal" role="dialog" aria-modal="true" tabindex="-1">
         <div class="modal-header">
           <div class="header-icon">
             <span style="font-size: 14px;">🎲</span>
@@ -1087,12 +1085,11 @@
       class="modal-backdrop"
       style="z-index: 1100;"
       data-theme={$adminTheme}
-      onclick={closeDisqualifyModal}
+      onclick={(e) => { if (e.target === e.currentTarget) closeDisqualifyModal(); }}
       onkeydown={(e) => e.key === 'Escape' && closeDisqualifyModal()}
       role="presentation"
     >
-      <!-- svelte-ignore a11y_interactive_supports_focus a11y_click_events_have_key_events -->
-      <div class="confirm-modal disqualify-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
+      <div class="confirm-modal disqualify-modal" role="dialog" aria-modal="true" tabindex="-1">
         <div class="modal-header danger">
           <div class="header-icon danger">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">

@@ -77,10 +77,6 @@
     }
   }
 
-  function stopPropagation(e: Event) {
-    e.stopPropagation();
-  }
-
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') onClose();
   }
@@ -96,15 +92,14 @@
 
 <div
   class="modal-overlay"
-  onclick={onClose}
+  onclick={(e) => { if (e.target === e.currentTarget) onClose(); }}
   onkeydown={handleKeydown}
   data-theme={$adminTheme}
   role="dialog"
   aria-modal="true"
   tabindex="-1"
 >
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
-  <div class="modal" onclick={stopPropagation} role="document">
+  <div class="modal" role="document">
     <header class="modal-header">
       <div class="header-content">
         <h2>{m.admin_editMatch()}</h2>

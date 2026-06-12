@@ -250,6 +250,7 @@
 											class="palette-dot"
 											class:selected={selectedTeam1Color === color}
 											style="background-color: {color}"
+											aria-label={color}
 											onclick={() => selectColor(1, color)}
 										></button>
 									{/each}
@@ -290,6 +291,7 @@
 											class="palette-dot"
 											class:selected={selectedTeam2Color === color}
 											style="background-color: {color}"
+											aria-label={color}
 											onclick={() => selectColor(2, color)}
 										></button>
 									{/each}

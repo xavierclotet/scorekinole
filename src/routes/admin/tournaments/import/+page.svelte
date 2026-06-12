@@ -2657,7 +2657,7 @@
                     <span class="tc-toggle-label">{m.wizard_thirdPlaceMatch()}</span>
                     <span class="tc-toggle-desc">{m.wizard_thirdPlaceMatchDesc()}</span>
                   </div>
-                  <button type="button" class="tc-toggle-switch" class:active={thirdPlaceMatchEnabled} onclick={() => thirdPlaceMatchEnabled = !thirdPlaceMatchEnabled}>
+                  <button type="button" class="tc-toggle-switch" class:active={thirdPlaceMatchEnabled} aria-label={m.wizard_thirdPlaceMatch()} aria-pressed={thirdPlaceMatchEnabled} onclick={() => thirdPlaceMatchEnabled = !thirdPlaceMatchEnabled}>
                     <span class="tc-toggle-track"><span class="tc-toggle-thumb"></span></span>
                   </button>
                 </div>
@@ -2666,7 +2666,7 @@
                     <span class="tc-toggle-label">{m.wizard_consolationRounds()}</span>
                     <span class="tc-toggle-desc">{m.wizard_consolationDesc()}</span>
                   </div>
-                  <button type="button" class="tc-toggle-switch" class:active={consolationEnabled} onclick={() => consolationEnabled = !consolationEnabled}>
+                  <button type="button" class="tc-toggle-switch" class:active={consolationEnabled} aria-label={m.wizard_consolationRounds()} aria-pressed={consolationEnabled} onclick={() => consolationEnabled = !consolationEnabled}>
                     <span class="tc-toggle-track"><span class="tc-toggle-thumb"></span></span>
                   </button>
                 </div>

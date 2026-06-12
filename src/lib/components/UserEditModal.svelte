@@ -432,9 +432,9 @@
           </div>
 
           <div class="field">
-            <label>{m.profile_country()}</label>
+            <label for="country-trigger">{m.profile_country()}</label>
             <Popover.Root bind:open={countrySearchOpen}>
-              <Popover.Trigger class="country-trigger">
+              <Popover.Trigger id="country-trigger" class="country-trigger">
                 <span class={["country-trigger-text", !selectedCountryName && "placeholder"]}>
                   {selectedCountryName || m.profile_selectCountry()}
                 </span>

@@ -2687,12 +2687,11 @@
   <div
     class="modal-backdrop"
     data-theme={$adminTheme}
-    onclick={() => { showAutoFillModal = false; }}
+    onclick={(e) => { if (e.target === e.currentTarget) showAutoFillModal = false; }}
     onkeydown={(e) => e.key === 'Escape' && (showAutoFillModal = false)}
     role="presentation"
   >
-    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-    <div class="confirm-modal autofill-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
+    <div class="confirm-modal autofill-modal" role="dialog" aria-modal="true" tabindex="-1">
       <div class="modal-header">
         <div class="header-icon">
           <span style="font-size: 14px;">🎲</span>
