@@ -2,6 +2,14 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.50] - 2026-06-12
+- Security: keep PII (email, registration IP, device fingerprint) off the world-readable user doc — moved to an owner-only `/users/{uid}/private/meta` subcollection
+- Admin users: load emails from the private subcollection and add a dedicated Email column
+- Functions: consolidate new-user notification + duplicate-account detection into `onUserPrivateMetaCreated` (collection-group lookups)
+- Rules: owner can write their own `/private`; add a `/pairs` rule (fixes the backup export "insufficient permissions")
+- Backup: export skips an unreadable collection instead of aborting the whole backup
+- Privacy: add PRIVACY.md, a README privacy section, and a fraud-prevention disclosure on `/privacy`
+
 ## [2.5.49] - 2026-06-11
 - Fix (groups): converting a completed match to walkover no longer counts the old points/20s in standings; overwriting a walkover clears its no-show metadata
 - Fix (groups): standings now honor the tournament's custom tiebreaker priority on every result write (order no longer flips between automatic and manual recalcs)
