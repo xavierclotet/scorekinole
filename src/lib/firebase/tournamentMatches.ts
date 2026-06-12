@@ -8,7 +8,7 @@ import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db, isFirebaseEnabled } from './config';
 import type { GroupMatch, GroupStanding, BracketMatch, BracketWithConfig, Tournament, TournamentParticipant } from '$lib/types/tournament';
 import type { TournamentGameConfig } from '$lib/stores/tournamentContext';
-import { getTournament, parseTournamentData } from './tournaments';
+import { getTournament, parseTournamentData, invalidateTournamentCache } from './tournaments';
 import { DEFAULT_TIME_CONFIG } from '$lib/firebase/timeConfig';
 import { resolveTiebreaker, updateHeadToHeadRecord, calculateMatchPoints } from '$lib/algorithms/tiebreaker';
 import { browser } from '$app/environment';
@@ -2017,6 +2017,10 @@ export async function getUserActiveMatches(
 /**
  * Start a tournament match (change status from PENDING to IN_PROGRESS)
  * Returns false if match is already IN_PROGRESS (concurrency check)
+ *
+ * On success also returns the (updated) match object so callers resuming an
+ * IN_PROGRESS match get its saved rounds/gamesWon without a second full
+ * tournament read (previously done via resumeTournamentMatch).
  */
 export async function startTournamentMatch(
   tournamentId: string,
@@ -2025,7 +2029,7 @@ export async function startTournamentMatch(
   groupId?: string,
   forceResume: boolean = false,  // Allow resuming IN_PROGRESS matches (for emergency recovery)
   scoringBy?: { userId: string; userName: string }
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; match?: GroupMatch | BracketMatch; error?: string }> {
 
   if (!browser || !isFirebaseEnabled() || !db) {
     return { success: false, error: 'Firebase disabled' };
@@ -2033,8 +2037,12 @@ export async function startTournamentMatch(
 
   try {
     const tournamentRef = doc(db, 'tournaments', tournamentId);
+    let startedMatch: GroupMatch | BracketMatch | undefined;
 
     await runTransaction(db, async (transaction) => {
+      // Reset on every attempt — the transaction may retry on contention
+      startedMatch = undefined;
+
       const snapshot = await transaction.get(tournamentRef);
       if (!snapshot.exists()) throw new Error('Tournament not found');
 
@@ -2072,6 +2080,7 @@ export async function startTournamentMatch(
                 }
                 // Always update scoringBy (even on resume, new scorer takes over)
                 if (scoringBy) round.matches[matchIndex].scoringBy = scoringBy;
+                startedMatch = round.matches[matchIndex];
                 matchFound = true;
                 break;
               }
@@ -2096,6 +2105,7 @@ export async function startTournamentMatch(
                   pairing.matches[matchIndex].startedAt = Date.now();
                 }
                 if (scoringBy) pairing.matches[matchIndex].scoringBy = scoringBy;
+                startedMatch = pairing.matches[matchIndex];
                 matchFound = true;
                 break;
               }
@@ -2106,9 +2116,11 @@ export async function startTournamentMatch(
         }
 
         if (matchFound) {
-          const cleanedGroupStage = cleanUndefined(tournament.groupStage);
+          // Scoped write: only the groups array instead of the whole
+          // groupStage. Firestore can't address array elements by field path,
+          // so this is the smallest updatable unit here.
           transaction.update(tournamentRef, {
-            groupStage: cleanedGroupStage,
+            'groupStage.groups': cleanUndefined(tournament.groupStage.groups),
             updatedAt: serverTimestamp()
           });
         }
@@ -2118,6 +2130,9 @@ export async function startTournamentMatch(
           tournament.finalStage.consolationEnabled ??
           (tournament.finalStage as unknown as Record<string, unknown>)?.['consolationEnabled ']
         );
+
+        // Where the match was found, for the scoped field-path write below
+        let foundSection: 'rounds' | 'thirdPlace' | 'consolation' | null = null;
 
         // Find match in bracket
         const findAndUpdateMatch = (bracket: any): 'found' | 'in_progress' | 'completed' | 'not_found' => {
@@ -2131,6 +2146,8 @@ export async function startTournamentMatch(
               bracket.thirdPlaceMatch.startedAt = Date.now();
             }
             if (scoringBy) bracket.thirdPlaceMatch.scoringBy = scoringBy;
+            startedMatch = bracket.thirdPlaceMatch;
+            foundSection = 'thirdPlace';
             return 'found';
           }
 
@@ -2146,6 +2163,8 @@ export async function startTournamentMatch(
                 round.matches[matchIndex].startedAt = Date.now();
               }
               if (scoringBy) round.matches[matchIndex].scoringBy = scoringBy;
+              startedMatch = round.matches[matchIndex];
+              foundSection = 'rounds';
               return 'found';
             }
           }
@@ -2164,6 +2183,8 @@ export async function startTournamentMatch(
                     round.matches[matchIndex].startedAt = Date.now();
                   }
                   if (scoringBy) round.matches[matchIndex].scoringBy = scoringBy;
+                  startedMatch = round.matches[matchIndex];
+                  foundSection = 'consolation';
                   return 'found';
                 }
               }
@@ -2175,10 +2196,12 @@ export async function startTournamentMatch(
 
         // Try gold bracket first
         let result = findAndUpdateMatch(tournament.finalStage.goldBracket);
+        let foundInSilver = false;
 
         // Try silver bracket if not found
         if (result === 'not_found' && tournament.finalStage.silverBracket) {
           result = findAndUpdateMatch(tournament.finalStage.silverBracket);
+          foundInSilver = result === 'found';
         }
 
         if (result === 'in_progress') {
@@ -2190,9 +2213,24 @@ export async function startTournamentMatch(
         matchFound = result === 'found';
 
         if (matchFound) {
-          const cleanedFinalStage = cleanUndefined(tournament.finalStage);
+          // Scoped write: update only the subtree containing the started match
+          // instead of the whole finalStage (gold + silver + consolations).
+          // Cuts the transaction upload from potentially hundreds of KB to a
+          // few KB on large tournaments.
+          const bracketKey = foundInSilver ? 'silverBracket' : 'goldBracket';
+          const bracket: any = foundInSilver
+            ? tournament.finalStage.silverBracket
+            : tournament.finalStage.goldBracket;
+          const scopedField =
+            foundSection === 'thirdPlace' ? `finalStage.${bracketKey}.thirdPlaceMatch` :
+            foundSection === 'consolation' ? `finalStage.${bracketKey}.consolationBrackets` :
+            `finalStage.${bracketKey}.rounds`;
+          const scopedValue =
+            foundSection === 'thirdPlace' ? bracket.thirdPlaceMatch :
+            foundSection === 'consolation' ? bracket.consolationBrackets :
+            bracket.rounds;
           transaction.update(tournamentRef, {
-            finalStage: cleanedFinalStage,
+            [scopedField]: cleanUndefined(scopedValue),
             updatedAt: serverTimestamp()
           });
         }
@@ -2203,7 +2241,8 @@ export async function startTournamentMatch(
       }
     }, { maxAttempts: 10 });
 
-    return { success: true };
+    invalidateTournamentCache(tournamentId);
+    return { success: true, match: startedMatch };
   } catch (error: any) {
     console.error('❌ Error starting tournament match:', error);
     return { success: false, error: error?.message || 'Network error' };
@@ -2497,6 +2536,7 @@ export async function abandonTournamentMatch(
       return found;
     }, { maxAttempts: 10 });
 
+    if (matchFound) invalidateTournamentCache(tournamentId);
     return matchFound;
   } catch (error) {
     console.error('❌ Error abandoning tournament match:', error);
@@ -2777,12 +2817,13 @@ export async function completeTournamentMatch(
         videoUrl: result.videoUrl,
         videoId: result.videoId
       }, allowOverwrite);
+      if (success) invalidateTournamentCache(tournamentId);
       return success;
     } else {
       // For bracket matches, use single atomic transaction for phase detection + update + advance
       const { completeBracketMatchAndAdvance } = await import('./tournamentBracket');
 
-      return await completeBracketMatchAndAdvance(tournamentId, matchId, {
+      const success = await completeBracketMatchAndAdvance(tournamentId, matchId, {
         status: 'COMPLETED' as const,
         winner: result.winner ?? undefined,
         gamesWonA: result.gamesWonA,
@@ -2795,6 +2836,8 @@ export async function completeTournamentMatch(
         videoUrl: result.videoUrl,
         videoId: result.videoId
       }, allowOverwrite);
+      if (success) invalidateTournamentCache(tournamentId);
+      return success;
     }
   } catch (error) {
     console.error('❌ Error completing tournament match:', error);

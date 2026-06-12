@@ -11,9 +11,9 @@
 		getPendingMatchesForUser,
 		getAllPendingMatches,
 		startTournamentMatch,
-		resumeTournamentMatch,
 		type PendingMatchInfo
 	} from '$lib/firebase/tournamentMatches';
+	import { getPendingTournamentCompletion, settlePendingCompletion } from '$lib/firebase/tournamentSync';
 	import {
 		setTournamentContext,
 		type TournamentMatchContext
@@ -131,7 +131,7 @@
 		const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs));
 
 		try {
-			const result = await Promise.race([getTournamentByKey(savedKey), timeout]);
+			const result = await Promise.race([getTournamentByKey(savedKey, { maxAgeMs: 30_000 }), timeout]);
 
 			// Timeout or not found
 			if (!result) {
@@ -415,7 +415,7 @@
 		}
 	}
 
-	async function searchTournament() {
+	async function searchTournament(forceFresh: boolean = false) {
 		if (tournamentKey.length !== 6) {
 			errorMessage = m.tournament_invalidKey();
 			currentStep = 'error';
@@ -426,7 +426,17 @@
 		errorMessage = '';
 
 		try {
-			const result = await getTournamentByKey(tournamentKey.toUpperCase());
+			// If a background match-completion sync is still in flight, wait for it
+			// so the data we fetch reflects the completed match
+			await settlePendingCompletion();
+
+			// maxAgeMs collapses the double fetch when arriving here right after
+			// checkSavedTournamentKey already loaded this same tournament.
+			// forceFresh (explicit refresh button) always hits the server.
+			const result = await getTournamentByKey(
+				tournamentKey.toUpperCase(),
+				forceFresh ? undefined : { maxAgeMs: 30_000 }
+			);
 
 			if (!result) {
 				errorMessage = m.tournament_notFound();
@@ -447,10 +457,18 @@
 
 			tournament = result;
 
+			// Hide a just-completed match whose optimistic background sync hasn't
+			// been confirmed yet (tournament data may still show it IN_PROGRESS)
+			const pendingCompletion = getPendingTournamentCompletion();
+			const dropPendingCompletion = (matches: PendingMatchInfo[]) =>
+				pendingCompletion && pendingCompletion.tournamentId === result.id
+					? matches.filter(mi => mi.match.id !== pendingCompletion.matchId)
+					: matches;
+
 			// Get pending matches
 			if (isLoggedIn && $currentUser) {
 				console.log('🔍 Modal: searching matches for user', $currentUser.id, 'in tournament', result.id, 'status:', result.status);
-				pendingMatches = await getPendingMatchesForUser(result, $currentUser.id);
+				pendingMatches = dropPendingCompletion(await getPendingMatchesForUser(result, $currentUser.id));
 
 				if (pendingMatches.length === 0) {
 					console.log('❌ Modal: no pending matches found (pre-filter)');
@@ -472,7 +490,7 @@
 
 				currentStep = 'player_selection';
 			} else {
-				pendingMatches = await getAllPendingMatches(result);
+				pendingMatches = dropPendingCompletion(await getAllPendingMatches(result));
 
 				if (pendingMatches.length === 0) {
 					errorMessage = m.tournament_noPendingMatchesGeneral();
@@ -608,42 +626,25 @@
 				? selectedMatch.match.participantA
 				: ('participantB' in selectedMatch.match ? selectedMatch.match.participantB : '');
 
-			// Get existing match data (rounds, gamesWon) for resuming
-			// IMPORTANT: When resuming, fetch fresh data from Firebase to get latest rounds
+			// Get existing match data (rounds, gamesWon) for resuming.
+			// startTournamentMatch already returns the up-to-date match from its
+			// transaction (server data), so no extra fetch is needed.
 			let existingRounds: any[] = [];
 			let gamesWonA = 0;
 			let gamesWonB = 0;
 
-			if (isResumingMatch) {
-				// Fetch fresh match data from Firebase
-				console.log('🔄 Resuming match - fetching fresh data from Firebase...');
-				const resumeResult = await resumeTournamentMatch(
-					tournament.id,
-					selectedMatch.match.id,
-					selectedMatch.phase,
-					selectedMatch.groupId
-				);
-
-				if (resumeResult.success && resumeResult.match) {
-					const freshMatch = resumeResult.match as any;
-					existingRounds = freshMatch.rounds || [];
-					gamesWonA = freshMatch.gamesWonA || 0;
-					gamesWonB = freshMatch.gamesWonB || 0;
-					console.log('✅ Fresh match data retrieved:', {
-						rounds: existingRounds.length,
-						gamesWonA,
-						gamesWonB
-					});
-				} else {
-					// Fallback to cached data if fresh fetch fails
-					console.warn('⚠️ Could not fetch fresh data, using cached match data');
-					const match = selectedMatch.match as any;
-					existingRounds = match.rounds || [];
-					gamesWonA = match.gamesWonA || 0;
-					gamesWonB = match.gamesWonB || 0;
-				}
+			if (isResumingMatch && result.match) {
+				const freshMatch = result.match as any;
+				existingRounds = freshMatch.rounds || [];
+				gamesWonA = freshMatch.gamesWonA || 0;
+				gamesWonB = freshMatch.gamesWonB || 0;
+				console.log('✅ Fresh match data from start transaction:', {
+					rounds: existingRounds.length,
+					gamesWonA,
+					gamesWonB
+				});
 			} else {
-				// For new matches, use the cached data (should be empty anyway)
+				// New matches (or missing transaction data): use the cached data
 				const match = selectedMatch.match as any;
 				existingRounds = match.rounds || [];
 				gamesWonA = match.gamesWonA || 0;
@@ -908,7 +909,7 @@
 							<button
 								class="search-btn"
 								disabled={tournamentKey.length !== 6}
-								onclick={searchTournament}
+								onclick={() => searchTournament()}
 								aria-label="Search tournament"
 							>
 								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -1305,7 +1306,7 @@
 						<p class="no-matches-subtitle">{m.tournament_noPendingMatchesUserHint()}</p>
 
 						<div class="no-matches-actions">
-							<button class="refresh-btn" onclick={searchTournament}>
+							<button class="refresh-btn" onclick={() => searchTournament(true)}>
 								<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 									<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
 									<path d="M21 3v5h-5"></path>

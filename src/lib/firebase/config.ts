@@ -1,6 +1,11 @@
 import { initializeApp, type FirebaseApp } from 'firebase/app';
 import { getAuth, type Auth } from 'firebase/auth';
-import { getFirestore, type Firestore } from 'firebase/firestore';
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  type Firestore
+} from 'firebase/firestore';
 import type { FirebaseStorage } from 'firebase/storage';
 import type { Messaging } from 'firebase/messaging';
 import { browser } from '$app/environment';
@@ -30,7 +35,12 @@ if (browser && isFirebaseEnabled()) {
   try {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
-    db = getFirestore(app);
+    // Persistent IndexedDB cache: instant reads of already-seen docs, offline
+    // write queueing, cache-first onSnapshot. Multi-tab safe. Falls back to
+    // in-memory cache automatically on browsers without IndexedDB.
+    db = initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+    });
     // Firebase initialized (errors are logged below)
   } catch (error) {
     console.error('❌ Firebase initialization error:', error);

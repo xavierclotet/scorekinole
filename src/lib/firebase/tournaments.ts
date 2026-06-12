@@ -354,6 +354,52 @@ export function parseTournamentData(data: DocumentData): Tournament {
 }
 
 /**
+ * In-memory cache of recently seen tournaments, fed by one-shot reads and by
+ * the live onSnapshot subscriptions (which parse the full doc on every
+ * emission anyway). Lets hot paths like /game's tap-to-play skip a network
+ * round-trip when the doc was seen seconds ago — safe because the start/
+ * complete transactions re-validate everything against the server.
+ * Entries are shared references: callers must not mutate them.
+ */
+const tournamentCache = new Map<string, { tournament: Tournament; at: number }>();
+const TOURNAMENT_CACHE_MAX_ENTRIES = 8;
+
+function cacheTournament(tournament: Tournament): void {
+  if (!tournament.id) return;
+  const entry = { tournament, at: Date.now() };
+  // Refresh insertion order so eviction below drops the least recently seen
+  tournamentCache.delete(tournament.id);
+  tournamentCache.set(tournament.id, entry);
+  if (tournament.key) {
+    const keyId = `key:${tournament.key.toUpperCase()}`;
+    tournamentCache.delete(keyId);
+    tournamentCache.set(keyId, entry);
+  }
+  while (tournamentCache.size > TOURNAMENT_CACHE_MAX_ENTRIES) {
+    const oldest = tournamentCache.keys().next().value;
+    if (oldest === undefined) break;
+    tournamentCache.delete(oldest);
+  }
+}
+
+function getCachedTournament(cacheId: string, maxAgeMs: number): Tournament | null {
+  const entry = tournamentCache.get(cacheId);
+  if (entry && Date.now() - entry.at <= maxAgeMs) return entry.tournament;
+  return null;
+}
+
+/**
+ * Drop a tournament from the in-memory cache. Called after writes that change
+ * match status (start/complete/abandon) so subsequent cached reads never see
+ * the pre-write state.
+ */
+export function invalidateTournamentCache(tournamentId: string): void {
+  for (const [cacheId, entry] of tournamentCache) {
+    if (entry.tournament.id === tournamentId) tournamentCache.delete(cacheId);
+  }
+}
+
+/**
  * Get tournament by ID
  *
  * @param id Tournament ID
@@ -381,7 +427,9 @@ export async function getTournament(id: string, forceServer = false): Promise<To
     // Note: getTournament is used for public viewing - no permission check needed
     // Edit permissions are handled separately in the UI (canEdit flag)
 
-    return parseTournamentData(data);
+    const tournament = parseTournamentData(data);
+    cacheTournament(tournament);
+    return tournament;
   } catch (error) {
     console.error('❌ Error getting tournament:', error);
     return null;
@@ -1055,7 +1103,10 @@ export async function searchTournamentNames(searchQuery: string): Promise<Tourna
  * @param key 6-character tournament key
  * @returns Tournament or null
  */
-export async function getTournamentByKey(key: string): Promise<Tournament | null> {
+export async function getTournamentByKey(
+  key: string,
+  options?: { maxAgeMs?: number }
+): Promise<Tournament | null> {
   if (!browser || !isFirebaseEnabled()) {
     console.warn('Firebase disabled');
     return null;
@@ -1064,6 +1115,13 @@ export async function getTournamentByKey(key: string): Promise<Tournament | null
   if (!key || key.length !== 6) {
     console.warn('Invalid tournament key:', key);
     return null;
+  }
+
+  // Opt-in cache: serve a recently seen tournament (e.g. still fresh from the
+  // live subscription during the previous match) without a network round-trip.
+  if (options?.maxAgeMs) {
+    const cached = getCachedTournament(`key:${key.toUpperCase()}`, options.maxAgeMs);
+    if (cached) return cached;
   }
 
   try {
@@ -1083,6 +1141,7 @@ export async function getTournamentByKey(key: string): Promise<Tournament | null
     // Ensure id always matches the Firestore doc (same as subscribeTournament)
     tournament.id = docSnap.id;
 
+    cacheTournament(tournament);
     return tournament;
   } catch (error) {
     console.error('❌ Error getting tournament by key:', error);
@@ -1350,6 +1409,7 @@ export function subscribeTournamentByKey(
       const docSnap = snapshot.docs[0];
       const tournament = parseTournamentData(docSnap.data());
       tournament.id = docSnap.id;
+      cacheTournament(tournament);
       callback(tournament);
     },
     (error) => {
@@ -1379,6 +1439,7 @@ export function subscribeTournament(
         const data = docSnap.data();
         const tournament = parseTournamentData(data);
         tournament.id = docSnap.id;
+        cacheTournament(tournament);
         callback(tournament);
       } else {
         callback(null);
