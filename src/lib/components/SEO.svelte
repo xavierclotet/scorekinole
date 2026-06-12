@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { serializeJsonLd } from '$lib/utils/jsonLd';
+
 	interface Props {
 		title: string;
 		description: string;
@@ -26,7 +28,9 @@
 
 	let fullTitle = $derived(title.includes('Scorekinole') ? title : `${title} | Scorekinole`);
 	let canonicalUrl = $derived(canonical || BASE_URL);
-	let jsonLdScript = $derived(jsonLd ? JSON.stringify(Array.isArray(jsonLd) ? jsonLd : [jsonLd]) : null);
+	// Escape <, >, & and the JS line separators so user-controlled JSON-LD values
+	// cannot break out of the <script> tag (XSS). See serializeJsonLd.
+	let jsonLdScript = $derived(jsonLd ? serializeJsonLd(jsonLd) : null);
 </script>
 
 <svelte:head>
