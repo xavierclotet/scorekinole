@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import { goto } from '$app/navigation';
+	import { goto, preloadCode } from '$app/navigation';
 	import * as m from '$lib/paraglide/messages.js';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { APP_VERSION } from '$lib/constants';
@@ -75,6 +75,21 @@
 		goto(homeHref);
 	}
 
+	// Menu items are DropdownMenu.Item (buttons), so SvelteKit's link preload
+	// never kicks in for them. Preload the JS of every reachable route the
+	// moment the menu opens — by the time the user taps an item, the route
+	// code is already local and the navigation is instant.
+	function handleOpenChange(open: boolean) {
+		if (!open) return;
+		const paths = visibleNavItems.map((item) => item.href);
+		if (showHome) paths.push(homeHref);
+		if ($isAdminUser) paths.push('/admin/tournaments');
+		if ($isSuperAdminUser) paths.push('/admin/users', '/admin/matches', '/admin/analytics');
+		preloadCode(...paths).catch(() => {
+			// Best-effort: preload failures must never break the menu
+		});
+	}
+
 	// Navigation shortcuts mapping
 	const navShortcuts: Record<string, PageId> = {
 		u: 'tournaments',
@@ -132,7 +147,7 @@
 	}
 </script>
 
-<DropdownMenu.Root>
+<DropdownMenu.Root onOpenChange={handleOpenChange}>
 	<DropdownMenu.Trigger>
 		{#snippet child({ props })}
 			{#if trigger}

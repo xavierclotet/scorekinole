@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/state';
-  import { goto } from '$app/navigation';
+  import { goto, preloadCode } from '$app/navigation';
+  import { takeTournamentHandoff } from '$lib/stores/tournamentHandoff';
   import AdminGuard from '$lib/components/AdminGuard.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
   import TournamentKeyBadge from '$lib/components/TournamentKeyBadge.svelte';
@@ -82,20 +83,43 @@
   let tablesWarning = $derived(tournament ? (tournament.participants?.length ?? 0) > maxPlayersForTables : false);
 
   onMount(async () => {
+    // Action buttons navigate with goto() (no anchors), so warm the code of
+    // every subroute reachable from this page for instant navigation
+    preloadCode(
+      `/admin/tournaments/${tournamentId}/groups`,
+      `/admin/tournaments/${tournamentId}/transition`,
+      `/admin/tournaments/${tournamentId}/bracket`,
+      `/admin/tournaments/${tournamentId}/finalize`,
+      '/admin/tournaments/create',
+      '/admin/tournaments/import'
+    ).catch(() => {});
+
     await loadTournament();
   });
 
   async function loadTournament() {
-    loading = true;
     error = false;
 
+    if (!tournamentId) {
+      error = true;
+      loading = false;
+      return;
+    }
+
+    // Instant paint: the admin list deposits the tournament it already holds
+    // before navigating. Render it immediately and revalidate from the server
+    // in the background.
+    const handedOff = takeTournamentHandoff(tournamentId);
+    if (handedOff) {
+      tournament = handedOff;
+      loading = false;
+    } else {
+      loading = true;
+    }
+
     try {
-      if (!tournamentId) {
-        error = true;
-        loading = false;
-        return;
-      }
-      tournament = await getTournament(tournamentId);
+      const fresh = await getTournament(tournamentId);
+      tournament = fresh;
 
       if (!tournament) {
         error = true;
@@ -119,7 +143,8 @@
       }
     } catch (err) {
       console.error('Error loading tournament:', err);
-      error = true;
+      // Keep showing the handed-off tournament on a transient refresh failure
+      if (!tournament) error = true;
     } finally {
       loading = false;
     }

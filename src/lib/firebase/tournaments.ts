@@ -304,7 +304,10 @@ export async function createTournament(data: Partial<Tournament>): Promise<strin
     // Add optional fields only if they exist in the data object
     if ('description' in data && data.description) tournament.description = data.description;
     if ('descriptionLanguage' in data && data.descriptionLanguage) tournament.descriptionLanguage = data.descriptionLanguage;
-    if ('tournamentDate' in data && data.tournamentDate) tournament.tournamentDate = data.tournamentDate;
+    // tournamentDate is MANDATORY: the public /tournaments query orders by it,
+    // and Firestore's orderBy silently excludes docs missing the field — a
+    // tournament created without a date would be invisible forever.
+    tournament.tournamentDate = data.tournamentDate || Date.now();
     if ('tournamentTime' in data && data.tournamentTime) tournament.tournamentTime = data.tournamentTime;
     if ('address' in data && data.address) tournament.address = data.address;
     if ('venueId' in data && data.venueId) tournament.venueId = data.venueId;
@@ -1315,6 +1318,49 @@ export async function searchUsers(searchQuery: string): Promise<UserProfile[]> {
  * @param callback Function called with updated tournament data
  * @returns Unsubscribe function
  */
+/**
+ * Subscribe to a tournament by its 6-char share key in a SINGLE round trip
+ * (query-based onSnapshot). Used by the public detail page: the old
+ * getTournamentByKey + subscribeTournament sequence fetched the full doc
+ * twice in series, doubling the time-to-content on a doc that embeds all
+ * matches. callback(null) when no tournament has that key.
+ */
+export function subscribeTournamentByKey(
+  key: string,
+  callback: (tournament: Tournament | null) => void
+): () => void {
+  if (!browser || !isFirebaseEnabled()) {
+    console.warn('Firebase disabled');
+    return () => {};
+  }
+
+  const q = query(
+    collection(db!, 'tournaments'),
+    where('key', '==', key.toUpperCase()),
+    limit(1)
+  );
+
+  const unsubscribe = onSnapshot(
+    q,
+    (snapshot) => {
+      if (snapshot.empty) {
+        callback(null);
+        return;
+      }
+      const docSnap = snapshot.docs[0];
+      const tournament = parseTournamentData(docSnap.data());
+      tournament.id = docSnap.id;
+      callback(tournament);
+    },
+    (error) => {
+      console.error('❌ Error in tournament key subscription:', error);
+      // Don't overwrite valid data on transient network errors
+    }
+  );
+
+  return unsubscribe;
+}
+
 export function subscribeTournament(
   id: string,
   callback: (tournament: Tournament | null) => void

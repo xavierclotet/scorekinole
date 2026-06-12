@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
+	import { browser } from '$app/environment';
 	import * as m from '$lib/paraglide/messages.js';
 	import {
 		subscribeToPublicTournaments,
@@ -9,28 +11,62 @@
 		extractFilterOptions,
 		type TournamentListItem
 	} from '$lib/firebase/publicTournaments';
+	// Single lightweight subscription to /tournamentSummaries: the whole
+	// collection is tiny (one small doc per tournament), so all filtering
+	// (year included) happens client-side — no per-year re-subscription.
 	import TournamentCard from '$lib/components/TournamentCard.svelte';
 	import AppMenu from '$lib/components/AppMenu.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import PullToRefresh from '$lib/components/PullToRefresh.svelte';
+	import Share2 from '@lucide/svelte/icons/share-2';
+	import Check from '@lucide/svelte/icons/check';
 	import { theme } from '$lib/stores/theme';
 	import { getTranslatedCountryOptions } from '$lib/utils/countryTranslations';
 	import SEO from '$lib/components/SEO.svelte';
 
+	// --- Shareable filters: state is initialized from the URL query and kept
+	// in sync via replaceState, so any filter combination can be shared as a
+	// link (?year=2026&time=future&mode=doubles...). Param names/values in
+	// English. `year=all` distinguishes an explicit "all years" from the
+	// default (current year).
+	const initialParams = page.url.searchParams;
+
+	function parseYearParam(value: string | null): number | undefined {
+		if (!value || value === 'all') return undefined;
+		const year = parseInt(value, 10);
+		return Number.isFinite(year) ? year : undefined;
+	}
+
+	function parseEnumParam<T extends string>(value: string | null, allowed: T[], fallback: T): T {
+		return value && (allowed as string[]).includes(value) ? (value as T) : fallback;
+	}
+
 	// Filter state
-	let selectedYear = $state<number | undefined>(undefined);
-	let selectedCountry = $state('');
-	let selectedMode = $state<'all' | 'singles' | 'doubles'>('all');
-	let selectedTier = $state<'all' | 'SERIES_35' | 'SERIES_25' | 'SERIES_15'>('all');
-	let timeFilter = $state<'all' | 'past' | 'future'>('all');
+	let selectedYear = $state<number | undefined>(parseYearParam(initialParams.get('year')));
+	let selectedCountry = $state(initialParams.get('country') || '');
+	let selectedMode = $state<'all' | 'singles' | 'doubles'>(
+		parseEnumParam(initialParams.get('mode'), ['all', 'singles', 'doubles'], 'all')
+	);
+	let selectedTier = $state<'all' | 'SERIES_35' | 'SERIES_25' | 'SERIES_15'>(
+		parseEnumParam(
+			initialParams.get('tier'),
+			['all', 'SERIES_35', 'SERIES_25', 'SERIES_15'],
+			'all'
+		)
+	);
+	let timeFilter = $state<'all' | 'past' | 'future'>(
+		parseEnumParam(initialParams.get('time'), ['all', 'past', 'future'], 'all')
+	);
 
 	// Data state
 	let allTournaments: TournamentListItem[] = $state([]);
 	let isLoading = $state(true);
 
-	// Filter options
-	let availableYears: number[] = $state([]);
-	let availableCountries: string[] = $state([]);
+	// Filter options, derived live from the data (the subscription always
+	// holds ALL tournaments, so the dropdowns never miss a year/country)
+	let filterOptions = $derived(extractFilterOptions(allTournaments));
+	let availableYears = $derived(filterOptions.years);
+	let availableCountries = $derived(filterOptions.countries);
 
 	// Translated country options for the select
 	let translatedCountryOptions = $derived(getTranslatedCountryOptions(availableCountries));
@@ -80,11 +116,53 @@
 
 	// Subscription cleanup
 	let unsubscribe: (() => void) | null = null;
-	let yearsPopulated = $state(false);
-	let subscribedYear: number | undefined = undefined;
+	// A shared link with an explicit year (or year=all) must win over the
+	// default current-year selection
+	let defaultYearApplied = initialParams.has('year');
+
+	// Keep the URL in sync with the active filters (shareable links).
+	// replaceState avoids polluting the browser history on every filter tap.
+	$effect(() => {
+		if (!browser) return;
+		const params = new URLSearchParams();
+		if (selectedYear !== undefined) params.set('year', String(selectedYear));
+		else if (defaultYearApplied) params.set('year', 'all');
+		if (timeFilter !== 'all') params.set('time', timeFilter);
+		if (selectedCountry) params.set('country', selectedCountry);
+		if (selectedMode !== 'all') params.set('mode', selectedMode);
+		if (selectedTier !== 'all') params.set('tier', selectedTier);
+
+		const query = params.toString();
+		if (query !== page.url.searchParams.toString()) {
+			goto(query ? `?${query}` : page.url.pathname, {
+				replaceState: true,
+				keepFocus: true,
+				noScroll: true
+			});
+		}
+	});
+
+	// Share the current view (filters included) via native share or clipboard
+	let shareCopied = $state(false);
+	let shareResetTimer: ReturnType<typeof setTimeout> | undefined;
+
+	async function shareFilters() {
+		const url = page.url.href;
+		try {
+			if (navigator.share) {
+				await navigator.share({ title: m.tournaments_publicTournaments(), url });
+				return;
+			}
+			await navigator.clipboard.writeText(url);
+			shareCopied = true;
+			clearTimeout(shareResetTimer);
+			shareResetTimer = setTimeout(() => (shareCopied = false), 2000);
+		} catch {
+			// User dismissed the native share sheet — nothing to do
+		}
+	}
 
 	onMount(() => {
-		// Initial full load to extract available years
 		setupSubscription();
 
 		return () => {
@@ -94,38 +172,26 @@
 		};
 	});
 
-	// Re-subscribe with year filter when selectedYear changes
-	$effect(() => {
-		if (!yearsPopulated) return; // Wait for initial load
-		if (selectedYear === subscribedYear) return; // Already subscribed to this year
-		setupSubscription(selectedYear);
-	});
-
-	function setupSubscription(yearFilter?: number) {
+	function setupSubscription() {
 		if (unsubscribe) {
 			unsubscribe();
 		}
 		isLoading = true;
-		subscribedYear = yearFilter;
 
 		unsubscribe = subscribeToPublicTournaments(
 			(tournaments) => {
 				allTournaments = tournaments;
 
-				// Extract years/countries only from the initial full load
-				if (!yearsPopulated) {
-					const options = extractFilterOptions(tournaments);
-					availableYears = options.years;
-					availableCountries = options.countries;
-					yearsPopulated = true;
-
-					// Set default year
-					if (availableYears.length > 0 && selectedYear === undefined) {
+				// Default to the current year on first load, if it has tournaments
+				if (!defaultYearApplied) {
+					defaultYearApplied = true;
+					if (selectedYear === undefined) {
 						const currentYear = new Date().getFullYear();
-						if (availableYears.includes(currentYear)) {
+						const hasCurrentYear = tournaments.some(
+							(t) => t.tournamentDate && new Date(t.tournamentDate).getFullYear() === currentYear
+						);
+						if (hasCurrentYear) {
 							selectedYear = currentYear;
-							// Don't set isLoading=false — the $effect will re-subscribe with yearFilter
-							return;
 						}
 					}
 				}
@@ -135,8 +201,7 @@
 			(error) => {
 				console.error('Error in tournament subscription:', error);
 				isLoading = false;
-			},
-			yearFilter
+			}
 		);
 	}
 
@@ -153,13 +218,7 @@
 	}
 
 	async function handleRefresh() {
-		yearsPopulated = false;
-		subscribedYear = undefined;
 		setupSubscription();
-	}
-
-	function handleTournamentClick(tournament: TournamentListItem) {
-		goto(`/tournaments/${tournament.key || tournament.id}`);
 	}
 
 	function clearFilters() {
@@ -195,6 +254,19 @@
 				</div>
 			</div>
 			<div class="header-right">
+				<button
+					class="share-btn"
+					class:copied={shareCopied}
+					onclick={shareFilters}
+					aria-label={m.common_share()}
+					title={m.common_share()}
+				>
+					{#if shareCopied}
+						<Check size={15} />
+					{:else}
+						<Share2 size={15} />
+					{/if}
+				</button>
 				<ThemeToggle />
 			</div>
 		</div>
@@ -285,10 +357,20 @@
 			{m.tournaments_showingOf({ showing: String(visibleTournaments.length), total: String(filteredTournaments.length) })}
 		</div>
 
-		<div class="grid-container" bind:this={gridContainer} onscroll={handleScroll}>
+		<!-- preload-code="viewport": the detail route's JS chunk downloads as soon
+		     as cards are visible, so click → route change is instant -->
+		<div
+			class="grid-container"
+			bind:this={gridContainer}
+			onscroll={handleScroll}
+			data-sveltekit-preload-code="viewport"
+		>
 			<div class="tournaments-grid">
 				{#each visibleTournaments as tournament (tournament.id)}
-					<TournamentCard {tournament} onclick={() => handleTournamentClick(tournament)} />
+					<TournamentCard
+						{tournament}
+						href={`/tournaments/${tournament.key || tournament.id}`}
+					/>
 				{/each}
 			</div>
 
@@ -372,6 +454,30 @@
 		border-radius: 12px;
 		font-size: 0.75rem;
 		font-weight: 600;
+	}
+
+	.share-btn {
+		width: 32px;
+		height: 32px;
+		border-radius: 4px;
+		border: 1px solid #2d3748;
+		background: #1a2332;
+		color: #8b9bb3;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		transition: all 0.2s;
+	}
+
+	.share-btn:hover {
+		border-color: #667eea;
+		color: #667eea;
+	}
+
+	.share-btn.copied {
+		border-color: #10b981;
+		color: #10b981;
 	}
 
 	/* Controls */
@@ -677,6 +783,22 @@
 	.tournaments-container:is([data-theme='light'], [data-theme='violet-light']) .count-badge {
 		background: #e2e8f0;
 		color: #4a5568;
+	}
+
+	.tournaments-container:is([data-theme='light'], [data-theme='violet-light']) .share-btn {
+		background: #ffffff;
+		border-color: #e2e8f0;
+		color: #4a5568;
+	}
+
+	.tournaments-container:is([data-theme='light'], [data-theme='violet-light']) .share-btn:hover {
+		border-color: #667eea;
+		color: #667eea;
+	}
+
+	.tournaments-container:is([data-theme='light'], [data-theme='violet-light']) .share-btn.copied {
+		border-color: #10b981;
+		color: #10b981;
 	}
 
 	.tournaments-container:is([data-theme='light'], [data-theme='violet-light']) .filter-tab {

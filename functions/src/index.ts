@@ -3,7 +3,7 @@
  * Handles tournament completion and user profile updates
  */
 
-import { onDocumentUpdated, onDocumentCreated } from "firebase-functions/v2/firestore";
+import { onDocumentUpdated, onDocumentCreated, onDocumentWritten } from "firebase-functions/v2/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
@@ -22,6 +22,7 @@ import {
   sanitizePartnerInput,
   sanitizeTeamNameInput,
 } from "./selfRegistrationCore";
+import { buildTournamentSummary, summariesEqual } from "./tournamentSummaryCore";
 
 // Telegram secrets
 const telegramBotToken = defineSecret("TELEGRAM_BOT_TOKEN");
@@ -2064,3 +2065,47 @@ export const tournamentSelfRegistration = onCall(
   }
 );
 
+
+/**
+ * Keep the public /tournamentSummaries collection in sync with /tournaments.
+ *
+ * The public /tournaments listing subscribes to summaries (a few hundred
+ * bytes each) instead of full tournament docs (which embed participants,
+ * groups, matches and brackets). Summaries of deleted or isTest tournaments
+ * are removed. Writes are skipped when the summary is unchanged, so the
+ * per-round score updates of a live tournament do not fan out to viewers.
+ *
+ * Pure logic lives in tournamentSummaryCore.ts (mirrored client-side in
+ * src/lib/firebase/publicTournaments.ts for the superadmin backfill tool).
+ */
+export const syncTournamentSummary = onDocumentWritten(
+  {
+    document: "tournaments/{tournamentId}",
+    region: "europe-west1",
+  },
+  async (event) => {
+    const tournamentId = event.params.tournamentId;
+    const summaryRef = getDb().collection("tournamentSummaries").doc(tournamentId);
+
+    const afterData = event.data?.after?.exists ? event.data.after.data() : undefined;
+    const now = Date.now();
+    const after = afterData ? buildTournamentSummary(afterData, now) : null;
+
+    if (!after) {
+      // Tournament deleted or flagged isTest: remove the public summary.
+      // delete() is idempotent — no need to check existence first.
+      await summaryRef.delete();
+      logger.info(`Tournament summary removed: ${tournamentId}`);
+      return;
+    }
+
+    const beforeData = event.data?.before?.exists ? event.data.before.data() : undefined;
+    const before = beforeData ? buildTournamentSummary(beforeData, now) : null;
+    if (before && summariesEqual(before, after)) {
+      return; // No listing-visible change (e.g. a round was scored)
+    }
+
+    await summaryRef.set(after);
+    logger.info(`Tournament summary synced: ${tournamentId} (${after.status})`);
+  }
+);

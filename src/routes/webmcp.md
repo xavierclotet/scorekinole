@@ -31,7 +31,8 @@ Si necesitas interactuar con la página (tests o scraping):
 | **Navegar a Mis Estadísticas**| `[data-webmcp="link-stats"]` | Navega a `/my-stats` (requiere login) |
 
 ## 🛠️ Notas de Implementación (Svelte)
-- La página usa varios modales (`LoginModal`, `ProfileModal`) que se renderizan al fondo pero se muestran vía booleanos (`showLogin`, `showProfile`).
+- La página usa varios modales (`LoginModal`, `ProfileModal`, `WhatsNewModal`) que se cargan **lazy** (dynamic `import()` dentro de `{#await}`) y solo se montan cuando su booleano (`showLogin`, `showProfile`, `showWhatsNew`) es true. Sus chunks se prefetchean en `requestIdleCallback` tras el primer paint — no los conviertas en imports estáticos, penaliza la carga inicial.
+- El carrusel de features móvil vive en `LandingFeaturesCarousel.svelte` y solo se monta si `isMobile` (matchMedia ≤700px) — embla-carousel no se carga en desktop.
 - `currentUser` determina si ciertas acciones (como Mis Stats) están disponibles directamente o requieren login previo.
 
 ## 💾 LocalStorage Global

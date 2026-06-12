@@ -1,5 +1,4 @@
 import { auth, db, isFirebaseEnabled } from './config';
-import { deleteAllFCMTokens } from './messaging';
 import { doc, getDoc } from 'firebase/firestore';
 import {
   GoogleAuthProvider,
@@ -12,7 +11,7 @@ import {
   onAuthStateChanged,
   type User as FirebaseUser
 } from 'firebase/auth';
-import { writable } from 'svelte/store';
+import { writable, get } from 'svelte/store';
 import { browser } from '$app/environment';
 import { setLocale } from '$lib/paraglide/runtime.js';
 import { statsCache } from '$lib/stores/statsCache';
@@ -273,22 +272,37 @@ export async function signOut(): Promise<void> {
     return;
   }
 
+  // Capture the user id before clearing state — FCM cleanup needs it
+  const userId = get(currentUser)?.id ?? null;
+
+  // Clear reactive state FIRST so the UI flips to logged-out instantly;
+  // network cleanup continues below. Also clears per-user caches to
+  // prevent data leakage on shared devices.
+  currentUser.set(null);
+  emailVerificationPending.set(false);
+  needsProfileSetup.set(false);
+  statsCache.set(null);
+  clearTournamentContext();
+
   try {
-    // Delete FCM tokens before signing out (while we still have the user ID).
+    // FCM token cleanup must run while still authenticated (Firestore rules),
+    // but must never make logout feel hung: cap the wait at 2s — the deletes
+    // keep running in the background past the cap.
+    // Dynamic import keeps the messaging module out of the initial bundle.
     // deleteAllFCMTokens already catches its own errors, but guard anyway.
-    try { await deleteAllFCMTokens(); } catch (e) { console.warn('⚠️ FCM cleanup failed on sign-out:', e); }
+    if (userId) {
+      try {
+        const { deleteAllFCMTokens } = await import('./messaging');
+        await Promise.race([
+          deleteAllFCMTokens(userId),
+          new Promise<void>((resolve) => setTimeout(resolve, 2000))
+        ]);
+      } catch (e) { console.warn('⚠️ FCM cleanup failed on sign-out:', e); }
+    }
     await firebaseSignOut(auth!);
   } catch (error) {
     console.error('❌ Sign out error:', error);
     throw error;
-  } finally {
-    // Always clear reactive state, even if sign-out threw
-    currentUser.set(null);
-    emailVerificationPending.set(false);
-    needsProfileSetup.set(false);
-    // Clear per-user caches to prevent data leakage on shared devices
-    statsCache.set(null);
-    clearTournamentContext();
   }
 }
 

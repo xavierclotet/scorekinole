@@ -14,6 +14,7 @@
 	import CircleAlert from '@lucide/svelte/icons/circle-alert';
 	import Eye from '@lucide/svelte/icons/eye';
 	import X from '@lucide/svelte/icons/x';
+	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import {
 		FIRESTORE_COLLECTIONS,
 		exportCollections,
@@ -22,6 +23,10 @@
 		downloadJson,
 		type BackupData
 	} from '$lib/firebase/backup';
+	import {
+		backfillTournamentSummaries,
+		type BackfillResult
+	} from '$lib/firebase/tournamentSummaries';
 
 	// Tab state
 	let activeTab: 'export' | 'import' = $state('export');
@@ -42,6 +47,24 @@
 	let backupData: BackupData | null = $state(null);
 	let importError = $state('');
 	let selectedDocs = $state(new Set<string>());
+
+	// Maintenance: tournament summaries backfill
+	let isBackfilling = $state(false);
+	let backfillResult = $state<BackfillResult | null>(null);
+	let backfillError = $state('');
+
+	async function handleBackfillSummaries() {
+		isBackfilling = true;
+		backfillResult = null;
+		backfillError = '';
+		const result = await backfillTournamentSummaries();
+		if (result) {
+			backfillResult = result;
+		} else {
+			backfillError = 'Error al regenerar los resúmenes (revisa la consola)';
+		}
+		isBackfilling = false;
+	}
 
 	// Restore state
 	let restoreTarget = $state('');
@@ -387,6 +410,50 @@
 							<span>{exportError}</span>
 						</div>
 					{/if}
+					<div class="section-card">
+						<div class="section-card-header">
+							<h2>Mantenimiento</h2>
+						</div>
+						<p class="maintenance-hint">
+							Regenera la colección pública <code>tournamentSummaries</code> a partir de
+							<code>tournaments</code>. Solo es necesario tras desplegar la Cloud Function
+							<code>syncTournamentSummary</code> por primera vez, o si el listado público
+							de torneos no cuadra con la realidad.
+						</p>
+						<div class="section-card-footer">
+							<Button
+								variant="outline"
+								disabled={isBackfilling}
+								onclick={handleBackfillSummaries}
+							>
+								{#if isBackfilling}
+									<LoaderCircle size={16} class="animate-spin" />
+									Regenerando...
+								{:else}
+									<RefreshCw size={16} />
+									Regenerar resúmenes de torneos
+								{/if}
+							</Button>
+						</div>
+
+						{#if backfillResult}
+							<div class="result-banner success" style="margin-top: 8px">
+								<CircleCheck size={18} />
+								<span>
+									Resúmenes regenerados: <strong>{backfillResult.written}</strong> escritos,
+									<strong>{backfillResult.removed}</strong> obsoletos eliminados,
+									<strong>{backfillResult.skippedTest}</strong> de test omitidos
+								</span>
+							</div>
+						{/if}
+
+						{#if backfillError}
+							<div class="result-banner error" style="margin-top: 8px">
+								<CircleAlert size={18} />
+								<span>{backfillError}</span>
+							</div>
+						{/if}
+					</div>
 				</section>
 			{/if}
 
@@ -734,6 +801,21 @@
 		margin-top: 14px;
 		display: flex;
 		justify-content: flex-end;
+	}
+
+	.maintenance-hint {
+		margin: 0;
+		font-size: 0.85rem;
+		line-height: 1.5;
+		color: var(--muted-foreground);
+	}
+
+	.maintenance-hint code {
+		font-size: 0.8em;
+		padding: 1px 5px;
+		border-radius: 4px;
+		background: color-mix(in srgb, var(--primary) 10%, transparent);
+		border: 1px solid var(--border);
 	}
 
 	/* shadcn Button overrides (Tailwind classes don't apply outside primitives) */

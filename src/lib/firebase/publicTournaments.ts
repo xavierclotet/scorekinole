@@ -6,16 +6,7 @@
 import { db, isFirebaseEnabled } from './config';
 import type { Tournament, TournamentStatus, TournamentTier } from '$lib/types/tournament';
 import { normalizeTier } from '$lib/types/tournament';
-import {
-	collection,
-	getDoc,
-	doc,
-	query,
-	orderBy,
-	where,
-	Timestamp,
-	onSnapshot
-} from 'firebase/firestore';
+import { collection, getDoc, doc, onSnapshot } from 'firebase/firestore';
 import { browser } from '$app/environment';
 
 /**
@@ -52,16 +43,34 @@ export interface TournamentFilters {
 
 
 /**
- * Subscribe to public tournaments in real-time
- * Returns an unsubscribe function
+ * Convert a Firestore Timestamp (duck-typed) or epoch number to epoch ms.
+ * Summaries store plain numbers; the duck-typing is defensive.
+ */
+function toEpochMs(value: unknown): number | undefined {
+	if (typeof value === 'number' && Number.isFinite(value)) return value;
+	if (
+		value !== null &&
+		typeof value === 'object' &&
+		typeof (value as { toMillis?: unknown }).toMillis === 'function'
+	) {
+		return (value as { toMillis: () => number }).toMillis();
+	}
+	return undefined;
+}
+
+/**
+ * Subscribe to public tournaments in real-time.
+ * Returns an unsubscribe function.
  *
- * @param yearFilter Optional year to filter server-side (reduces Firestore reads).
- *                   tournamentDate is stored as epoch ms (normalized via migration).
+ * Reads the lightweight /tournamentSummaries collection (a few hundred bytes
+ * per tournament, maintained by the syncTournamentSummary Cloud Function)
+ * instead of the full tournament docs, which embed participants, groups,
+ * matches and brackets. The whole collection is small enough to load at once,
+ * so year filtering happens client-side. Test tournaments never get a summary.
  */
 export function subscribeToPublicTournaments(
 	onUpdate: (tournaments: TournamentListItem[]) => void,
-	onError?: (error: Error) => void,
-	yearFilter?: number
+	onError?: (error: Error) => void
 ): () => void {
 	if (!browser || !isFirebaseEnabled()) {
 		console.warn('Firebase disabled');
@@ -70,70 +79,38 @@ export function subscribeToPublicTournaments(
 	}
 
 	try {
-		const tournamentsRef = collection(db!, 'tournaments');
-		const constraints = [orderBy('tournamentDate', 'asc')];
-
-		if (yearFilter) {
-			const startOfYear = new Date(yearFilter, 0, 1).getTime();
-			const startOfNextYear = new Date(yearFilter + 1, 0, 1).getTime();
-			constraints.push(
-				where('tournamentDate', '>=', startOfYear),
-				where('tournamentDate', '<', startOfNextYear)
-			);
-		}
-
-		const q = query(tournamentsRef, ...constraints);
+		// No orderBy: sorting happens client-side (sortTournaments), and a
+		// Firestore orderBy would silently exclude docs missing the field.
+		const summariesRef = collection(db!, 'tournamentSummaries');
 
 		const unsubscribe = onSnapshot(
-			q,
+			summariesRef,
 			(snapshot) => {
 				const tournaments: TournamentListItem[] = [];
 
 				snapshot.forEach((docSnap) => {
-					const data = docSnap.data() as Tournament;
-
-					// Extract tournamentDate
-					let tournamentDate: number | undefined;
-					if (data.tournamentDate) {
-						tournamentDate =
-							data.tournamentDate instanceof Timestamp
-								? data.tournamentDate.toMillis()
-								: data.tournamentDate;
-					}
-
-					// Skip test tournaments from public view
-					if (data.isTest === true) return;
-
-					// Count active participants without allocating a filtered array
-					let participantsCount = 0;
-					if (data.participants) {
-						for (const p of data.participants) {
-							if (p.status === 'ACTIVE') participantsCount++;
-						}
-					}
+					const data = docSnap.data();
 
 					tournaments.push({
 						id: docSnap.id,
-						key: data.key || '',
-						name: data.name,
+						key: typeof data.key === 'string' ? data.key : '',
+						name: data.name || '',
 						edition: data.edition,
-						country: data.country,
-						city: data.city,
+						country: data.country || '',
+						city: data.city || '',
 						address: data.address,
-						tournamentDate,
+						tournamentDate: toEpochMs(data.tournamentDate),
 						status: data.status,
 						gameType: data.gameType,
-						participantsCount,
-						tier: data.rankingConfig?.enabled ? data.rankingConfig.tier : undefined,
-						createdAt:
-							data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : data.createdAt,
+						participantsCount: data.participantsCount ?? 0,
+						tier: data.tier as TournamentTier | undefined,
+						createdAt: toEpochMs(data.createdAt) ?? 0,
 						isImported: data.isImported,
 						posterUrl: data.posterUrl
 					});
 				});
 
 				// No sort here — the page applies its own sort via sortTournaments()
-				// Real-time update received
 				onUpdate(tournaments);
 			},
 			(error) => {

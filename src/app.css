@@ -2,8 +2,8 @@
    Tailwind v4 + shadcn-svelte Integration
    ============================================ */
 
-/* Google Fonts - MUST be first (before Tailwind) */
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Lexend:wght@400;600&display=swap');
+/* Google Fonts are loaded from app.html (preconnect + non-blocking link).
+   An @import here would serialize: app CSS → fonts CSS → font files, blocking first paint. */
 
 @import "tailwindcss";
 @import "tw-animate-css";

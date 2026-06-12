@@ -1,8 +1,8 @@
 import { initializeApp, type FirebaseApp } from 'firebase/app';
 import { getAuth, type Auth } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
-import { getStorage, type FirebaseStorage } from 'firebase/storage';
-import { getMessaging, type Messaging } from 'firebase/messaging';
+import type { FirebaseStorage } from 'firebase/storage';
+import type { Messaging } from 'firebase/messaging';
 import { browser } from '$app/environment';
 
 // Check if Firebase is enabled
@@ -25,14 +25,12 @@ const firebaseConfig = {
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
-let storage: FirebaseStorage | null = null;
 
 if (browser && isFirebaseEnabled()) {
   try {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
     db = getFirestore(app);
-    storage = getStorage(app);
     // Firebase initialized (errors are logged below)
   } catch (error) {
     console.error('❌ Firebase initialization error:', error);
@@ -40,15 +38,36 @@ if (browser && isFirebaseEnabled()) {
 }
 
 /**
- * Get Firebase Messaging instance (lazy initialization).
- * Only call this when the user has granted notification permission.
+ * Get Firebase Storage instance (lazy — keeps the storage SDK out of the
+ * initial bundle; it is only needed for avatar upload/delete).
+ */
+let storage: FirebaseStorage | null = null;
+
+export async function getFirebaseStorage(): Promise<FirebaseStorage | null> {
+  if (!browser || !app) return null;
+  if (!storage) {
+    try {
+      const { getStorage } = await import('firebase/storage');
+      storage = getStorage(app);
+    } catch (error) {
+      console.error('❌ Firebase Storage initialization error:', error);
+      return null;
+    }
+  }
+  return storage;
+}
+
+/**
+ * Get Firebase Messaging instance (lazy — keeps the messaging SDK out of the
+ * initial bundle). Only call this when the user has granted notification permission.
  */
 let messaging: Messaging | null = null;
 
-export function getFirebaseMessaging(): Messaging | null {
+export async function getFirebaseMessaging(): Promise<Messaging | null> {
   if (!browser || !app) return null;
   if (!messaging) {
     try {
+      const { getMessaging } = await import('firebase/messaging');
       messaging = getMessaging(app);
     } catch (error) {
       console.error('❌ Firebase Messaging initialization error:', error);
@@ -58,4 +77,4 @@ export function getFirebaseMessaging(): Messaging | null {
   return messaging;
 }
 
-export { app, auth, db, storage };
+export { app, auth, db };

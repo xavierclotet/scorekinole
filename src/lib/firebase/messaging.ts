@@ -44,7 +44,7 @@ export async function requestNotificationPermission(): Promise<string | null> {
 		return null;
 	}
 
-	const messaging = getFirebaseMessaging();
+	const messaging = await getFirebaseMessaging();
 	if (!messaging) return null;
 
 	try {
@@ -87,29 +87,41 @@ async function saveFCMToken(userId: string, token: string): Promise<void> {
 
 /**
  * Delete all FCM tokens for the current user (call on sign-out).
+ * @param userId Optional explicit user id — pass it when the currentUser
+ *               store has already been cleared (e.g., instant-logout flow).
  */
-export async function deleteAllFCMTokens(): Promise<void> {
+export async function deleteAllFCMTokens(userId?: string): Promise<void> {
 	if (!browser || !isFirebaseEnabled() || !db) return;
+	const database = db;
 
-	const user = get(currentUser);
-	if (!user) return;
+	const uid = userId ?? get(currentUser)?.id;
+	if (!uid) return;
 
 	try {
-		// Delete from FCM service (may fail if SW was never registered)
-		const messaging = getFirebaseMessaging();
-		if (messaging) {
-			try {
-				await deleteToken(messaging);
-			} catch {
-				// Ignore — SW may not be registered (e.g., user never enabled push)
-			}
-		}
+		// Invalidate this device's token on the FCM service. Skip entirely when
+		// notification permission was never granted — there is no token, and the
+		// call would load the messaging SDK + hit the network for nothing.
+		// Runs in parallel with the Firestore deletions (it was serial before).
+		const fcmServiceCleanup =
+			typeof Notification !== 'undefined' && Notification.permission === 'granted'
+				? getFirebaseMessaging().then(async (messaging) => {
+					if (!messaging) return;
+					try {
+						await deleteToken(messaging);
+					} catch {
+						// Ignore — SW may not be registered (e.g., user never enabled push)
+					}
+				})
+				: Promise.resolve();
 
 		// Delete all token docs from Firestore
-		const tokensRef = collection(db, 'users', user.id, 'fcmTokens');
-		const snapshot = await getDocs(tokensRef);
-		const deletes = snapshot.docs.map(d => deleteDoc(d.ref));
-		await Promise.all(deletes);
+		const firestoreCleanup = (async () => {
+			const tokensRef = collection(database, 'users', uid, 'fcmTokens');
+			const snapshot = await getDocs(tokensRef);
+			await Promise.all(snapshot.docs.map(d => deleteDoc(d.ref)));
+		})();
+
+		await Promise.all([fcmServiceCleanup, firestoreCleanup]);
 
 		// FCM tokens deleted
 	} catch (error) {
@@ -128,7 +140,7 @@ export async function refreshFCMTokenIfNeeded(): Promise<void> {
 	const user = get(currentUser);
 	if (!user) return;
 
-	const messaging = getFirebaseMessaging();
+	const messaging = await getFirebaseMessaging();
 	if (!messaging) return;
 
 	try {

@@ -1,31 +1,46 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Critical mocks — must be before imports
 vi.mock('./config', () => ({
-	db: null,
-	isFirebaseEnabled: () => false
+	db: {},
+	isFirebaseEnabled: () => true
 }));
 
 vi.mock('$app/environment', () => ({
-	browser: false
+	browser: true
 }));
 
-vi.mock('firebase/firestore', () => ({
-	collection: vi.fn(),
-	getDocs: vi.fn(),
-	getDoc: vi.fn(),
-	doc: vi.fn(),
-	query: vi.fn(),
-	orderBy: vi.fn(),
-	where: vi.fn(),
-	onSnapshot: vi.fn(),
-	Timestamp: {
-		fromMillis: (ms: number) => ({ toMillis: () => ms }),
-		fromDate: (d: Date) => ({ toMillis: () => d.getTime() })
+vi.mock('firebase/firestore', () => {
+	// Class (not plain object) so `x instanceof Timestamp` in the module under
+	// test works against the mock
+	class MockTimestamp {
+		constructor(private ms: number) {}
+		toMillis() {
+			return this.ms;
+		}
+		static fromMillis(ms: number) {
+			return new MockTimestamp(ms);
+		}
+		static fromDate(d: Date) {
+			return new MockTimestamp(d.getTime());
+		}
 	}
-}));
+	return {
+		collection: vi.fn(),
+		getDocs: vi.fn(),
+		getDoc: vi.fn(),
+		doc: vi.fn(),
+		query: vi.fn(),
+		orderBy: vi.fn(),
+		where: vi.fn(),
+		onSnapshot: vi.fn(),
+		Timestamp: MockTimestamp
+	};
+});
 
+import { onSnapshot, Timestamp } from 'firebase/firestore';
 import {
+	subscribeToPublicTournaments,
 	sortTournaments,
 	filterTournaments,
 	extractFilterOptions,
@@ -378,5 +393,109 @@ describe('time filter boundaries', () => {
 		});
 		expect(filterTournaments([liveToday], { timeFilter: 'past' }, NOW)).toHaveLength(1);
 		expect(filterTournaments([liveToday], { timeFilter: 'all' }, NOW)).toHaveLength(1);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// subscribeToPublicTournaments — /tournamentSummaries snapshot mapping
+//
+// isTest exclusion, ACTIVE-participant counting and tier gating happen in the
+// syncTournamentSummary Cloud Function (tested in
+// functions/src/tournamentSummaryCore.test.ts). The client mapping is a
+// defensive passthrough of the summary docs.
+// ---------------------------------------------------------------------------
+
+function fakeDoc(id: string, data: Record<string, unknown>) {
+	return { id, data: () => data };
+}
+
+function fakeSnapshot(docs: ReturnType<typeof fakeDoc>[]) {
+	return { forEach: (cb: (d: ReturnType<typeof fakeDoc>) => void) => docs.forEach(cb) };
+}
+
+function summaryDocData(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+	return {
+		key: 'open-bcn-2025',
+		name: 'Open BCN',
+		country: 'ES',
+		city: 'Barcelona',
+		status: 'COMPLETED',
+		gameType: 'singles',
+		tournamentDate: NOW - DAY,
+		createdAt: NOW - 30 * DAY,
+		participantsCount: 16,
+		...overrides
+	};
+}
+
+describe('subscribeToPublicTournaments — summary mapping', () => {
+	let emitSnapshot: (snap: ReturnType<typeof fakeSnapshot>) => void;
+
+	beforeEach(() => {
+		vi.mocked(onSnapshot).mockReset();
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		vi.mocked(onSnapshot).mockImplementation(((_q: unknown, onNext: any) => {
+			emitSnapshot = onNext;
+			return () => {};
+		}) as never);
+	});
+
+	function subscribe(): TournamentListItem[][] {
+		const updates: TournamentListItem[][] = [];
+		subscribeToPublicTournaments((tournaments) => updates.push(tournaments));
+		return updates;
+	}
+
+	it('maps summary docs to TournamentListItem', () => {
+		const updates = subscribe();
+		emitSnapshot(
+			fakeSnapshot([fakeDoc('t1', summaryDocData({ tier: 'SERIES_25', edition: 3 }))])
+		);
+
+		expect(updates).toHaveLength(1);
+		expect(updates[0][0]).toEqual(
+			expect.objectContaining({
+				id: 't1',
+				key: 'open-bcn-2025',
+				name: 'Open BCN',
+				country: 'ES',
+				city: 'Barcelona',
+				status: 'COMPLETED',
+				gameType: 'singles',
+				tournamentDate: NOW - DAY,
+				createdAt: NOW - 30 * DAY,
+				participantsCount: 16,
+				tier: 'SERIES_25',
+				edition: 3
+			})
+		);
+	});
+
+	it('converts Timestamp-typed dates to epoch millis (defensive)', () => {
+		const updates = subscribe();
+		emitSnapshot(
+			fakeSnapshot([
+				fakeDoc(
+					't1',
+					summaryDocData({
+						tournamentDate: Timestamp.fromMillis(NOW - DAY),
+						createdAt: Timestamp.fromMillis(NOW - 30 * DAY)
+					})
+				)
+			])
+		);
+
+		expect(updates[0][0].tournamentDate).toBe(NOW - DAY);
+		expect(updates[0][0].createdAt).toBe(NOW - 30 * DAY);
+	});
+
+	it('defaults missing key and participantsCount (malformed/legacy summary)', () => {
+		const updates = subscribe();
+		emitSnapshot(
+			fakeSnapshot([fakeDoc('t1', summaryDocData({ key: undefined, participantsCount: undefined }))])
+		);
+
+		expect(updates[0][0].key).toBe('');
+		expect(updates[0][0].participantsCount).toBe(0);
 	});
 });

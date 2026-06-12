@@ -9,10 +9,12 @@
 	interface Props {
 		tournament: TournamentListItem;
 		participants?: Partial<TournamentParticipant>[];
-		onclick?: () => void;
+		/** Real link (not a button+goto): lets SvelteKit preload the detail
+		 * route's code on hover/viewport, so click → route change is instant */
+		href: string;
 	}
 
-	let { tournament, participants = [], onclick }: Props = $props();
+	let { tournament, participants = [], href }: Props = $props();
 
 	const isDraft = $derived(tournament.status === 'DRAFT');
 	const showParticipants = $derived(isDraft && participants.length > 0);
@@ -82,7 +84,7 @@
 	);
 </script>
 
-<button class="card" class:past={isPast} class:live={isLive} class:has-poster={tournament.posterUrl} {onclick}>
+<a class="card" class:past={isPast} class:live={isLive} class:has-poster={tournament.posterUrl} {href}>
 	{#if tournament.posterUrl}
 		<div class="poster-background" style="background-image: url({tournament.posterUrl})"></div>
 	{/if}
@@ -167,7 +169,7 @@
 			</div>
 		</div>
 	{/if}
-</button>
+</a>
 
 <style>
 	.card {
@@ -185,6 +187,9 @@
 		font-family: inherit;
 		overflow: hidden;
 		position: relative;
+		/* Anchor reset: the card itself is the affordance (border, chevron) */
+		text-decoration: none;
+		color: inherit;
 	}
 
 	/* Poster background */

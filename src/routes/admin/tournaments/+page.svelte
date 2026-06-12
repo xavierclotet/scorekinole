@@ -7,8 +7,9 @@
   import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
   import * as m from '$lib/paraglide/messages.js';
   import { adminTheme } from '$lib/stores/theme';
-  import { goto } from '$app/navigation';
+  import { goto, preloadCode } from '$app/navigation';
   import { getTournamentsPaginated, deleteTournament as deleteTournamentFirebase } from '$lib/firebase/tournaments';
+  import { setTournamentHandoff } from '$lib/stores/tournamentHandoff';
   import { currentUser } from '$lib/firebase/auth';
   import { isSuperAdminUser, adminCheckLoading, canAccessAdmin } from '$lib/stores/admin';
   import type { Tournament } from '$lib/types/tournament';
@@ -110,6 +111,10 @@
     } catch (e) {
       console.error('Error loading admin preferences', e);
     }
+
+    // Rows are <tr onclick> (not anchors), so SvelteKit can't preload the
+    // detail route on its own. Warm its code so row clicks navigate instantly.
+    preloadCode('/admin/tournaments/_', '/admin/tournaments/create', '/admin/tournaments/import').catch(() => {});
   });
 
   // Load tournaments only after admin check is complete and user has access
@@ -284,6 +289,12 @@
   }
 
   function viewTournament(tournamentId: string) {
+    // Hand the already-loaded tournament to the detail page so it paints
+    // instantly instead of spinning on a server re-fetch of the same doc
+    const tournament = tournaments.find((t) => t.id === tournamentId);
+    if (tournament) {
+      setTournamentHandoff($state.snapshot(tournament) as Tournament);
+    }
     goto(`/admin/tournaments/${tournamentId}`);
   }
 

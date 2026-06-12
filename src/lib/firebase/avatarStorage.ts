@@ -1,4 +1,4 @@
-import { storage, isFirebaseEnabled } from './config';
+import { getFirebaseStorage, isFirebaseEnabled } from './config';
 import { currentUser } from './auth';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -114,6 +114,7 @@ async function compressImage(file: File): Promise<File> {
  * Compresses the image before upload
  */
 export async function uploadAvatar(file: File): Promise<UploadResult> {
+  const storage = await getFirebaseStorage();
   if (!browser || !isFirebaseEnabled() || !storage) {
     return { success: false, error: 'Firebase Storage no disponible' };
   }
@@ -175,6 +176,7 @@ export async function uploadAvatar(file: File): Promise<UploadResult> {
  * Reverts to Google profile photo or null
  */
 export async function deleteAvatar(): Promise<UploadResult> {
+  const storage = await getFirebaseStorage();
   if (!browser || !isFirebaseEnabled() || !storage) {
     return { success: false, error: 'Firebase Storage no disponible' };
   }
@@ -227,6 +229,7 @@ export async function deleteAvatar(): Promise<UploadResult> {
  * Uses the target user's storage path instead of current user
  */
 export async function uploadAvatarForUser(userId: string, file: File): Promise<UploadResult> {
+  const storage = await getFirebaseStorage();
   if (!browser || !isFirebaseEnabled() || !storage) {
     return { success: false, error: 'Firebase Storage no disponible' };
   }

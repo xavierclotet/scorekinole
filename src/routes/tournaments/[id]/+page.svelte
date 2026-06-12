@@ -3,7 +3,7 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import * as m from '$lib/paraglide/messages.js';
-	import { getTournament, subscribeTournament, getTournamentByKey } from '$lib/firebase/tournaments';
+	import { getTournament, subscribeTournament, subscribeTournamentByKey } from '$lib/firebase/tournaments';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 
@@ -599,17 +599,52 @@
 			unsubscribe = null;
 		}
 
-		await loadTournament();
-		if (token !== loadToken) return; // superseded by a newer navigation
+		loading = true;
+		error = false;
 
-		// Subscribe to real-time updates using the resolved Firestore doc ID
-		if (resolvedDocId) {
-			unsubscribe = subscribeTournament(resolvedDocId, (updated) => {
-				if (updated) {
-					tournament = JSON.parse(JSON.stringify(updated));
-				}
-			});
+		if (!urlParam) {
+			error = true;
+			loading = false;
+			return;
 		}
+
+		// Single round trip: subscribe directly and treat the first snapshot as
+		// the initial load. The previous get-then-subscribe sequence fetched the
+		// full tournament doc twice in series.
+		let canEditChecked = false;
+		const onData = (updated: Tournament | null) => {
+			if (token !== loadToken) return; // superseded by a newer navigation
+			if (!updated) {
+				tournament = null;
+				error = true;
+				loading = false;
+				return;
+			}
+			tournament = JSON.parse(JSON.stringify(updated));
+			resolvedDocId = updated.id;
+			error = false;
+			loading = false;
+			if (!canEditChecked) {
+				canEditChecked = true;
+				void checkCanEdit(updated);
+			}
+		};
+
+		unsubscribe = isLikelyKey(urlParam)
+			? subscribeTournamentByKey(urlParam, onData)
+			: subscribeTournament(urlParam, onData);
+	}
+
+	// Check if user can edit (owner, collaborator, or superadmin) — async and
+	// non-blocking so the isSuperAdmin() lookup never delays first paint
+	async function checkCanEdit(t: Tournament) {
+		const user = $currentUser;
+		if (!user) return;
+		const ownerId = t.ownerId || t.createdBy?.userId;
+		const isOwner = ownerId === user.id;
+		const isCollaborator = t.adminIds?.includes(user.id) || false;
+		const superAdmin = await isSuperAdmin();
+		canEdit = isOwner || isCollaborator || superAdmin;
 	}
 
 	// Check if group stage has match details (wins/losses) or just aggregated data
@@ -637,47 +672,6 @@
 			window.removeEventListener('online', handleOnline);
 		}
 	});
-
-	async function loadTournament() {
-		loading = true;
-		error = false;
-
-		try {
-			if (!urlParam) {
-				error = true;
-				loading = false;
-				return;
-			}
-
-			// Detect if URL param is a 6-char key or a full Firestore doc ID
-			if (isLikelyKey(urlParam)) {
-				tournament = await getTournamentByKey(urlParam);
-			} else {
-				// Backward compatibility: full Firestore doc ID
-				tournament = await getTournament(urlParam);
-			}
-
-			if (!tournament) {
-				error = true;
-			} else {
-				resolvedDocId = tournament.id;
-				// Check if user can edit (owner, collaborator, or superadmin)
-				const user = $currentUser;
-				if (user) {
-					const ownerId = tournament.ownerId || tournament.createdBy?.userId;
-					const isOwner = ownerId === user.id;
-					const isCollaborator = tournament.adminIds?.includes(user.id) || false;
-					const superAdmin = await isSuperAdmin();
-					canEdit = isOwner || isCollaborator || superAdmin;
-				}
-			}
-		} catch (err) {
-			console.error('Error loading tournament:', err);
-			error = true;
-		} finally {
-			loading = false;
-		}
-	}
 
 	function goBack() {
 		goto('/tournaments');

@@ -200,6 +200,17 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------
+    // Tournament summaries (public /tournaments listing)
+    // ---------------------------------------------------------------
+    // Lightweight per-tournament docs kept in sync by the
+    // syncTournamentSummary Cloud Function (admin SDK bypasses rules).
+    // Superadmin write is only for the one-off backfill tool in /admin.
+    match /tournamentSummaries/{tournamentId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+
+    // ---------------------------------------------------------------
     // Match invitations (friendly match QR-code flow)
     // ---------------------------------------------------------------
     match /matchInvites/{inviteId} {

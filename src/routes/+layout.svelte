@@ -7,12 +7,9 @@
 	import { loadTeams } from '$lib/stores/teams';
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { initAuthListener, needsProfileSetup, currentUser, emailVerificationPending } from '$lib/firebase/auth';
-	import { saveUserProfile } from '$lib/firebase/userProfile';
 	import { isFirebaseEnabled } from '$lib/firebase/config';
-	import { refreshFCMTokenIfNeeded } from '$lib/firebase/messaging';
 	import { adminTheme } from '$lib/stores/theme';
 	import { trackPageView } from '$lib/utils/pageViewTracker';
-	import CompleteProfileModal from '$lib/components/CompleteProfileModal.svelte';
 	import EmailVerificationBanner from '$lib/components/EmailVerificationBanner.svelte';
 	import ReloadPrompt from '$lib/components/ReloadPrompt.svelte';
 	import '../app.css';
@@ -56,11 +53,12 @@
 		}
 	});
 
-	// Refresh FCM token on app load (handles token rotation)
+	// Refresh FCM token on app load (handles token rotation).
+	// Dynamic import keeps the FCM/messaging module out of the initial bundle.
 	$effect(() => {
 		if (!browser || !$currentUser || !isFirebaseEnabled()) return;
 		if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
-		refreshFCMTokenIfNeeded();
+		import('$lib/firebase/messaging').then(({ refreshFCMTokenIfNeeded }) => refreshFCMTokenIfNeeded());
 	});
 
 
@@ -137,6 +135,7 @@
 
 	async function handleProfileComplete(playerName: string) {
 		try {
+			const { saveUserProfile } = await import('$lib/firebase/userProfile');
 			const result = await saveUserProfile(playerName);
 			if (result) {
 				// Update currentUser name and close modal
@@ -159,9 +158,10 @@
 
 {@render children()}
 
-<CompleteProfileModal
-	isOpen={$needsProfileSetup}
-	onsave={handleProfileComplete}
-/>
+{#if $needsProfileSetup}
+	{#await import('$lib/components/CompleteProfileModal.svelte') then { default: CompleteProfileModal }}
+		<CompleteProfileModal isOpen={true} onsave={handleProfileComplete} />
+	{/await}
+{/if}
 
 <ReloadPrompt show={showReloadPrompt} />

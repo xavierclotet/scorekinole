@@ -1,7 +1,7 @@
 ---
 route: "/tournaments"
 title: "Public Tournament List"
-description: "Listado publico de torneos con filtros por tiempo, ano, pais, modo y tier. Suscripcion en tiempo real a Firestore con infinite scroll."
+description: "Listado publico de torneos con filtros por tiempo, ano, pais, modo y tier. Suscripcion en tiempo real a /tournamentSummaries (docs ligeros) con infinite scroll. Filtros compartibles via query params."
 ---
 
 ## Contexto de Agente (WebMCP)
@@ -9,7 +9,7 @@ description: "Listado publico de torneos con filtros por tiempo, ano, pais, modo
 > Carga datos via suscripcion Firestore en tiempo real y muestra tarjetas de torneo con multiples filtros combinables.
 
 ## Estructura y Componentes Principales
-- **Header**: `AppMenu` (con `showHome` y `homeHref="/"`), titulo con badge de conteo de torneos filtrados, `ThemeToggle`.
+- **Header**: `AppMenu` (con `showHome` y `homeHref="/"`), titulo con badge de conteo de torneos filtrados, boton compartir (`.share-btn`, copia/comparte la URL con los filtros activos), `ThemeToggle`.
 - **PullToRefresh**: Envuelve todo el contenido debajo del header. Llama a `handleRefresh()` (reinicia suscripcion).
 - **SEO**: Componente `<SEO>` con meta tags para torneos publicos.
 - **Controls Section**: Controles de filtrado:
@@ -55,8 +55,18 @@ description: "Listado publico de torneos con filtros por tiempo, ano, pais, modo
 | `hasMore` | boolean | `$derived`: si hay mas torneos por mostrar |
 | `hasActiveFilters` | boolean | `$derived`: si hay algun filtro activo |
 
+## URL / Filtros compartibles
+Los filtros se reflejan en la query string (replaceState, sin ensuciar el historial) y se leen al cargar. Params en ingles:
+- `year`: ano (`2026`) o `all` (explicito "todos los anos"; su ausencia aplica el default = ano actual)
+- `time`: `future` | `past`
+- `country`: codigo de pais (`ES`)
+- `mode`: `singles` | `doubles`
+- `tier`: `SERIES_15` | `SERIES_25` | `SERIES_35`
+
+Ejemplo: `/tournaments?year=2026&time=future&mode=doubles`
+
 ## Dependencias
-- `$lib/firebase/publicTournaments.ts`: `subscribeToPublicTournaments`, `getAvailableTournamentYears`, `getAvailableTournamentCountries`, `TournamentListItem`
+- `$lib/firebase/publicTournaments.ts`: `subscribeToPublicTournaments`, `filterTournaments`, `sortTournaments`, `extractFilterOptions`, `TournamentListItem`
 - `$lib/types/tournament.ts`: `normalizeTier`
 - `$lib/components/TournamentCard.svelte`: Card de torneo individual
 - `$lib/components/AppMenu.svelte`: Menu de navegacion
@@ -68,13 +78,15 @@ description: "Listado publico de torneos con filtros por tiempo, ano, pais, modo
 - `$lib/constants.ts`: `PAGE_SIZE` para infinite scroll
 
 ## Flujo de Datos
-1. `onMount` → `setupSubscription()` inicia suscripcion en tiempo real a Firestore.
-2. Callback de suscripcion actualiza `allTournaments` y deriva filtros (`availableYears`, `availableCountries`) de los datos recibidos via `updateFiltersFromData()`.
-3. Si `selectedYear` no esta definido y el ano actual existe en los datos, se selecciona automaticamente.
-4. `filteredTournaments` es un `$derived.by()` que excluye torneos `CANCELLED` y aplica todos los filtros activos, ordenando por fecha descendente.
-5. `$effect` resetea `visibleCount` a `PAGE_SIZE` cuando cambian los filtros.
-6. `$effect` auto-fill: si el contenedor no tiene scroll, carga mas cards automaticamente.
-7. Cleanup: `onMount` retorna funcion que llama `unsubscribe()` al desmontar.
+1. Estado de filtros inicializado desde la query string (links compartibles).
+2. `onMount` → `setupSubscription()` abre UNA suscripcion en tiempo real a `/tournamentSummaries` (docs ligeros mantenidos por la Cloud Function `syncTournamentSummary`; los torneos `isTest` no tienen resumen). No hay re-suscripcion por ano: todo el filtrado es client-side.
+3. Callback actualiza `allTournaments`; `availableYears`/`availableCountries` son `$derived` de los datos.
+4. Si la URL no traia `year` y el ano actual tiene torneos, se selecciona por defecto (una sola vez).
+5. `filteredTournaments` es un `$derived.by()` que excluye torneos `CANCELLED` y aplica todos los filtros activos, ordenando por fecha.
+6. `$effect` sincroniza los filtros con la URL via `goto(..., { replaceState: true })`.
+7. `$effect` resetea `visibleCount` a `PAGE_SIZE` cuando cambian los filtros.
+8. `$effect` auto-fill: si el contenedor no tiene scroll, carga mas cards automaticamente.
+9. Cleanup: `onMount` retorna funcion que llama `unsubscribe()` al desmontar.
 
 ## Template Structure
 ```

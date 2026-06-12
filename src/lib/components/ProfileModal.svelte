@@ -118,17 +118,20 @@
 	});
 
 	async function loadPlayerData() {
+		// Seed synchronously from the auth user so the dialog opens with data
+		// immediately; the Firestore profile refines it when it arrives.
+		playerNameInput = user.name || user.displayName || '';
+		currentPhotoURL = user.photo || user.photoURL || null;
+		countryCode = '';
+		uploadError = null;
+
 		try {
 			const profile = await getUserProfile();
-			playerNameInput = profile?.playerName || user.name || user.displayName || '';
-			currentPhotoURL = profile?.photoURL || user.photo || user.photoURL || null;
+			playerNameInput = profile?.playerName || playerNameInput;
+			currentPhotoURL = profile?.photoURL || currentPhotoURL;
 			countryCode = profile?.country || '';
-			uploadError = null;
 		} catch (error) {
 			console.error('Error loading player data:', error);
-			playerNameInput = user.name || user.displayName || '';
-			currentPhotoURL = user.photo || user.photoURL || null;
-			countryCode = '';
 		}
 	}
 
