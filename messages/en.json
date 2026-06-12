@@ -1723,5 +1723,13 @@
   "admin_deleteMatchError": "The match could not be deleted. Check your browser console for more details.",
   "admin_searchingAllMatches": "Looking at all the matches...",
   "admin_enableUserError": "Could not re-enable the user. Check the browser console for more details.",
-  "admin_venueSaveError": "Could not save the venue. Check the browser console for more details."
+  "admin_venueSaveError": "Could not save the venue. Check the browser console for more details.",
+  "privacy_fraudPreventionTitle": "Data for fraud prevention",
+  "privacy_fraudPreventionIntro": "We only save data at the time of registration (not on every use) to detect duplicate or fraudulent accounts:",
+  "privacy_dataIP": "Your IP address at the time of registration",
+  "privacy_dataFingerprint": "An approximate fingerprint of the device/browser (language, screen resolution, time zone, and the like)",
+  "privacy_fraudPreventionStorage": "This data is private: only you and the administrators can see it. It never appears on your public profile or in the rankings.",
+  "wizard_errorDoublesPartnersMissing": "Doubles mode: There are participants without a partner. Complete the pairs or add more participants.",
+  "wizard_errorSinglesWithPartners": "Individual mode: Some participants have a partner. Change the mode to doubles or add the participants again.",
+  "wizard_errorGameConfigIncomplete": "Incomplete game setup: Review the point, round, and game values from step 2"
 }

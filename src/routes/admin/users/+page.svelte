@@ -582,6 +582,7 @@
           <thead>
             <tr>
               <th class="name-col">{m.admin_playerName()}</th>
+              <th class="email-col hide-small">Email</th>
               <th class="role-col">Type</th>
               <th class="tournaments-col hide-small">Tourn.</th>
               <th class="created-tournaments-col hide-small">Created</th>
@@ -609,10 +610,11 @@
                           <img class="user-country-flag" src={getFlagUrl(user.country)} alt={user.country} />
                         {/if}
                       </strong>
-                      <small class="user-email">{user.email || '-'}</small>
+                      <small class="user-email user-email-inline">{user.email || '-'}</small>
                     </div>
                   </div>
                 </td>
+                <td class="email-cell hide-small" title={user.email || ''}>{user.email || '-'}</td>
                 <td class="role-cell">
                   <div class="role-badges-stack">
                     {#if user.isSuperAdmin}
@@ -1373,6 +1375,23 @@
 
   .users-container:is([data-theme='dark'], [data-theme='violet']) .user-email {
     color: #6b7a94;
+  }
+
+  /* Email column (desktop). On small screens it's hidden (.hide-small) and the
+     email falls back to the inline line under the player name. */
+  .email-cell {
+    font-size: 0.8rem;
+    color: var(--muted-foreground);
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* The under-name email is shown ONLY on small screens (avoids duplicating the
+     dedicated Email column on desktop). */
+  .user-email-inline {
+    display: none;
   }
 
   /* Role cell */
@@ -2358,6 +2377,11 @@
   @media (max-width: 600px) {
     .hide-small {
       display: none;
+    }
+
+    /* Email column is hidden here; surface it under the player name instead. */
+    .user-email-inline {
+      display: block;
     }
 
     .users-table th,

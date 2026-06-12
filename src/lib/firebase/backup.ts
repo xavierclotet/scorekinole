@@ -32,6 +32,8 @@ export interface BackupMetadata {
 	date: string;
 	collections: string[];
 	documentCount: number;
+	/** Collections that could not be read (e.g. a rules gap) and were left out. */
+	skipped?: { name: string; reason: string }[];
 }
 
 export interface BackupData {
@@ -95,25 +97,36 @@ export async function exportCollections(collectionNames: string[]): Promise<Back
 	if (!(await isSuperAdmin())) throw new Error('No autorizado: se requiere super admin');
 
 	const data: Record<string, Record<string, any>> = {};
+	const exported: string[] = [];
+	const skipped: { name: string; reason: string }[] = [];
 	let totalDocs = 0;
 
 	for (const name of collectionNames) {
-		const snapshot = await getDocs(collection(db, name));
-		const docs: Record<string, any> = {};
+		try {
+			const snapshot = await getDocs(collection(db, name));
+			const docs: Record<string, any> = {};
 
-		snapshot.forEach((docSnap) => {
-			docs[docSnap.id] = serializeValue(docSnap.data());
-			totalDocs++;
-		});
+			snapshot.forEach((docSnap) => {
+				docs[docSnap.id] = serializeValue(docSnap.data());
+				totalDocs++;
+			});
 
-		data[name] = docs;
+			data[name] = docs;
+			exported.push(name);
+		} catch (err) {
+			// One unreadable collection (e.g. a Firestore rules gap) must not abort
+			// the entire backup — skip it, record why, and keep going.
+			skipped.push({ name, reason: err instanceof Error ? err.message : String(err) });
+			console.warn(`Backup: skipped collection "${name}":`, err);
+		}
 	}
 
 	return {
 		metadata: {
 			date: new Date().toISOString(),
-			collections: collectionNames,
-			documentCount: totalDocs
+			collections: exported,
+			documentCount: totalDocs,
+			skipped
 		},
 		data
 	};

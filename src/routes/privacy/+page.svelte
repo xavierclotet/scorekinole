@@ -25,6 +25,16 @@
 		</section>
 
 		<section>
+			<h2>{m.privacy_fraudPreventionTitle()}</h2>
+			<p>{m.privacy_fraudPreventionIntro()}</p>
+			<ul>
+				<li>{m.privacy_dataIP()}</li>
+				<li>{m.privacy_dataFingerprint()}</li>
+			</ul>
+			<p>{m.privacy_fraudPreventionStorage()}</p>
+		</section>
+
+		<section>
 			<h2>{m.privacy_howWeUseTitle()}</h2>
 			<ul>
 				<li>{m.privacy_useSync()}</li>

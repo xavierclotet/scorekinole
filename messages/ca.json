@@ -1723,5 +1723,13 @@
   "admin_deleteMatchError": "No es va poder eliminar el partit. Reviseu la consola del navegador per a més detalls.",
   "admin_searchingAllMatches": "Buscant en tots els partits...",
   "admin_enableUserError": "No s'ha pogut reactivar l'usuari. Revisa la consola del navegador per a més detalls.",
-  "admin_venueSaveError": "No s'ha pogut desar el venue. Revisa la consola del navegador per a més detalls."
+  "admin_venueSaveError": "No s'ha pogut desar el venue. Revisa la consola del navegador per a més detalls.",
+  "privacy_fraudPreventionTitle": "Dades per a prevenció de frau",
+  "privacy_fraudPreventionIntro": "Només en el moment de registrar-te (no en cada ús), guardem per detectar comptes duplicats o fraudulents:",
+  "privacy_dataIP": "La teva adreça IP en el moment del registre",
+  "privacy_dataFingerprint": "Una empremta aproximada del dispositiu/navegador (idioma, resolució de pantalla, zona horària i similars)",
+  "privacy_fraudPreventionStorage": "Aquestes dades són privades: només tu i els administradors les podeu veure. Mai no apareixen al teu perfil públic ni a les classificacions.",
+  "wizard_errorDoublesPartnersMissing": "Modalitat dobles: hi ha participants sense parella. Completa les parelles o torna a afegir els participants",
+  "wizard_errorSinglesWithPartners": "Modalitat individual: hi ha participants amb parella. Canvia la modalitat a dobles o torna a afegir els participants",
+  "wizard_errorGameConfigIncomplete": "Configuració de partida incompleta: revisa els valors de punts, rondes i partides del pas 2"
 }

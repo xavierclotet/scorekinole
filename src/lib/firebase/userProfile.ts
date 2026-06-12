@@ -32,7 +32,9 @@ export interface UserProfile {
   mergedTo?: string;                     // ID of registered user this GUEST was merged to
   // Push notification preferences
   notificationPreferences?: NotificationPreferences;
-  // Device tracking (for fraud detection)
+  // Device tracking (for fraud detection). PII — NOT stored on this public doc;
+  // it lives in the owner-only `/users/{uid}/private/meta` subdoc. These optional
+  // fields remain for legacy docs and the backfill that moves them to /private.
   registrationIP?: string;               // IP address at registration
   deviceFingerprint?: string;            // Browser/device fingerprint
   deviceInfo?: DeviceInfo;               // Full device info
@@ -196,10 +198,11 @@ export async function saveUserProfile(
     const existingDoc = await getDoc(profileRef);
     const isNewUser = !existingDoc.exists();
 
+    // NOTE: `email` is intentionally NOT written here. It is PII and the user doc
+    // is world-readable; email lives in the owner-only /private/meta subdoc below.
     const profile: Partial<UserProfile & { playerNameLower: string }> = {
       playerName: playerName.trim(),
       playerNameLower: playerName.trim().toLowerCase(),
-      email: user.email,
       authProvider: getAuthProvider(),
       updatedAt: serverTimestamp()
     };
@@ -223,25 +226,46 @@ export async function saveUserProfile(
       profile.key = await generateUniqueUserKey();
     }
 
-    // For NEW users only: capture device info for fraud detection
     if (isNewUser) {
       profile.createdAt = serverTimestamp();
-
-      try {
-        const deviceInfo = await getDeviceInfo();
-        profile.registrationIP = deviceInfo.ip;
-        profile.deviceFingerprint = deviceInfo.fingerprint;
-        profile.deviceInfo = deviceInfo;
-        console.log('📱 Device info captured:', deviceInfo.ip, deviceInfo.fingerprint.slice(0, 8) + '...');
-      } catch (error) {
-        console.warn('⚠️ Could not capture device info:', error);
-      }
-
-      console.log('🆕 New user registered:', playerName);
     }
 
     await setDoc(profileRef, profile, { merge: true });
     console.log('✅ User profile saved:', playerName, isNewUser ? '(new user)' : '(existing user)');
+
+    // PII (email, IP, device fingerprint) MUST NOT live on the user doc, which is
+    // world-readable (`/users/{uid}` allows public read for names and rankings).
+    // It goes to the owner-only `/users/{uid}/private/meta` subdoc.
+    // - email + authProvider: synced on every save.
+    // - device info: captured only at registration (no external IP fetch on edits).
+    // Best-effort: a failure here never blocks the profile save.
+    try {
+      const privateRef = doc(db!, 'users', user.id, 'private', 'meta');
+      const privatePayload: Record<string, unknown> = {
+        email: user.email,
+        // Duplicated from the public doc so the Cloud Function duplicate-account
+        // check can filter inside the `private` collection group alone.
+        authProvider: getAuthProvider(),
+        updatedAt: serverTimestamp()
+      };
+      if (isNewUser) {
+        privatePayload.createdAt = serverTimestamp();
+        try {
+          const deviceInfo = await getDeviceInfo();
+          privatePayload.registrationIP = deviceInfo.ip;
+          privatePayload.deviceFingerprint = deviceInfo.fingerprint;
+          privatePayload.deviceInfo = deviceInfo;
+          console.log('📱 Device info captured (private):', deviceInfo.ip, deviceInfo.fingerprint.slice(0, 8) + '...');
+        } catch (error) {
+          console.warn('⚠️ Could not capture device info:', error);
+        }
+      }
+      await setDoc(privateRef, privatePayload, { merge: true });
+    } catch (error) {
+      console.warn('⚠️ Could not write private profile metadata:', error);
+    }
+    if (isNewUser) console.log('🆕 New user registered:', playerName);
+
     return profile as UserProfile;
   } catch (error) {
     console.error('❌ Error saving user profile:', error);

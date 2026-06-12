@@ -7,6 +7,7 @@ import { getApp } from 'firebase/app';
 import {
   collection,
   getDocs,
+  getDoc,
   getCountFromServer,
   doc,
   updateDoc,
@@ -102,6 +103,37 @@ export async function getAllUsers(): Promise<AdminUserInfo[]> {
 }
 
 /**
+ * Email is PII and lives in the owner-only /users/{uid}/private/meta subdoc, not
+ * on the public user doc. Admins read it per-user (the /private read rule already
+ * grants admins access — covered by rules test U4). Per-uid cache so paging and
+ * repeated searches don't re-fetch. A null entry means "fetched, no email".
+ */
+const _emailCache = new Map<string, string | null>();
+
+/** Merge per-user private emails into loaded users (in place). Best-effort. */
+async function attachEmails(users: AdminUserInfo[]): Promise<void> {
+  if (!browser || !isFirebaseEnabled() || users.length === 0) return;
+
+  const toFetch = users.filter((u) => !_emailCache.has(u.userId));
+  await Promise.all(
+    toFetch.map(async (u) => {
+      try {
+        const snap = await getDoc(doc(db!, 'users', u.userId, 'private', 'meta'));
+        _emailCache.set(u.userId, (snap.exists() ? snap.data().email : null) ?? null);
+      } catch {
+        // Permission/network hiccup — fall back to the public-doc email (if any).
+        _emailCache.set(u.userId, null);
+      }
+    })
+  );
+
+  for (const u of users) {
+    const email = _emailCache.get(u.userId);
+    if (email) u.email = email; // keep public-doc value for legacy/not-yet-migrated users
+  }
+}
+
+/**
  * Fetch all users for search (admin only)
  * Returns all users in the collection without pagination limits
  */
@@ -133,6 +165,8 @@ export async function fetchAllUsers(): Promise<AdminUserInfo[]> {
       const bTime = b.createdAt?.toMillis?.() ?? b.createdAt ?? 0;
       return bTime - aTime;
     });
+
+    await attachEmails(users);
 
     console.log(`✅ Fetched all ${users.length} users for search`);
     return users;
@@ -207,6 +241,8 @@ export async function getUsersPaginated(
 
     const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
     const hasMore = snapshot.docs.length === pageSize;
+
+    await attachEmails(users);
 
     console.log(`✅ Retrieved ${users.length} users (page), total: ${totalCount}`);
     return {

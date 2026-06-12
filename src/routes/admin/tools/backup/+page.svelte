@@ -29,7 +29,7 @@
 	// Export state
 	let selectedCollections = $state(new Set<string>(FIRESTORE_COLLECTIONS as unknown as string[]));
 	let isExporting = $state(false);
-	let exportResult: { docCount: number; collections: string[] } | null = $state(null);
+	let exportResult: { docCount: number; collections: string[]; skipped: { name: string; reason: string }[] } | null = $state(null);
 	let exportError = $state('');
 
 	// Preview state (browse live Firestore data)
@@ -101,7 +101,8 @@
 			downloadJson(data, `scorekinole-backup-${date}.json`);
 			exportResult = {
 				docCount: data.metadata.documentCount,
-				collections: data.metadata.collections
+				collections: data.metadata.collections,
+				skipped: data.metadata.skipped ?? []
 			};
 		} catch (err) {
 			console.error('Export error:', err);
@@ -369,6 +370,15 @@
 								de <strong>{exportResult.collections.length}</strong> colecciones
 							</span>
 						</div>
+						{#if exportResult.skipped.length > 0}
+							<div class="result-banner warning">
+								<CircleAlert size={18} />
+								<span>
+									No se pudieron leer (omitidas): <strong>{exportResult.skipped.map((s) => s.name).join(', ')}</strong>.
+									Suele ser una regla de Firestore sin desplegar.
+								</span>
+							</div>
+						{/if}
 					{/if}
 
 					{#if exportError}
@@ -1029,6 +1039,17 @@
 
 	:global(.dark) .result-banner.error {
 		color: #f87171;
+	}
+
+	.result-banner.warning {
+		background: color-mix(in srgb, #f59e0b 12%, transparent);
+		color: #b45309;
+		border: 1px solid color-mix(in srgb, #f59e0b 30%, transparent);
+		margin-top: 8px;
+	}
+
+	:global(.dark) .result-banner.warning {
+		color: #fbbf24;
 	}
 
 	/* Restore progress */

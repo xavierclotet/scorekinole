@@ -94,7 +94,9 @@ describe('saveUserProfile photoURL semantics', () => {
     const result = await saveUserProfile('Nuevo Jugador', { country: 'ES' });
 
     expect(result).not.toBeNull();
-    expect(setDocMock).toHaveBeenCalledTimes(1);
+    // Two writes for a new user: the public user doc (first) and the
+    // owner-only /private/meta subdoc with device info (see userProfile.privacy.test.ts).
+    expect(setDocMock).toHaveBeenCalledTimes(2);
     const payload = setDocMock.mock.calls[0][1];
     expect(payload.photoURL).toBe('https://provider/photo.jpg');
     expect(payload.playerName).toBe('Nuevo Jugador');

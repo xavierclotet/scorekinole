@@ -491,6 +491,45 @@ describe('Users', () => {
 		});
 	});
 
+	describe('private write (PII isolation)', () => {
+		it('U4b — el dueño puede escribir su propio /private/meta', async () => {
+			const ctx = userCtx('user1');
+			await assertSucceeds(
+				setDoc(doc(ctx.firestore(), 'users', 'user1', 'private', 'meta'), {
+					registrationIP: '1.2.3.4',
+					deviceFingerprint: 'fp-abc',
+					authProvider: 'google'
+				})
+			);
+		});
+
+		it('U4c — usuario B NO puede escribir /private/meta de A', async () => {
+			const ctx = userCtx('user2');
+			await assertFails(
+				setDoc(doc(ctx.firestore(), 'users', 'user1', 'private', 'meta'), {
+					registrationIP: '6.6.6.6'
+				})
+			);
+		});
+
+		it('U4d — anónimo NO puede escribir /private/meta', async () => {
+			const ctx = anonCtx();
+			await assertFails(
+				setDoc(doc(ctx.firestore(), 'users', 'user1', 'private', 'meta'), {
+					registrationIP: '6.6.6.6'
+				})
+			);
+		});
+
+		// NOTE: /admin/users loads emails per-user via getDoc on /private/meta,
+		// which is exactly what U4 covers (admin reads any user's /private/meta).
+		// No collection-group query is used by the client (this harness can't run
+		// `getDocs` queries anyway — firebase 10 + rules-unit-testing 5 throw
+		// "Firestore has already been started"). The Cloud Function's
+		// collectionGroup('private') dup-check runs via the Admin SDK, which
+		// bypasses these rules.
+	});
+
 	describe('update', () => {
 		it('U5 — usuario puede actualizar displayName y photoURL propios', async () => {
 			await setupUser('user1');
@@ -863,6 +902,44 @@ describe('PageViews', () => {
 				userAgent: 'A'.repeat(1000)
 			})
 		);
+	});
+});
+
+// -------------------------------------------------------------------------
+// Pairs (doubles ranking/history — CF-managed; backup tool is super-admin only)
+// -------------------------------------------------------------------------
+
+describe('Pairs', () => {
+	async function setupPair() {
+		await testEnv.withSecurityRulesDisabled(async (ctx) => {
+			await setDoc(doc(ctx.firestore(), 'pairs', 'p1'), { points: 100 });
+		});
+	}
+
+	it('PAIR1 — super-admin puede leer un pair (backup export)', async () => {
+		await setupUser('su', { isAdmin: true, isSuperAdmin: true });
+		await setupPair();
+		const ctx = userCtx('su');
+		await assertSucceeds(getDoc(doc(ctx.firestore(), 'pairs', 'p1')));
+	});
+
+	it('PAIR2 — super-admin puede escribir un pair (backup restore)', async () => {
+		await setupUser('su2', { isAdmin: true, isSuperAdmin: true });
+		const ctx = userCtx('su2');
+		await assertSucceeds(setDoc(doc(ctx.firestore(), 'pairs', 'p2'), { points: 50 }));
+	});
+
+	it('PAIR3 — admin normal NO puede leer un pair', async () => {
+		await setupUser('admin1', { isAdmin: true });
+		await setupPair();
+		const ctx = userCtx('admin1');
+		await assertFails(getDoc(doc(ctx.firestore(), 'pairs', 'p1')));
+	});
+
+	it('PAIR4 — anónimo NO puede leer un pair', async () => {
+		await setupPair();
+		const ctx = anonCtx();
+		await assertFails(getDoc(doc(ctx.firestore(), 'pairs', 'p1')));
 	});
 });
 

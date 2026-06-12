@@ -151,14 +151,21 @@ El proyecto tiene 3 Cloud Functions en `functions/src/index.ts`:
 - Crea usuarios GUEST automáticamente si no existen
 - En torneos de dobles, añade puntos a ambos jugadores
 
-### 2. `onUserCreated`
-**Trigger**: Cuando se crea un nuevo documento en `users/{userId}`
+### 2. `onUserPrivateMetaCreated`
+**Trigger**: Cuando se crea `users/{userId}/private/{docId}` (el subdoc `meta`)
 
 **Función**: Envía notificación por Telegram al admin cuando un usuario se registra con Google.
 
-También detecta actividad sospechosa:
+También detecta actividad sospechosa (consultando el collection group `private`):
 - **Misma IP**: Alerta si hay múltiples cuentas Google desde la misma IP
 - **Mismo dispositivo**: Alerta si el fingerprint del navegador coincide con otra cuenta
+
+> ⚠️ **Renombrada desde `onUserCreated`** (la PII — email, IP, fingerprint — se
+> movió al subdoc privado `users/{uid}/private/meta`, fuera del doc público que
+> es de lectura pública). En el primer `firebase deploy --only functions` tras
+> este cambio, Firebase preguntará si borrar la función `onUserCreated` antigua:
+> responde que **sí**. El backfill (`functions/scripts/backfillPrivatePii.mjs`)
+> marca sus escrituras con `_backfill: true` para que este trigger las ignore.
 
 ### 3. `onTournamentCreated`
 **Trigger**: Cuando se crea un nuevo documento en `tournaments/{tournamentId}`
@@ -191,14 +198,14 @@ firebase deploy --only functions
 
 ### Ver logs
 ```bash
-firebase functions:log                          # Todos los logs
-firebase functions:log --only onUserCreated     # Solo una función
+firebase functions:log                                # Todos los logs
+firebase functions:log --only onUserPrivateMetaCreated # Solo una función
 firebase functions:log --only onTournamentComplete
 ```
 
 En PowerShell (Windows):
 ```powershell
-firebase functions:log --only onUserCreated | Select-Object -First 20
+firebase functions:log --only onUserPrivateMetaCreated | Select-Object -First 20
 ```
 
 ### Gestión de Secrets

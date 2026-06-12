@@ -12,6 +12,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 let store: Map<string, Record<string, unknown>>;
 let batchCommits: number;
+let denyCollections: Set<string>;
 
 class FakeTimestamp {
   constructor(
@@ -63,6 +64,11 @@ vi.mock('firebase/firestore', () => ({
   },
 
   getDocs: async (col: { __collection: string; __limit?: number }) => {
+    if (denyCollections.has(col.__collection)) {
+      const err = new Error('Missing or insufficient permissions.');
+      (err as { code?: string }).code = 'permission-denied';
+      throw err;
+    }
     const prefix = `${col.__collection}/`;
     let docs: Array<{ id: string; data: () => Record<string, unknown> }> = [];
     for (const [path, data] of store) {
@@ -95,6 +101,7 @@ const { FIRESTORE_COLLECTIONS, exportCollections, previewCollectionDocs, restore
 beforeEach(() => {
   store = new Map();
   batchCommits = 0;
+  denyCollections = new Set();
   permissions.isSuperAdmin = true;
 });
 
@@ -157,6 +164,21 @@ describe('exportCollections', () => {
   it('requires super admin', async () => {
     permissions.isSuperAdmin = false;
     await expect(exportCollections(['users'])).rejects.toThrow(/super admin/i);
+  });
+
+  it('skips a collection whose read is denied and still exports the rest', async () => {
+    store.set('users/u1', { playerName: 'Ana' });
+    store.set('pairs/p1', { points: 1 });
+    denyCollections.add('pairs'); // e.g. a rules gap on one collection
+
+    const backup = await exportCollections(['users', 'pairs']);
+
+    // The whole export must NOT abort because one collection is unreadable.
+    expect(backup.metadata.collections).toEqual(['users']);
+    expect(backup.metadata.skipped?.map((s) => s.name)).toEqual(['pairs']);
+    expect(backup.data.pairs).toBeUndefined();
+    expect(backup.data.users.u1.playerName).toBe('Ana');
+    expect(backup.metadata.documentCount).toBe(1);
   });
 });
 

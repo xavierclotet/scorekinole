@@ -212,6 +212,22 @@
       ]
     },
     {
+      "collectionGroup": "private",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "registrationIP", "order": "ASCENDING" },
+        { "fieldPath": "authProvider", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "private",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "deviceFingerprint", "order": "ASCENDING" },
+        { "fieldPath": "authProvider", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "pageViews",
       "queryScope": "COLLECTION",
       "fields": [

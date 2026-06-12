@@ -147,12 +147,17 @@ service cloud.firestore {
       // Delete: only platform admins (preserves original effective behavior)
       allow delete: if isAdmin();
 
-      // Private PII sub-collection: only owner and platform admins.
-      // Populated on migration (post-Fase-0) with email, registrationIP,
-      // deviceFingerprint, authProvider. Currently empty on most docs.
+      // Private PII sub-collection: only the owner and platform admins can read.
+      // Holds registrationIP, deviceFingerprint, deviceInfo (fraud detection) —
+      // kept OFF the world-readable user doc. The owner writes their own meta at
+      // registration (IP/fingerprint are computed client-side); admins may write
+      // any (e.g. the one-off backfill from the public doc).
       match /private/{doc} {
-        allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-        allow write: if isAdmin();
+        // isAdmin() FIRST so collection-group reads short-circuit before the
+        // `userId` comparison (unbound in a collectionGroup query → would deny).
+        // Admins batch-load emails via collectionGroup('private') in /admin/users.
+        allow read: if isAuthenticated() && (isAdmin() || request.auth.uid == userId);
+        allow write: if isAdmin() || request.auth.uid == userId;
       }
 
       // FCM push tokens (per-user subcollection)
@@ -221,6 +226,17 @@ service cloud.firestore {
       // Only the host can delete their invite
       allow delete: if isAuthenticated() &&
         resource.data.hostUserId == request.auth.uid;
+    }
+
+    // ---------------------------------------------------------------
+    // Doubles pair ranking/history
+    // ---------------------------------------------------------------
+    // Written/read by Cloud Functions via the Admin SDK (bypasses rules). No
+    // client reads it directly. The only client access is the super-admin backup
+    // tool: export (read) and restore (write). Without this rule the default-deny
+    // blocked the backup export ("Missing or insufficient permissions" on `pairs`).
+    match /pairs/{pairId} {
+      allow read, write: if isSuperAdmin();
     }
 
     // ---------------------------------------------------------------

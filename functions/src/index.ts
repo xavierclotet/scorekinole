@@ -771,66 +771,83 @@ async function sendTelegramMessage(message: string): Promise<boolean> {
 }
 
 /**
- * Cloud Function: Notify admin via Telegram when a new user registers
- * Also checks for suspicious activity (duplicate IP/fingerprint)
- * Triggers when a new user document is created in Firestore
+ * Cloud Function: new-user Telegram notification + duplicate-account detection.
+ *
+ * Triggers when a user's private metadata doc is created. PII (email,
+ * registrationIP, deviceFingerprint) lives in this owner-only subdoc — never on
+ * the world-readable user doc — so the duplicate lookups query the `private`
+ * collection group. `authProvider` is duplicated here so those queries can
+ * filter to Google sign-ups within the collection group alone
+ * (see firestore.indexes.json). playerName is read from the parent user doc.
+ *
+ * The one-off PII backfill writes these docs with `_backfill: true` so this
+ * trigger skips them (no notification/alert storm when migrating existing users).
  */
-export const onUserCreated = onDocumentCreated(
+export const onUserPrivateMetaCreated = onDocumentCreated(
   {
-    document: "users/{userId}",
+    document: "users/{userId}/private/{docId}",
     region: "europe-west1",
     secrets: [telegramBotToken, telegramChatId],
   },
   async (event) => {
-    const userData = event.data?.data();
+    if (event.params.docId !== "meta") return;
+
+    const meta = event.data?.data();
     const userId = event.params.userId;
+    if (!meta) return;
 
-    if (!userData) {
-      logger.warn("No user data in creation event");
-      return;
-    }
+    // Skip docs written by the migration backfill (not real registrations).
+    if (meta._backfill === true) return;
 
-    const { playerName, email, authProvider, registrationIP, deviceFingerprint } = userData;
+    const { authProvider, registrationIP, deviceFingerprint, email } = meta;
 
-    // Only process Google sign-ups (not GUEST users created by system)
-    if (authProvider !== "google") {
-      logger.info(`Skipping notification for non-Google user: ${playerName}`);
-      return;
-    }
+    // Only inspect Google sign-ups (guests have no meta doc anyway)
+    if (authProvider !== "google") return;
 
-    // Send new user notification
-    const message =
+    // Resolve a display label (playerName) from the parent user doc.
+    const labelFor = async (uid: string): Promise<string> => {
+      try {
+        const parent = await getDb().collection("users").doc(uid).get();
+        const d = parent.data();
+        return d?.playerName || uid;
+      } catch {
+        return uid;
+      }
+    };
+
+    // New-user notification (email lives here now; playerName on the parent doc).
+    const newUserMessage =
       `🆕 *Nuevo usuario en Scorekinole*\n\n` +
-      `👤 *Nombre:* ${playerName || "Sin nombre"}\n` +
+      `👤 *Nombre:* ${await labelFor(userId)}\n` +
       `📧 *Email:* ${email || "Sin email"}`;
-
-    await sendTelegramMessage(message);
+    await sendTelegramMessage(newUserMessage);
     logger.info(`Telegram notification sent for new user: ${email}`);
 
     // Check for suspicious activity (duplicate IP or fingerprint)
     if (registrationIP && registrationIP !== "unknown") {
       try {
-        const sameIPUsers = await getDb()
-          .collection("users")
+        const sameIP = await getDb()
+          .collectionGroup("private")
           .where("registrationIP", "==", registrationIP)
           .where("authProvider", "==", "google")
           .get();
 
-        if (sameIPUsers.size > 1) {
-          const otherUsers = sameIPUsers.docs
-            .filter((doc) => doc.id !== userId)
-            .map((doc) => doc.data().playerName || doc.data().email || doc.id)
+        if (sameIP.size > 1) {
+          const otherIds = sameIP.docs
+            .map((doc) => doc.ref.parent.parent?.id)
+            .filter((id): id is string => !!id && id !== userId)
             .slice(0, 5); // Max 5 users in alert
+          const otherUsers = await Promise.all(otherIds.map(labelFor));
 
           const alertMessage =
             `⚠️ *Posibles cuentas duplicadas*\n\n` +
             `🔴 *Misma IP:* ${registrationIP}\n` +
-            `👤 *Nuevo:* ${playerName}\n` +
+            `👤 *Nuevo:* ${await labelFor(userId)}\n` +
             `👥 *Existentes:* ${otherUsers.join(", ")}\n` +
-            `📊 *Total cuentas:* ${sameIPUsers.size}`;
+            `📊 *Total cuentas:* ${sameIP.size}`;
 
           await sendTelegramMessage(alertMessage);
-          logger.warn(`Duplicate IP detected: ${registrationIP} (${sameIPUsers.size} accounts)`);
+          logger.warn(`Duplicate IP detected: ${registrationIP} (${sameIP.size} accounts)`);
         }
       } catch (error) {
         logger.error("Error checking for duplicate IPs:", error);
@@ -839,27 +856,28 @@ export const onUserCreated = onDocumentCreated(
 
     if (deviceFingerprint && deviceFingerprint !== "server") {
       try {
-        const sameFingerprintUsers = await getDb()
-          .collection("users")
+        const sameFp = await getDb()
+          .collectionGroup("private")
           .where("deviceFingerprint", "==", deviceFingerprint)
           .where("authProvider", "==", "google")
           .get();
 
-        if (sameFingerprintUsers.size > 1) {
-          const otherUsers = sameFingerprintUsers.docs
-            .filter((doc) => doc.id !== userId)
-            .map((doc) => doc.data().playerName || doc.data().email || doc.id)
+        if (sameFp.size > 1) {
+          const otherIds = sameFp.docs
+            .map((doc) => doc.ref.parent.parent?.id)
+            .filter((id): id is string => !!id && id !== userId)
             .slice(0, 5);
+          const otherUsers = await Promise.all(otherIds.map(labelFor));
 
           const alertMessage =
             `⚠️ *Posible mismo dispositivo*\n\n` +
             `🔴 *Fingerprint:* ${deviceFingerprint.slice(0, 8)}...\n` +
-            `👤 *Nuevo:* ${playerName}\n` +
+            `👤 *Nuevo:* ${await labelFor(userId)}\n` +
             `👥 *Existentes:* ${otherUsers.join(", ")}\n` +
-            `📊 *Total cuentas:* ${sameFingerprintUsers.size}`;
+            `📊 *Total cuentas:* ${sameFp.size}`;
 
           await sendTelegramMessage(alertMessage);
-          logger.warn(`Duplicate fingerprint detected: ${deviceFingerprint} (${sameFingerprintUsers.size} accounts)`);
+          logger.warn(`Duplicate fingerprint detected: ${deviceFingerprint} (${sameFp.size} accounts)`);
         }
       } catch (error) {
         logger.error("Error checking for duplicate fingerprints:", error);

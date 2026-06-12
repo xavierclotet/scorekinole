@@ -291,6 +291,22 @@ Need help or want to report a bug?
 
 ---
 
+## 🔒 Privacy & Data / Privacidad y Datos
+
+Scorekinole works **100% offline without an account**. If you sign in, we store some
+data (name, email, and — only at sign-up — your IP and an approximate device
+fingerprint, used solely to detect duplicate/fraudulent accounts). Email, IP and
+fingerprint are kept **private** (owner + admins only), never on your public profile.
+
+La app funciona **100% sin conexión y sin cuenta**. Si inicias sesión, guardamos
+algunos datos (nombre, email y — solo al registrarte — tu IP y una huella aproximada
+del dispositivo, usadas únicamente para detectar cuentas duplicadas/fraudulentas).
+El email, la IP y la huella se guardan en **privado** (solo tú y administradores).
+
+👉 Full policy / Política completa: **[PRIVACY.md](PRIVACY.md)** · in-app: `/privacy`
+
+---
+
 ## 📋 Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for a complete list of changes in each version.
