@@ -2,6 +2,12 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.51] - 2026-06-12
+- Security: self-service tournament registration (register / unregister / leave waitlist) moved to the `tournamentSelfRegistration` Cloud Function — Firestore rules could not validate participants/waitlist content, so any authenticated user could rewrite both arrays on a DRAFT tournament
+- Rules: removed the registration-update allowance on `/tournaments`; scoring updates now require a verified email
+- Security: escape JSON-LD before embedding in public pages to prevent script-tag XSS
+- Functions: new `selfRegistrationCore` pure module (validation, FIFO waitlist promotion, partner detach) with unit tests; callable is rate-limited and builds participant identity server-side
+
 ## [2.5.50] - 2026-06-12
 - Security: keep PII (email, registration IP, device fingerprint) off the world-readable user doc — moved to an owner-only `/users/{uid}/private/meta` subcollection
 - Admin users: load emails from the private subcollection and add a dedicated Email column
