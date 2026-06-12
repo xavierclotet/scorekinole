@@ -2,7 +2,17 @@
 
 All notable changes to Scorekinole are documented in this file.
 
-## [2.5.51] - 2026-06-12
+## [2.5.52] - 2026-06-12
+- Performance: landing page (/) is now prerendered — full HTML on first load, near-instant first paint
+- Performance: Google Fonts load without blocking first paint (preconnect + async stylesheet)
+- Performance: profile, login and what's-new modals load lazily with idle prefetch; mobile features carousel only loads below 700px
+- Performance: Firebase Storage and Messaging SDKs removed from the initial bundle (lazy-loaded on demand)
+- Performance: production builds use per-message Paraglide chunks — each route ships only its own translations instead of one 288 KB all-locales chunk
+- Performance: instant logout — UI clears immediately, FCM token cleanup runs capped at 2s and in parallel
+- Performance: tournamentSummaries collection, instant navigation and shareable /tournaments filters; field-masked ranking fetches with stale-while-revalidate cache
+- Profile dialog opens pre-filled from the signed-in user while Firestore data loads
+- i18n: added missing `common_share` translation to Catalan and English
+- PWA: service worker now caches prerendered pages and the 200.html SPA shell for offline navigation
 - Security: self-service tournament registration (register / unregister / leave waitlist) moved to the `tournamentSelfRegistration` Cloud Function — Firestore rules could not validate participants/waitlist content, so any authenticated user could rewrite both arrays on a DRAFT tournament
 - Rules: removed the registration-update allowance on `/tournaments`; scoring updates now require a verified email
 - Security: escape JSON-LD before embedding in public pages to prevent script-tag XSS
