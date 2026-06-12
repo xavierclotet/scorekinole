@@ -9,7 +9,10 @@ const config = {
 		adapter: adapter({
 			pages: 'www',
 			assets: 'www',
-			fallback: 'index.html',
+			// SPA shell for non-prerendered routes. Renamed from index.html because
+			// the prerendered landing (/) now owns www/index.html — Firebase Hosting
+			// rewrites unmatched URLs to /200.html (see firebase.json).
+			fallback: '200.html',
 			precompress: false,
 			strict: false
 		}),

@@ -3,9 +3,19 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
 	plugins: [
-		paraglideVitePlugin({ project: './project.inlang', outdir: './src/lib/paraglide', outputStructure: 'locale-modules' }),
+		paraglideVitePlugin({
+			project: './project.inlang',
+			outdir: './src/lib/paraglide',
+			// Per paraglide docs: 'locale-modules' for dev (avoids thousands of
+			// module requests in the dev server), 'message-modules' for production
+			// builds (per-message tree-shaking — each route bundles only the
+			// messages it uses instead of one ~288 KB all-messages chunk).
+			// True lazy-loading of a single locale is not supported by Paraglide
+			// (sync message functions; see inlang/paraglide-js#88).
+			outputStructure: command === 'build' ? 'message-modules' : 'locale-modules'
+		}),
 		tailwindcss(),
 		sveltekit()
 	],
@@ -71,4 +81,4 @@ export default defineConfig({
 			}
 		}
 	}
-});
+}));
