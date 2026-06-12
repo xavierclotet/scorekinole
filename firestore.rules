@@ -56,13 +56,12 @@ service cloud.firestore {
       return t.status == 'DRAFT';
     }
 
-    // Registration update: ONLY participants, waitlist, and updatedAt may change.
-    // Uses affectedKeys() so that fields like name/location cannot be sneaked in.
-    // Only allowed during DRAFT status.
-    function isRegistrationUpdate(before, after) {
-      return isTournamentDraft(before)
-          && after.diff(before).affectedKeys().hasOnly(['participants', 'waitlist', 'updatedAt']);
-    }
+    // NOTE on self-service registration: there is intentionally NO rule
+    // allowing non-admin clients to write participants/waitlist. Rules can
+    // only validate WHICH keys change (affectedKeys), not the array content,
+    // so such a rule let any authenticated user rewrite both arrays on a
+    // DRAFT tournament. Register / unregister / leaveWaitlist go through the
+    // `tournamentSelfRegistration` Cloud Function (Admin SDK, bypasses rules).
 
     // Scoring update: ONLY groupStage, finalStage, updatedAt, and countdownTimer
     // may change. countdownTimer is included because updateMatchResult resets
@@ -70,7 +69,9 @@ service cloud.firestore {
     // non-owner scorer finishing that match would otherwise be rejected.
     // Uses affectedKeys() so structural fields (owner, tier, etc.) cannot be
     // sneaked in. Only allowed when tournament is active (not in DRAFT).
-    // Note: any authenticated user may score (scorer is whoever holds the device).
+    // Note: any authenticated, email-verified user may score (scorer is whoever
+    // holds the device — often a participant, guest, or volunteer, not the owner).
+    // Caller-side checks isEmailVerified(); this fn only validates the field set.
     function isScoringUpdate(before, after) {
       return !isTournamentDraft(before)
           && after.diff(before).affectedKeys().hasOnly(
@@ -184,11 +185,14 @@ service cloud.firestore {
 
       // Updates are allowed if the caller is:
       //   (a) the tournament owner or in adminIds  → full update
-      //   (b) any authenticated user + valid registration update (DRAFT phase only)
-      //   (c) any authenticated user + valid scoring update (active phases only)
+      //   (b) any authenticated, email-verified user + valid scoring update
+      //       (active phases only). Verification mirrors the app (unverified
+      //       email sign-ins are blocked client-side) and stops drive-by score
+      //       vandalism from unverified/throwaway accounts via the raw SDK.
+      // Self-service registration writes go through the
+      // tournamentSelfRegistration Cloud Function (see note above).
       allow update: if isTournamentOwnerOrAdmin(resource.data)
-                    || (isAuthenticated() && isRegistrationUpdate(resource.data, request.resource.data))
-                    || (isAuthenticated() && isScoringUpdate(resource.data, request.resource.data));
+                    || (isAuthenticated() && isEmailVerified() && isScoringUpdate(resource.data, request.resource.data));
 
       // Tournament owner or platform admin can delete
       allow delete: if isAdmin()

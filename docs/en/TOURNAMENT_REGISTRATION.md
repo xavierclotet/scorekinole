@@ -79,16 +79,22 @@ leaveWaitlist()  →  removes entry from waitlist[]
 
 ---
 
-## Concurrency
+## Concurrency & enforcement
 
-**All writes use `runTransaction()`** — re-reading the full tournament document inside the transaction. This serializes concurrent registrations so capacity is always respected. See [FIRESTORE_TRANSACTIONS.md](./FIRESTORE_TRANSACTIONS.md).
+**Self-service writes go through the `tournamentSelfRegistration` Cloud Function** (`functions/src/index.ts`, region `europe-west1`). Firestore rules can only validate *which* keys an update touches (`affectedKeys`), not the content of the `participants`/`waitlist` arrays — a rules-based allowance let any authenticated user rewrite both arrays on a DRAFT tournament. The callable runs an Admin-SDK transaction (serializing concurrent registrations so capacity is always respected) and enforces that a caller can only add/remove **their own** entry. It also:
+
+- requires a **verified email** for `register` (server-side, not just the client gate),
+- builds the participant row from the server-side `/users/{uid}` profile + auth token (never from client-supplied identity fields),
+- validates/sanitizes the `partner` and `teamName` payloads,
+- is rate-limited per uid (`enforceRateLimit`, 20/min).
+
+The pure decision logic lives in `functions/src/selfRegistrationCore.ts` (unit-tested in `selfRegistrationCore.test.ts`) and mirrors the client-side validators in `src/lib/firebase/tournamentRegistration.ts` — keep both in sync. Error messages thrown by the CF reuse the exact reason strings (`already_registered`, `Not on waitlist`, …) that `getRegistrationErrorMessageKey()` maps to i18n keys.
 
 Functions:
-- `registerForTournament()` — `src/lib/firebase/tournamentRegistration.ts:139`
-- `unregisterFromTournament()` — `:247`
-- `leaveWaitlist()` — `:318`
-- `adminPromoteFromWaitlistFirestore()` — `:363` (admin only, no auth guard on caller)
-- `adminRemoveFromWaitlistFirestore()` — `:403` (admin only)
+- `registerForTournament()` / `unregisterFromTournament()` / `leaveWaitlist()` — `src/lib/firebase/tournamentRegistration.ts`, thin wrappers around the `tournamentSelfRegistration` callable (actions `register` / `unregister` / `leaveWaitlist`)
+- `adminPromoteFromWaitlistFirestore()` / `adminRemoveFromWaitlistFirestore()` — admin only; still direct `runTransaction()` writes, allowed by the `isTournamentOwnerOrAdmin` rule. See [FIRESTORE_TRANSACTIONS.md](./FIRESTORE_TRANSACTIONS.md).
+
+> ⚠️ **Deploy order**: the callable must be deployed (`npm run deploy:functions`) **before** (or together with) the Firestore rules that removed the old registration allowance, otherwise self-registration breaks in production.
 
 ---
 
@@ -159,5 +165,5 @@ Fixed later:
 - ✅ **Error codes not localised**: `getRegistrationErrorMessageKey()` (in `tournamentRegistration.ts`) maps backend reason codes and thrown error messages to Paraglide keys. `TournamentRegistration.svelte` uses a `localizeError()` wrapper so the user sees translated strings instead of raw `tournament_full` etc.
 - ✅ **`rankingSnapshot: 0` at registration is by design**: not a bug — `syncParticipantRankings()` (called from `tournamentStateMachine.ts` when the tournament starts) reads the real ranking from each user's profile and overwrites the snapshot. Direct registrants and promoted-from-waitlist participants both get correct rankings before the tournament begins. There is an explicit test for this in `tournamentRegistration.test.ts`.
 
-Still open:
-- [ ] **Firestore rules don't enforce registration invariants server-side**: any authenticated user can overwrite `participants`/`waitlist` directly, bypassing the client-side transaction validation. Needs a careful security review and granular rules so writes from non-admins are restricted to *adding* themselves to participants/waitlist (and removing themselves), respecting `maxParticipants` and `deadline`.
+Fixed (2026-06):
+- ✅ **Firestore rules didn't enforce registration invariants server-side**: any authenticated user could overwrite `participants`/`waitlist` directly on a DRAFT tournament (`isRegistrationUpdate` only checked `affectedKeys`, not content). The rules language cannot validate "only your own entry changed" inside an array of maps, so the rules allowance was removed entirely and all self-service registration writes moved to the `tournamentSelfRegistration` Cloud Function (see *Concurrency & enforcement* above).

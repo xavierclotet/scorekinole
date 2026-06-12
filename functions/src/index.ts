@@ -15,6 +15,13 @@ import { logger } from "firebase-functions";
 import { shouldNotifyTournament, buildTournamentNotificationMessage } from "./notificationHelpers";
 import { detectNewParticipants, detectNewWaitlistEntries, detectPromotedFromWaitlist } from "./registrationHelpers";
 import { enforceRateLimit } from "./rateLimit";
+import {
+  applyRegister,
+  applyUnregister,
+  applyLeaveWaitlist,
+  sanitizePartnerInput,
+  sanitizeTeamNameInput,
+} from "./selfRegistrationCore";
 
 // Telegram secrets
 const telegramBotToken = defineSecret("TELEGRAM_BOT_TOKEN");
@@ -1948,6 +1955,111 @@ export const deleteUserAccount = onCall(
     } catch (error: any) {
       logger.error(`Failed to delete user ${userId}:`, error);
       throw new HttpsError("internal", "Failed to delete user");
+    }
+  }
+);
+
+/**
+ * Self-service tournament registration (register / unregister / leaveWaitlist).
+ *
+ * Replaces the old direct client writes to participants/waitlist: Firestore
+ * rules can only validate WHICH keys change, not their content, so any
+ * authenticated user could rewrite both arrays on a DRAFT tournament. All
+ * self-service mutations now go through this callable, which validates the
+ * caller may only add/remove THEIR OWN entry (plus the FIFO auto-promotion
+ * that unregistering can trigger). Owner/admin flows keep writing directly
+ * under the isTournamentOwnerOrAdmin rule.
+ */
+export const tournamentSelfRegistration = onCall(
+  { region: "europe-west1" },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Not authenticated");
+    }
+
+    const uid = request.auth.uid;
+    const { tournamentId, action } = (request.data ?? {}) as {
+      tournamentId?: unknown;
+      action?: unknown;
+    };
+
+    if (!tournamentId || typeof tournamentId !== "string" || tournamentId.length > 200) {
+      throw new HttpsError("invalid-argument", "tournamentId is required");
+    }
+    if (action !== "register" && action !== "unregister" && action !== "leaveWaitlist") {
+      throw new HttpsError("invalid-argument", "Invalid action");
+    }
+
+    // Registration requires a verified email (same gate the client enforces,
+    // but server-side it cannot be bypassed). Unregister/leaveWaitlist only
+    // need auth: the entry being removed is matched by uid anyway.
+    if (action === "register" && request.auth.token.email_verified !== true) {
+      throw new HttpsError("failed-precondition", "Email not verified");
+    }
+
+    let partner;
+    let teamName;
+    try {
+      partner = sanitizePartnerInput((request.data as Record<string, unknown>).partner);
+      teamName = sanitizeTeamNameInput((request.data as Record<string, unknown>).teamName);
+    } catch (error: any) {
+      throw new HttpsError("invalid-argument", error.message);
+    }
+
+    const db = getDb();
+    // Generous cap: normal users click register/unregister a handful of times.
+    await enforceRateLimit(db, uid, "selfRegistration", { max: 20, windowMs: 60_000 });
+
+    const tournamentRef = db.collection("tournaments").doc(tournamentId);
+    const participantId = () =>
+      `participant-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+
+    try {
+      const result = await db.runTransaction(async (tx) => {
+        const snapshot = await tx.get(tournamentRef);
+        if (!snapshot.exists) throw new Error("Tournament not found");
+        const data = snapshot.data()!;
+
+        if (action === "register") {
+          // Build the participant row from the server-side profile + token,
+          // never from client-supplied identity fields.
+          const profileSnap = await tx.get(db.collection("users").doc(uid));
+          const profile = profileSnap.exists ? profileSnap.data()! : {};
+          const tokenName = typeof request.auth!.token.name === "string" ? request.auth!.token.name : undefined;
+          const user = {
+            uid,
+            name: (typeof profile.playerName === "string" && profile.playerName) || tokenName || "Jugador",
+            userKey: typeof profile.key === "string" ? profile.key : "",
+            email: typeof request.auth!.token.email === "string" ? request.auth!.token.email : undefined,
+            photoURL:
+              (typeof profile.photoURL === "string" && profile.photoURL) ||
+              (typeof request.auth!.token.picture === "string" ? request.auth!.token.picture : undefined) ||
+              undefined,
+          };
+          const r = applyRegister(data, user, partner, teamName, Date.now(), participantId());
+          tx.update(tournamentRef, { ...r.update, updatedAt: FieldValue.serverTimestamp() });
+          return { status: r.outcome };
+        }
+
+        if (action === "unregister") {
+          const r = applyUnregister(data, uid, Date.now(), participantId());
+          tx.update(tournamentRef, { ...r.update, updatedAt: FieldValue.serverTimestamp() });
+          return { promoted: r.promoted };
+        }
+
+        const r = applyLeaveWaitlist(data, uid);
+        tx.update(tournamentRef, { ...r.update, updatedAt: FieldValue.serverTimestamp() });
+        return {};
+      });
+
+      logger.info(`Self-registration ${action} by ${uid} on tournament ${tournamentId}`, result);
+      return { success: true, ...result };
+    } catch (error: any) {
+      if (error instanceof HttpsError) throw error;
+      // Plain Errors carry the exact reason strings the client UI maps to
+      // i18n keys (already_registered, Not on waitlist, ...). Preserve them.
+      logger.warn(`Self-registration ${action} rejected for ${uid} on ${tournamentId}: ${error.message}`);
+      throw new HttpsError("failed-precondition", error.message || "Registration failed");
     }
   }
 );

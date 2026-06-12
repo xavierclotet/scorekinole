@@ -243,6 +243,20 @@ describe('Tournaments', () => {
 				})
 			);
 		});
+
+		it('T14b — usuario con email NO verificado NO puede actualizar scores', async () => {
+			await setupTournament('t14b', {
+				status: 'GROUP_STAGE',
+				participants: [{ userId: 'player1' }]
+			});
+			// Email-unverified accounts (blocked client-side too) must not score.
+			const ctx = userCtx('player1', false);
+			await assertFails(
+				updateDoc(doc(ctx.firestore(), 'tournaments', 't14b'), {
+					groupStage: { rounds: [{ matches: [{ score: [10, 5] }] }] }
+				})
+			);
+		});
 	});
 
 	// ------ UPDATE — allowed ------
@@ -349,7 +363,7 @@ describe('Tournaments', () => {
 			);
 		});
 
-		it('REG — usuario autenticado puede registrarse (cambiar participants) en torneo DRAFT', async () => {
+		it('REG — usuario autenticado NO puede escribir participants en DRAFT (registro va por Cloud Function)', async () => {
 			await setupTournament('reg1', {
 				status: 'DRAFT',
 				ownerId: 'owner-uid',
@@ -360,9 +374,50 @@ describe('Tournaments', () => {
 				isTest: false
 			});
 			const ctx = userCtx('new-player');
-			await assertSucceeds(
+			await assertFails(
 				updateDoc(doc(ctx.firestore(), 'tournaments', 'reg1'), {
 					participants: [{ userId: 'new-player', playerName: 'Alice' }]
+				})
+			);
+		});
+
+		it('REG1b — usuario autenticado NO puede vaciar participants/waitlist de un torneo DRAFT ajeno', async () => {
+			await setupTournament('reg1b', {
+				status: 'DRAFT',
+				ownerId: 'owner-uid',
+				adminIds: [],
+				participants: [
+					{ userId: 'player-a', playerName: 'Alice' },
+					{ userId: 'player-b', playerName: 'Bob' }
+				],
+				waitlist: [{ userId: 'player-c', userName: 'Carol' }],
+				key: 'ABC123',
+				rankingConfig: { tier: 'LOCAL' },
+				isTest: false
+			});
+			const ctx = userCtx('attacker');
+			await assertFails(
+				updateDoc(doc(ctx.firestore(), 'tournaments', 'reg1b'), {
+					participants: [],
+					waitlist: []
+				})
+			);
+		});
+
+		it('REG1c — el owner SÍ puede modificar participants en DRAFT (gestión admin)', async () => {
+			await setupTournament('reg1c', {
+				status: 'DRAFT',
+				ownerId: 'owner-uid',
+				adminIds: [],
+				participants: [],
+				key: 'ABC123',
+				rankingConfig: { tier: 'LOCAL' },
+				isTest: false
+			});
+			const ctx = userCtx('owner-uid');
+			await assertSucceeds(
+				updateDoc(doc(ctx.firestore(), 'tournaments', 'reg1c'), {
+					participants: [{ userId: 'player-a', playerName: 'Alice' }]
 				})
 			);
 		});

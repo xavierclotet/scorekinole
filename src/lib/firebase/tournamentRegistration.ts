@@ -511,11 +511,40 @@ export function applyRankingSnapshots(
 }
 
 // --- Firestore operations ---
+//
+// Self-service registration writes go through the `tournamentSelfRegistration`
+// Cloud Function: Firestore rules cannot validate the CONTENT of the
+// participants/waitlist arrays (only which keys change), so direct client
+// writes would let any authenticated user rewrite both arrays on a DRAFT
+// tournament. The callable enforces that a user only adds/removes their own
+// entry. The pure validation functions above stay exported for UI gating and
+// are mirrored server-side in functions/src/selfRegistrationCore.ts.
 
 interface PartnerData {
   type: ParticipantType;
   userId?: string;
   name: string;
+}
+
+type SelfRegistrationAction = 'register' | 'unregister' | 'leaveWaitlist';
+
+async function callSelfRegistration(
+  tournamentId: string,
+  action: SelfRegistrationAction,
+  partner?: PartnerData,
+  teamName?: string
+): Promise<{ status?: 'registered' | 'waitlisted'; promoted?: boolean }> {
+  const { getApp } = await import('firebase/app');
+  const { getFunctions, httpsCallable } = await import('firebase/functions');
+  const functions = getFunctions(getApp(), 'europe-west1');
+  const fn = httpsCallable(functions, 'tournamentSelfRegistration');
+  const result = await fn({
+    tournamentId,
+    action,
+    ...(partner ? { partner } : {}),
+    ...(teamName ? { teamName } : {})
+  });
+  return result.data as { status?: 'registered' | 'waitlisted'; promoted?: boolean };
 }
 
 export interface RegisterResult {
@@ -534,8 +563,8 @@ export async function registerForTournament(
     return { success: false, error: 'Firebase not available' };
   }
 
-  const { db, isFirebaseEnabled } = await import('./config');
-  if (!isFirebaseEnabled() || !db) {
+  const { isFirebaseEnabled } = await import('./config');
+  if (!isFirebaseEnabled()) {
     return { success: false, error: 'Firebase not available' };
   }
 
@@ -550,90 +579,8 @@ export async function registerForTournament(
   }
 
   try {
-    const { getUserProfile } = await import('./userProfile');
-    const { parseTournamentData } = await import('./tournaments');
-    const { doc, runTransaction, serverTimestamp } = await import('firebase/firestore');
-
-    const profile = await getUserProfile();
-    const tournamentRef = doc(db, 'tournaments', tournamentId);
-    let outcome: 'registered' | 'waitlisted' = 'registered';
-
-    await runTransaction(db, async (transaction) => {
-      const snapshot = await transaction.get(tournamentRef);
-      if (!snapshot.exists()) throw new Error('Tournament not found');
-
-      const tournament = parseTournamentData(snapshot.data());
-      const participantUserIds = tournament.participants
-        .filter(p => p.userId)
-        .map(p => p.userId!);
-      const waitlistUserIds = (tournament.waitlist || []).map((w: WaitlistEntry) => w.userId);
-      const partnerUserIds = collectPartnerUserIds(tournament.participants, tournament.waitlist || []);
-      const guestPartnerNames = collectGuestPartnerNames(tournament.participants, tournament.waitlist || []);
-      const activeParticipantsCount = countActiveParticipants(tournament.participants);
-
-      const validation = validateRegistration(
-        tournament.status,
-        tournament.registration,
-        participantUserIds,
-        waitlistUserIds,
-        user.id,
-        Date.now(),
-        partnerUserIds,
-        partnerData?.type === 'REGISTERED' ? partnerData.userId : undefined,
-        tournament.tournamentDate,
-        guestPartnerNames,
-        partnerData?.type === 'GUEST' ? partnerData.name : undefined,
-        activeParticipantsCount
-      );
-
-      if (!validation.canRegister) {
-        throw new Error(validation.reason || 'Cannot register');
-      }
-
-      outcome = determineRegistrationOutcome(
-        activeParticipantsCount,
-        tournament.registration?.maxParticipants,
-        tournament.registration?.allowWaitlist
-      );
-
-      if (outcome === 'registered') {
-        const participant: TournamentParticipant = {
-          id: `participant-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
-          type: 'REGISTERED',
-          userId: user.id,
-          userKey: profile?.key ?? '',
-          name: user.name || 'Jugador',
-          email: user.email ? normalizeEmail(user.email) : undefined,
-          photoURL: user.photoURL ?? undefined,
-          rankingSnapshot: 0,
-          status: 'ACTIVE',
-          ...(partnerData ? { partner: partnerData } : {}),
-          ...(teamName ? { teamName } : {})
-        };
-
-        transaction.update(tournamentRef, {
-          participants: [...tournament.participants, participant],
-          updatedAt: serverTimestamp()
-        });
-      } else {
-        const entry: WaitlistEntry = {
-          userId: user.id,
-          userName: user.name || 'Jugador',
-          userKey: profile?.key ?? '',
-          registeredAt: Date.now(),
-          ...(user.email ? { email: normalizeEmail(user.email) } : {}),
-          ...(user.photoURL ? { photoURL: user.photoURL } : {}),
-          ...(partnerData ? { partner: partnerData } : {})
-        };
-
-        transaction.update(tournamentRef, {
-          waitlist: [...(tournament.waitlist || []), entry],
-          updatedAt: serverTimestamp()
-        });
-      }
-    }, { maxAttempts: 10 });
-
-    return { success: true, status: outcome };
+    const data = await callSelfRegistration(tournamentId, 'register', partnerData, teamName);
+    return { success: true, status: data.status ?? 'registered' };
   } catch (error: any) {
     console.error('Registration failed:', error);
     return { success: false, error: error.message };
@@ -652,8 +599,8 @@ export async function unregisterFromTournament(
   const { browser } = await import('$app/environment');
   if (!browser) return { success: false, error: 'Firebase not available' };
 
-  const { db, isFirebaseEnabled } = await import('./config');
-  if (!isFirebaseEnabled() || !db) return { success: false, error: 'Firebase not available' };
+  const { isFirebaseEnabled } = await import('./config');
+  if (!isFirebaseEnabled()) return { success: false, error: 'Firebase not available' };
 
   const { get } = await import('svelte/store');
   const { currentUser } = await import('./auth');
@@ -661,68 +608,8 @@ export async function unregisterFromTournament(
   if (!user) return { success: false, error: 'Not authenticated' };
 
   try {
-    const { parseTournamentData } = await import('./tournaments');
-    const { doc, runTransaction, serverTimestamp } = await import('firebase/firestore');
-
-    const tournamentRef = doc(db, 'tournaments', tournamentId);
-    let promoted = false;
-
-    await runTransaction(db, async (transaction) => {
-      const snapshot = await transaction.get(tournamentRef);
-      if (!snapshot.exists()) throw new Error('Tournament not found');
-
-      const tournament = parseTournamentData(snapshot.data());
-      if (tournament.status !== 'DRAFT') throw new Error('Cannot unregister after tournament has started');
-
-      const participantIndex = tournament.participants.findIndex(p => p.userId === user.id);
-      const waitlist: WaitlistEntry[] = tournament.waitlist || [];
-
-      // Case B: user is not a primary participant but occupies a partner slot
-      // (REGISTERED partner of someone else's team). Detach without removing the team.
-      if (participantIndex === -1) {
-        const detach = detachUserFromPartnerSlots(tournament.participants, waitlist, user.id);
-        if (!detach.detached) throw new Error('Not registered');
-        transaction.update(tournamentRef, {
-          participants: detach.participants,
-          waitlist: detach.waitlist,
-          updatedAt: serverTimestamp()
-        });
-        return;
-      }
-
-      const newParticipants = tournament.participants.filter(p => p.userId !== user.id);
-      let newWaitlist = waitlist;
-
-      if (shouldAutoPromote(waitlist, tournament.registration, newParticipants.length)) {
-        const next = waitlist[0];
-        const remainingWaitlist = waitlist.slice(1);
-        const safePartner = sanitizePromotedPartner(next.partner, newParticipants, remainingWaitlist, next.userId);
-        const promoted_participant: TournamentParticipant = {
-          id: `participant-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
-          type: 'REGISTERED',
-          userId: next.userId,
-          userKey: next.userKey,
-          name: next.userName,
-          rankingSnapshot: 0,
-          status: 'ACTIVE',
-          ...(next.email ? { email: next.email } : {}),
-          ...(next.photoURL ? { photoURL: next.photoURL } : {}),
-          ...(safePartner ? { partner: safePartner } : {}),
-          ...(next.teamName ? { teamName: next.teamName } : {})
-        };
-        newParticipants.push(promoted_participant);
-        newWaitlist = remainingWaitlist;
-        promoted = true;
-      }
-
-      transaction.update(tournamentRef, {
-        participants: newParticipants,
-        waitlist: newWaitlist,
-        updatedAt: serverTimestamp()
-      });
-    }, { maxAttempts: 10 });
-
-    return { success: true, promoted };
+    const data = await callSelfRegistration(tournamentId, 'unregister');
+    return { success: true, promoted: data.promoted ?? false };
   } catch (error: any) {
     console.error('Unregistration failed:', error);
     return { success: false, error: error.message };
@@ -740,8 +627,8 @@ export async function leaveWaitlist(
   const { browser } = await import('$app/environment');
   if (!browser) return { success: false, error: 'Firebase not available' };
 
-  const { db, isFirebaseEnabled } = await import('./config');
-  if (!isFirebaseEnabled() || !db) return { success: false, error: 'Firebase not available' };
+  const { isFirebaseEnabled } = await import('./config');
+  if (!isFirebaseEnabled()) return { success: false, error: 'Firebase not available' };
 
   const { get } = await import('svelte/store');
   const { currentUser } = await import('./auth');
@@ -749,27 +636,7 @@ export async function leaveWaitlist(
   if (!user) return { success: false, error: 'Not authenticated' };
 
   try {
-    const { parseTournamentData } = await import('./tournaments');
-    const { doc, runTransaction, serverTimestamp } = await import('firebase/firestore');
-
-    const tournamentRef = doc(db, 'tournaments', tournamentId);
-
-    await runTransaction(db, async (transaction) => {
-      const snapshot = await transaction.get(tournamentRef);
-      if (!snapshot.exists()) throw new Error('Tournament not found');
-
-      const tournament = parseTournamentData(snapshot.data());
-      if (tournament.status !== 'DRAFT') throw new Error('Cannot leave waitlist after tournament has started');
-
-      const waitlist: WaitlistEntry[] = tournament.waitlist || [];
-      if (!waitlist.some(w => w.userId === user.id)) throw new Error('Not on waitlist');
-
-      transaction.update(tournamentRef, {
-        waitlist: waitlist.filter(w => w.userId !== user.id),
-        updatedAt: serverTimestamp()
-      });
-    }, { maxAttempts: 10 });
-
+    await callSelfRegistration(tournamentId, 'leaveWaitlist');
     return { success: true };
   } catch (error: any) {
     console.error('Leave waitlist failed:', error);
