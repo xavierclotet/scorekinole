@@ -1020,7 +1020,7 @@
                                   <Check size={14} class={roundsFilterParticipant === '' ? 'opacity-100' : 'opacity-0'} />
                                   {tournament.gameType === 'doubles' ? m.admin_allTeams() : m.admin_allPlayers()}
                                 </Command.Item>
-                                {#each tournament.participants.filter(p => p.status !== 'DISQUALIFIED').toSorted((a, b) => (getParticipantDisplayName(a, tournament.gameType === 'doubles') || '').localeCompare(getParticipantDisplayName(b, tournament.gameType === 'doubles') || '')) as participant (participant.id)}
+                                {#each tournament.participants.filter(p => p.status !== 'DISQUALIFIED').slice().sort((a, b) => (getParticipantDisplayName(a, tournament.gameType === 'doubles') || '').localeCompare(getParticipantDisplayName(b, tournament.gameType === 'doubles') || '')) as participant (participant.id)}
                                   <Command.Item
                                     value={getParticipantDisplayName(participant, tournament.gameType === 'doubles') || ''}
                                     onSelect={() => { roundsFilterParticipant = participant.id; comboboxOpen = false; roundsDetailsOpen = true; }}

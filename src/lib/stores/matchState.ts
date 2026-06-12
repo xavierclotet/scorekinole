@@ -3,6 +3,7 @@ import type { MatchState, GameData, RoundData } from '$lib/types/team';
 import { browser } from '$app/environment';
 import { resetCurrentMatch, addRoundToCurrentMatch, removeLastRoundFromCurrentMatch, swapTeamsInCurrentMatch, restoreCurrentMatch } from './history';
 import type { MatchRound } from '$lib/types/history';
+import { safeGetItem, safeSetItem, safeRemoveItem } from '$lib/utils/safeStorage';
 
 const defaultMatchState: MatchState = {
     matchStartedBy: null,
@@ -41,7 +42,7 @@ export const currentGameRounds = writable<RoundData[]>([]);
 export function loadMatchState() {
     if (!browser) return;
 
-    const saved = localStorage.getItem('crokinoleMatchState');
+    const saved = safeGetItem('crokinoleMatchState');
     if (saved) {
         try {
             const parsed = JSON.parse(saved);
@@ -69,11 +70,11 @@ export function loadMatchState() {
             currentGameRounds.set(state.currentGameRounds);
 
             // Migrate from old separate roundsPlayed if needed
-            const savedRounds = localStorage.getItem('crokinoleRoundsPlayed');
+            const savedRounds = safeGetItem('crokinoleRoundsPlayed');
             if (savedRounds && state.roundsPlayed === undefined) {
                 state.roundsPlayed = parseInt(savedRounds, 10);
                 // Clean up old key
-                localStorage.removeItem('crokinoleRoundsPlayed');
+                safeRemoveItem('crokinoleRoundsPlayed');
                 matchState.set(state);
             }
 
@@ -133,7 +134,7 @@ export function saveMatchState() {
     if (!browser) return;
 
     matchState.subscribe(state => {
-        localStorage.setItem('crokinoleMatchState', JSON.stringify(state));
+        safeSetItem('crokinoleMatchState', JSON.stringify(state));
     })();
 }
 

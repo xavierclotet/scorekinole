@@ -246,7 +246,7 @@
 	let finalStandings = $derived(
 		tournament?.participants
 			.filter(p => p.finalPosition !== undefined && p.finalPosition > 0 && (p.status === 'ACTIVE' || !p.status))
-			.toSorted((a, b) => (a.finalPosition || 99) - (b.finalPosition || 99)) || []
+			.slice().sort((a, b) => (a.finalPosition || 99) - (b.finalPosition || 99)) || []
 	);
 
 	// Standings sort state: null = default (by position), '20s' or 'pts' = sorted by that column
@@ -1842,7 +1842,7 @@
 												</tr>
 											</thead>
 											<tbody>
-												{#each (group.standings ?? []).toSorted((a, b) => a.position - b.position) as standing}
+												{#each (group.standings ?? []).slice().sort((a, b) => a.position - b.position) as standing}
 													<tr class:qualified={goldQualifiedIds.has(standing.participantId)}>
 														<td class="pos-col">{standing.position}</td>
 														<td class="name-col">
@@ -1916,7 +1916,7 @@
 																	<Check class={['mr-2 size-3', getBumpHighlight(group.id).length === 0 ? 'opacity-100' : 'opacity-0']} />
 																	{m.admin_allPlayers()}
 																</Command.Item>
-																{#each (tournament?.participants.filter(p => group.participants.includes(p.id)) ?? []).toSorted((a, b) => (a.name ?? '').localeCompare(b.name ?? '')) as participant}
+																{#each (tournament?.participants.filter(p => group.participants.includes(p.id)) ?? []).slice().sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '')) as participant}
 																	<Command.Item
 																		value={participant.name ?? participant.id}
 																		onSelect={() => toggleBumpHighlight(group.id, participant.id)}
@@ -2013,7 +2013,7 @@
 																<Check class={['mr-2 size-3', !selectedPlayerFilter ? 'opacity-100' : 'opacity-0']} />
 																{m.admin_allPlayers()}
 															</Command.Item>
-															{#each (tournament?.participants ?? []).toSorted((a, b) => (a.name ?? '').localeCompare(b.name ?? '')) as participant}
+															{#each (tournament?.participants ?? []).slice().sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '')) as participant}
 																<Command.Item
 																	value={participant.name ?? participant.id}
 																	onSelect={() => {
@@ -2044,7 +2044,7 @@
 											<div class="round-section">
 												<div class="round-divider"><span class="round-label">{m.tournament_round()} {round.roundNumber}</span></div>
 												<div class="matches-list">
-													{#each round.matches.toSorted((a, b) => (a.tableNumber ?? a.playedOnTable ?? 999) - (b.tableNumber ?? b.playedOnTable ?? 999)) as match}
+													{#each round.matches.slice().sort((a, b) => (a.tableNumber ?? a.playedOnTable ?? 999) - (b.tableNumber ?? b.playedOnTable ?? 999)) as match}
 														{@render groupMatchRow(match)}
 													{/each}
 												</div>
@@ -2074,7 +2074,7 @@
 											</tr>
 										</thead>
 										<tbody>
-											{#each (group.standings ?? []).toSorted((a, b) => a.position - b.position) as standing}
+											{#each (group.standings ?? []).slice().sort((a, b) => a.position - b.position) as standing}
 												<tr class:qualified={goldQualifiedIds.has(standing.participantId)}>
 													<td class="pos-col">{standing.position}</td>
 													<td class="name-col">
@@ -2151,7 +2151,7 @@
 																<Check class={['mr-2 size-3', getBumpHighlight(group.id).length === 0 ? 'opacity-100' : 'opacity-0']} />
 																{m.admin_allPlayers()}
 															</Command.Item>
-															{#each (tournament?.participants.filter(p => group.participants.includes(p.id)) ?? []).toSorted((a, b) => (a.name ?? '').localeCompare(b.name ?? '')) as participant}
+															{#each (tournament?.participants.filter(p => group.participants.includes(p.id)) ?? []).slice().sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '')) as participant}
 																<Command.Item
 																	value={participant.name ?? participant.id}
 																	onSelect={() => toggleBumpHighlight(group.id, participant.id)}
@@ -2238,7 +2238,7 @@
 												<div class="round-section">
 													<div class="round-divider"><span class="round-label">{m.tournament_round()} {round.roundNumber}</span></div>
 													<div class="matches-list">
-														{#each round.matches.toSorted((a, b) => (a.tableNumber ?? a.playedOnTable ?? 999) - (b.tableNumber ?? b.playedOnTable ?? 999)) as match}
+														{#each round.matches.slice().sort((a, b) => (a.tableNumber ?? a.playedOnTable ?? 999) - (b.tableNumber ?? b.playedOnTable ?? 999)) as match}
 															{@render groupMatchRow(match)}
 														{/each}
 													</div>
@@ -3572,7 +3572,7 @@
 											<Check class={['mr-2 size-3', getBumpHighlight(fsGroup.id).length === 0 ? 'opacity-100' : 'opacity-0']} />
 											{m.admin_allPlayers()}
 										</Command.Item>
-										{#each (tournament.participants.filter(p => fsGroup.participants.includes(p.id))).toSorted((a, b) => (a.name ?? '').localeCompare(b.name ?? '')) as participant}
+										{#each (tournament.participants.filter(p => fsGroup.participants.includes(p.id))).slice().sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '')) as participant}
 											<Command.Item
 												value={participant.name ?? participant.id}
 												onSelect={() => toggleBumpHighlight(fsGroup.id, participant.id)}

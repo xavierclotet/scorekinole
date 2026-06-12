@@ -2,6 +2,7 @@ import { writable } from 'svelte/store';
 import type { Team } from '$lib/types/team';
 import { browser } from '$app/environment';
 import { roundsPlayed, lastRoundPoints, matchState, saveMatchState, swapTeamsInMatchState } from './matchState';
+import { safeGetItem, safeSetItem } from '$lib/utils/safeStorage';
 
 const defaultTeam: Team = {
     name: '',
@@ -100,8 +101,12 @@ function isValidTeam(data: unknown): data is Team {
 export function loadTeams() {
     if (!browser) return;
 
-    const saved1 = localStorage.getItem('crokinoleTeam1');
-    const saved2 = localStorage.getItem('crokinoleTeam2');
+    // If a coalesced save is still queued, write it out first so we never
+    // read back a state older than the one just saved in this same tick
+    flushTeamSave();
+
+    const saved1 = safeGetItem('crokinoleTeam1');
+    const saved2 = safeGetItem('crokinoleTeam2');
 
     if (saved1) {
         try {
@@ -137,16 +142,32 @@ export function loadTeams() {
     }
 }
 
-export function saveTeams() {
-    if (!browser) return;
+// Coalesce same-tick saves: a burst of updateTeam() calls (e.g. finalizing a
+// round updates points, rounds, hammer and twenties in one handler) serializes
+// both teams once instead of once per call. Microtasks run to completion
+// before control returns to the browser, so durability is identical to a
+// synchronous write.
+let teamSavePending = false;
+
+function flushTeamSave() {
+    if (!teamSavePending) return;
+    teamSavePending = false;
 
     team1.subscribe(t => {
-        localStorage.setItem('crokinoleTeam1', JSON.stringify(t));
+        safeSetItem('crokinoleTeam1', JSON.stringify(t));
     })();
 
     team2.subscribe(t => {
-        localStorage.setItem('crokinoleTeam2', JSON.stringify(t));
+        safeSetItem('crokinoleTeam2', JSON.stringify(t));
     })();
+}
+
+export function saveTeams() {
+    if (!browser) return;
+    if (teamSavePending) return;
+
+    teamSavePending = true;
+    queueMicrotask(flushTeamSave);
 }
 
 // Helper to update specific team

@@ -3,6 +3,8 @@ import { doc, getDoc } from 'firebase/firestore';
 import {
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendEmailVerification,
@@ -90,8 +92,9 @@ export async function signInWithGoogle(): Promise<User> {
     return mockUser;
   }
 
+  const provider = new GoogleAuthProvider();
+
   try {
-    const provider = new GoogleAuthProvider();
     const result = await signInWithPopup(auth!, provider);
     const user = result.user;
 
@@ -106,6 +109,21 @@ export async function signInWithGoogle(): Promise<User> {
     currentUser.set(appUser);
     return appUser;
   } catch (error) {
+    // iOS standalone PWAs and some mobile browsers block popups entirely.
+    // Fall back to a full-page redirect; onAuthStateChanged/getRedirectResult
+    // pick up the session when the page comes back.
+    const code = (error as { code?: string })?.code;
+    const popupUnavailable =
+      code === 'auth/popup-blocked' ||
+      code === 'auth/operation-not-supported-in-this-environment' ||
+      code === 'auth/web-storage-unsupported';
+
+    if (popupUnavailable) {
+      await signInWithRedirect(auth!, provider);
+      // Page navigates away; this promise never settles in practice.
+      return new Promise<User>(() => {});
+    }
+
     console.error('Google sign in error:', error);
     throw error;
   }
@@ -329,6 +347,12 @@ export function initAuthListener(): void {
     authUnsubscribe();
     authUnsubscribe = null;
   }
+
+  // Complete a redirect-based sign-in (popup fallback on iOS PWAs). The user
+  // itself arrives via onAuthStateChanged; this only surfaces redirect errors.
+  getRedirectResult(auth!).catch((error) => {
+    console.error('Google redirect sign-in error:', error);
+  });
 
   authUnsubscribe = onAuthStateChanged(auth!, async (user: FirebaseUser | null) => {
     if (user) {

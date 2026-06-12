@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Modal from './Modal.svelte';
+	import { safeGetItem, safeSetItem } from '$lib/utils/safeStorage';
 	import * as m from '$lib/paraglide/messages.js';
 	import { getRecentChanges, type ChangelogEntry } from '$lib/utils/changelog';
 	import { translateText } from '$lib/utils/translate';
@@ -32,7 +33,7 @@
 		if (!browser) return;
 
 		const cacheKey = `scorekinole_changelog_${locale}`;
-		const cached = localStorage.getItem(cacheKey);
+		const cached = safeGetItem(cacheKey);
 
 		if (cached) {
 			try {
@@ -60,7 +61,7 @@
 		}
 
 		isTranslating = false;
-		localStorage.setItem(cacheKey, JSON.stringify(result));
+		safeSetItem(cacheKey, JSON.stringify(result));
 	}
 
 	function getChanges(entry: ChangelogEntry): string[] {

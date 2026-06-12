@@ -1,5 +1,6 @@
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
+import { safeGetItem, safeSetItem } from '$lib/utils/safeStorage';
 
 export const canInstall = writable(false);
 
@@ -40,7 +41,7 @@ if (browser) {
 	// iOS Safari detection
 	if (detectIOSSafari()) {
 		isIOSSafari.set(true);
-		const dismissed = localStorage.getItem(IOS_INSTALL_DISMISSED_KEY);
+		const dismissed = safeGetItem(IOS_INSTALL_DISMISSED_KEY);
 		if (!dismissed) {
 			showIOSInstallBanner.set(true);
 		}
@@ -59,6 +60,6 @@ export async function triggerInstall(): Promise<boolean> {
 export function dismissIOSInstallBanner() {
 	showIOSInstallBanner.set(false);
 	if (browser) {
-		localStorage.setItem(IOS_INSTALL_DISMISSED_KEY, '1');
+		safeSetItem(IOS_INSTALL_DISMISSED_KEY, '1');
 	}
 }

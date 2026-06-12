@@ -53,7 +53,7 @@
 				color: BUMP_CHART_COLORS[i % BUMP_CHART_COLORS.length],
 			}))
 			.filter(item => highlightSet.has(item.id))
-			.toSorted((a, b) => a.name.localeCompare(b.name));
+			.slice().sort((a, b) => a.name.localeCompare(b.name));
 	});
 
 	function initChart(canvas: HTMLCanvasElement) {

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy, tick } from 'svelte';
+	import { safeGetItem, safeSetItem, safeRemoveItem } from '$lib/utils/safeStorage';
 	import { get } from 'svelte/store';
 	import * as m from '$lib/paraglide/messages.js';
 	import { gameSettings } from '$lib/stores/gameSettings';
@@ -14,15 +15,10 @@
 	import TournamentSyncedTimer from '$lib/components/TournamentSyncedTimer.svelte';
 	import TimeoutRoundModal from '$lib/components/TimeoutRoundModal.svelte';
 	import type { TournamentTimer } from '$lib/types/tournament';
-	import SettingsModal from '$lib/components/SettingsModal.svelte';
 	import RoundsPanel from '$lib/components/RoundsPanel.svelte';
 	import GameCustomizePanel from '$lib/components/GameCustomizePanel.svelte';
 	import HammerDialog from '$lib/components/HammerDialog.svelte';
-	import MatchPreviewDialog from '$lib/components/MatchPreviewDialog.svelte';
 	import TwentyInputDialog from '$lib/components/TwentyInputDialog.svelte';
-	import TournamentMatchModal from '$lib/components/TournamentMatchModal.svelte';
-	import FriendlyMatchModal from '$lib/components/FriendlyMatchModal.svelte';
-	import WinnerSplash from '$lib/components/WinnerSplash.svelte';
 	import OfflineIndicator from '$lib/components/OfflineIndicator.svelte';
 	import AppMenu from '$lib/components/AppMenu.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
@@ -52,7 +48,10 @@
 		subscribeToMatchStatus,
 		savePendingTournamentCompletion,
 		removePendingTournamentCompletion,
-		retryPendingTournamentCompletion
+		retryPendingTournamentCompletion,
+		getPendingTournamentCompletion,
+		trackCompletionSync,
+		settlePendingCompletion
 	} from '$lib/firebase/tournamentSync';
 	import { getTournamentByKey } from '$lib/firebase/tournaments';
 	import { shouldClearSavedTournamentKey } from '$lib/utils/tournamentStatus';
@@ -65,8 +64,6 @@
 	import { currentUser, authInitialized } from '$lib/firebase/auth';
 	import { getPlayerName } from '$lib/firebase/userProfile';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
-	import InvitePlayerModal from '$lib/components/InvitePlayerModal.svelte';
-	import QRScanner from '$lib/components/QRScanner.svelte';
 	import QrCode from '@lucide/svelte/icons/qr-code';
 	import { requestWakeLock, releaseWakeLock } from '$lib/utils/wakeLock';
 	import { resolveIsUserSideA } from '$lib/utils/tournamentSideMapping';
@@ -82,6 +79,64 @@
 	} from '$lib/stores/matchInvite';
 	import {
 		cancelInvite	} from '$lib/firebase/matchInvites';
+
+	// ── Lazy-loaded modals ──────────────────────────────────────────────────
+	// Heavy components only shown on demand are kept out of the initial bundle
+	// (≈150 KB of JS less to parse on first load). They are preloaded when the
+	// browser goes idle, and as a fallback the $effect below loads them the
+	// moment their open flag turns true. Once loaded they stay mounted with an
+	// isOpen prop, exactly like the previous static versions.
+	let SettingsModalC = $state<any>(null);
+	let TournamentMatchModalC = $state<any>(null);
+	let FriendlyMatchModalC = $state<any>(null);
+	let MatchPreviewDialogC = $state<any>(null);
+	let InvitePlayerModalC = $state<any>(null);
+	let QRScannerC = $state<any>(null);
+	let WinnerSplashC = $state<any>(null);
+
+	async function loadSettingsModal() {
+		if (!SettingsModalC) SettingsModalC = (await import('$lib/components/SettingsModal.svelte')).default;
+	}
+	async function loadTournamentMatchModal() {
+		if (!TournamentMatchModalC) TournamentMatchModalC = (await import('$lib/components/TournamentMatchModal.svelte')).default;
+	}
+	async function loadFriendlyMatchModal() {
+		if (!FriendlyMatchModalC) FriendlyMatchModalC = (await import('$lib/components/FriendlyMatchModal.svelte')).default;
+	}
+	async function loadMatchPreviewDialog() {
+		if (!MatchPreviewDialogC) MatchPreviewDialogC = (await import('$lib/components/MatchPreviewDialog.svelte')).default;
+	}
+	async function loadInvitePlayerModal() {
+		if (!InvitePlayerModalC) InvitePlayerModalC = (await import('$lib/components/InvitePlayerModal.svelte')).default;
+	}
+	async function loadQRScanner() {
+		if (!QRScannerC) QRScannerC = (await import('$lib/components/QRScanner.svelte')).default;
+	}
+	async function loadWinnerSplash() {
+		if (!WinnerSplashC) WinnerSplashC = (await import('$lib/components/WinnerSplash.svelte')).default;
+	}
+
+	function preloadLazyModals() {
+		loadSettingsModal();
+		loadTournamentMatchModal();
+		loadFriendlyMatchModal();
+		loadMatchPreviewDialog();
+		loadInvitePlayerModal();
+		loadQRScanner();
+		loadWinnerSplash();
+	}
+
+	// Fallback: if a modal is opened before the idle preload ran, load it now
+	$effect(() => {
+		if (showSettings) loadSettingsModal();
+		if (showTournamentModal) loadTournamentMatchModal();
+		if (showFriendlyModal) loadFriendlyMatchModal();
+		if (showMatchPreview) loadMatchPreviewDialog();
+		if ($isInviteModalOpen) loadInvitePlayerModal();
+		if (showQRScanner) loadQRScanner();
+		if (showWinnerSplash) loadWinnerSplash();
+	});
+	// ────────────────────────────────────────────────────────────────────────
 
 	let showSettings = $state(false);
 	let showHammerDialog = $state(false);
@@ -128,7 +183,7 @@
 
 	// Assign-yourself hint: show when logged in, friendly mode, user not assigned to either team
 	// Persisted in localStorage so it only shows once
-	let assignHintDismissed = $state(typeof localStorage !== 'undefined' && localStorage.getItem('assignHintDismissed') === '1');
+	let assignHintDismissed = $state(typeof localStorage !== 'undefined' && safeGetItem('assignHintDismissed') === '1');
 	let shouldShowAssignHint = $derived(
 		!assignHintDismissed &&
 		!inTournamentMode &&
@@ -140,11 +195,11 @@
 
 	function dismissAssignHint() {
 		assignHintDismissed = true;
-		localStorage.setItem('assignHintDismissed', '1');
+		safeSetItem('assignHintDismissed', '1');
 	}
 
 	// Invite-opponent hint: show after user assigned themselves, opponent slot is empty
-	let inviteHintDismissed = $state(typeof localStorage !== 'undefined' && localStorage.getItem('inviteHintDismissed') === '1');
+	let inviteHintDismissed = $state(typeof localStorage !== 'undefined' && safeGetItem('inviteHintDismissed') === '1');
 	let shouldShowInviteHint = $derived(
 		!inviteHintDismissed &&
 		!inTournamentMode &&
@@ -156,7 +211,7 @@
 
 	function dismissInviteHint() {
 		inviteHintDismissed = true;
-		localStorage.setItem('inviteHintDismissed', '1');
+		safeSetItem('inviteHintDismissed', '1');
 	}
 
 	// Friendly match header info
@@ -448,6 +503,13 @@
 		retryPendingFriendlyMatch();
 		retryPendingTournamentCompletion();
 
+		// Preload lazy modals once the browser is idle so opening them is instant
+		if ('requestIdleCallback' in window) {
+			requestIdleCallback(() => preloadLazyModals(), { timeout: 4000 });
+		} else {
+			setTimeout(preloadLazyModals, 2500);
+		}
+
 		const unsubSettings = gameSettings.subscribe($settings => {
 			// Initialize timer if not set
 			if ($timeRemaining === 0) {
@@ -645,7 +707,7 @@
 		// Clear event title/phase since we're no longer in tournament mode.
 		// Also restore gameType from backup immediately to avoid showing partner buttons
 		// incorrectly when the tournament was doubles but the friendly mode was singles.
-		const backupStr = localStorage.getItem(PRE_TOURNAMENT_BACKUP_KEY);
+		const backupStr = safeGetItem(PRE_TOURNAMENT_BACKUP_KEY);
 		const backup = backupStr
 			? (() => {
 					try {
@@ -678,7 +740,7 @@
 	 */
 	function restorePreTournamentData() {
 
-		const backupStr = localStorage.getItem(PRE_TOURNAMENT_BACKUP_KEY);
+		const backupStr = safeGetItem(PRE_TOURNAMENT_BACKUP_KEY);
 		if (!backupStr) return;
 
 		try {
@@ -722,11 +784,11 @@
 			resetTimer(totalSeconds);
 
 			gameSettings.save(); // Persistir la restauración en localStorage
-			localStorage.removeItem(PRE_TOURNAMENT_BACKUP_KEY);
+			safeRemoveItem(PRE_TOURNAMENT_BACKUP_KEY);
 			console.log('♻️ Restored pre-tournament data:', backup);
 		} catch (e) {
 			console.error('Failed to restore pre-tournament backup:', e);
-			localStorage.removeItem(PRE_TOURNAMENT_BACKUP_KEY);
+			safeRemoveItem(PRE_TOURNAMENT_BACKUP_KEY);
 		}
 	}
 
@@ -906,26 +968,9 @@
 			data: completionData
 		});
 
-		try {
-			const success = await completeTournamentMatchSync(
-				context.tournamentId,
-				context.matchId,
-				context.phase,
-				context.groupId,
-				completionData
-			);
-
-			if (success) {
-				removePendingTournamentCompletion();
-				console.log('✅ Timeout match results saved successfully');
-			} else {
-				tournamentMatchCompletedSent = false;
-				console.error('❌ Failed to save timeout match results - saved for retry');
-			}
-		} catch (error) {
-			tournamentMatchCompletedSent = false;
-			console.error('Error completing timeout match - saved for retry:', error);
-		}
+		// Optimistic: don't block the UI on the Firestore round-trip. The
+		// completion is backed up above; sync runs in background with retry.
+		syncCompletionInBackground(context, completionData);
 
 		// Save result for display in RoundsPanel
 		gameSettings.update(s => ({
@@ -1393,7 +1438,7 @@
 	function handleTournamentMatchStarted(context: TournamentMatchContext) {
 		// Save current (friendly) data as backup ONLY if no backup exists
 		// This preserves the original friendly settings across multiple tournament matches
-		if (!localStorage.getItem(PRE_TOURNAMENT_BACKUP_KEY)) {
+		if (!safeGetItem(PRE_TOURNAMENT_BACKUP_KEY)) {
 			const backup = {
 				// Team data (including user assignments)
 				team1Name: $team1.name,
@@ -1421,7 +1466,7 @@
 				timerSeconds: $gameSettings.timerSeconds,
 				showTimer: $gameSettings.showTimer
 			};
-			localStorage.setItem(PRE_TOURNAMENT_BACKUP_KEY, JSON.stringify(backup));
+			safeSetItem(PRE_TOURNAMENT_BACKUP_KEY, JSON.stringify(backup));
 			console.log('💾 Saved pre-tournament data to localStorage:', backup);
 		}
 
@@ -1608,9 +1653,17 @@
 		isCheckingTournament = true;
 
 		try {
-			// Fetch tournament by key (returns Tournament | null directly)
+			// If the previous match's completion is still syncing in background,
+			// wait for it here (the user already sees the checking spinner) so the
+			// tournament we fetch reflects the completed match.
+			await settlePendingCompletion();
+
+			// Fetch tournament by key (returns Tournament | null directly).
+			// maxAgeMs: reuse the tournament if seen in the last 30s (e.g. kept
+			// fresh by the live subscription during the previous match) — the
+			// start transaction re-validates against the server anyway.
 			console.log('🔍 Fetching tournament by key:', savedKey);
-			const tournament = await getTournamentByKey(savedKey);
+			const tournament = await getTournamentByKey(savedKey, { maxAgeMs: 30_000 });
 			if (!tournament) {
 				console.log('❌ Tournament not found');
 				showTournamentModal = true;
@@ -1631,7 +1684,14 @@
 
 			// Get user's active matches (PENDING or IN_PROGRESS)
 			console.log('🔍 Getting user active matches for userId:', $currentUser.id);
-			const allUserMatches = await getUserActiveMatches(tournament, $currentUser.id);
+			let allUserMatches = await getUserActiveMatches(tournament, $currentUser.id);
+
+			// Hide a just-completed match whose optimistic background sync hasn't
+			// been confirmed yet (tournament data may still show it IN_PROGRESS)
+			const pendingCompletion = getPendingTournamentCompletion();
+			if (pendingCompletion && pendingCompletion.tournamentId === tournament.id) {
+				allUserMatches = allUserMatches.filter(m => m.match.id !== pendingCompletion.matchId);
+			}
 			console.log('📊 User matches found (all rounds):', allUserMatches.length, allUserMatches);
 
 			// Filter to current round only (for Round Robin group stage)
@@ -1737,23 +1797,17 @@
 				return;
 			}
 
-			// Get existing rounds if resuming
+			// Get existing rounds if resuming — startTournamentMatch already
+			// returns the up-to-date match from its transaction (no extra read)
 			let existingRounds: any[] = [];
 			let gamesWonA = 0;
 			let gamesWonB = 0;
 
-			if (isResuming) {
-				const resumeResult = await resumeTournamentMatch(
-					tournament.id,
-					matchInfo.match.id,
-					matchInfo.phase,
-					matchInfo.groupId
-				);
-				if (resumeResult.success && resumeResult.match) {
-					existingRounds = resumeResult.match.rounds || [];
-					gamesWonA = resumeResult.match.gamesWonA || 0;
-					gamesWonB = resumeResult.match.gamesWonB || 0;
-				}
+			if (isResuming && result.match) {
+				const resumedMatch = result.match as any;
+				existingRounds = resumedMatch.rounds || [];
+				gamesWonA = resumedMatch.gamesWonA || 0;
+				gamesWonB = resumedMatch.gamesWonB || 0;
 			}
 
 			// Detect user side (check both primary userId and partner.userId for doubles)
@@ -1909,6 +1963,43 @@
 	}
 
 	/**
+	 * Fire-and-forget completion sync so the UI can proceed optimistically.
+	 * The completion is already backed up in localStorage
+	 * (savePendingTournamentCompletion), so if this fails it is retried on the
+	 * next page load or on reconnect. The OfflineIndicator badge shows progress.
+	 */
+	function syncCompletionInBackground(
+		context: TournamentMatchContext,
+		completionData: Parameters<typeof completeTournamentMatchSync>[4]
+	): void {
+		setSyncStatus('syncing');
+		const syncPromise = completeTournamentMatchSync(
+			context.tournamentId,
+			context.matchId,
+			context.phase,
+			context.groupId,
+			completionData
+		).then(success => {
+			if (success) {
+				removePendingTournamentCompletion();
+				setSyncStatus('success');
+				console.log('✅ Tournament match results saved successfully');
+			} else {
+				// Keep the pending backup; reset flag so retry paths aren't blocked
+				tournamentMatchCompletedSent = false;
+				setSyncStatus('error');
+				console.error('❌ Failed to save tournament match results - saved for retry');
+			}
+		}).catch(error => {
+			tournamentMatchCompletedSent = false;
+			setSyncStatus('error');
+			console.error('Error completing tournament match - saved for retry:', error);
+		});
+		// Let "play next match" wait for this sync instead of seeing stale data
+		trackCompletionSync(syncPromise);
+	}
+
+	/**
 	 * Handle tournament match completion - send results to Firebase
 	 */
 	async function handleTournamentMatchComplete() {
@@ -2011,28 +2102,9 @@
 			data: completionData
 		});
 
-		try {
-			const success = await completeTournamentMatchSync(
-				context.tournamentId,
-				context.matchId,
-				context.phase,
-				context.groupId,
-				completionData
-			);
-
-			if (success) {
-				removePendingTournamentCompletion();
-				console.log('✅ Tournament match results saved successfully');
-			} else {
-				// Reset flag so retry can happen (data is saved in localStorage)
-				tournamentMatchCompletedSent = false;
-				console.error('❌ Failed to save tournament match results - saved for retry');
-			}
-		} catch (error) {
-			// Reset flag so retry can happen (data is saved in localStorage)
-			tournamentMatchCompletedSent = false;
-			console.error('Error completing tournament match - saved for retry:', error);
-		}
+		// Optimistic: don't block the UI on the Firestore round-trip. The
+		// completion is backed up above; sync runs in background with retry.
+		syncCompletionInBackground(context, completionData);
 
 		// NO reseteamos el estado aquí - dejamos que el usuario vea el resultado final
 		// El reset se hará cuando se inicie un nuevo partido de torneo
@@ -3046,7 +3118,9 @@
 	{/if}
 </div>
 
-<SettingsModal isOpen={showSettings} onClose={() => showSettings = false} />
+{#if SettingsModalC}
+	<SettingsModalC isOpen={showSettings} onClose={() => showSettings = false} />
+{/if}
 <HammerDialog isOpen={showHammerDialog} onclose={handleHammerSelected} />
 <TwentyInputDialog
 	isOpen={showTwentyDialog || isEditing20s}
@@ -3059,56 +3133,68 @@
 />
 
 <!-- Tournament Match Modal -->
-<TournamentMatchModal
-	isOpen={showTournamentModal}
-	onclose={() => showTournamentModal = false}
-	onmatchstarted={handleTournamentMatchStarted}
-	onmatchselected={handleMatchSelectedFromModal}
-/>
+{#if TournamentMatchModalC}
+	<TournamentMatchModalC
+		isOpen={showTournamentModal}
+		onclose={() => showTournamentModal = false}
+		onmatchstarted={handleTournamentMatchStarted}
+		onmatchselected={handleMatchSelectedFromModal}
+	/>
+{/if}
 
-<FriendlyMatchModal
-	isOpen={showFriendlyModal}
-	onclose={() => showFriendlyModal = false}
-	onstart={handleFriendlyMatchStart}
-/>
+{#if FriendlyMatchModalC}
+	<FriendlyMatchModalC
+		isOpen={showFriendlyModal}
+		onclose={() => showFriendlyModal = false}
+		onstart={handleFriendlyMatchStart}
+	/>
+{/if}
 
 <!-- Match Preview Dialog (auto-detected single match) -->
-<MatchPreviewDialog
-	isOpen={showMatchPreview}
-	matchInfo={matchPreviewInfo}
-	tournamentName={matchPreviewTournament?.name}
-	tournamentEdition={matchPreviewTournament?.edition}
-	isDoubles={matchPreviewTournament?.gameType === 'doubles'}
-	isLoading={isStartingMatch}
-	team1Color={$team1.color}
-	team2Color={$team2.color}
-	onplay={handleMatchPreviewPlay}
-	oncancel={handleMatchPreviewCancel}
-/>
+{#if MatchPreviewDialogC}
+	<MatchPreviewDialogC
+		isOpen={showMatchPreview}
+		matchInfo={matchPreviewInfo}
+		tournamentName={matchPreviewTournament?.name}
+		tournamentEdition={matchPreviewTournament?.edition}
+		isDoubles={matchPreviewTournament?.gameType === 'doubles'}
+		isLoading={isStartingMatch}
+		team1Color={$team1.color}
+		team2Color={$team2.color}
+		onplay={handleMatchPreviewPlay}
+		oncancel={handleMatchPreviewCancel}
+	/>
+{/if}
 
 <!-- Match Invite Modal (Friendly Mode) -->
-<InvitePlayerModal
-	isOpen={$isInviteModalOpen}
-	hostTeamNumber={currentInviteHostTeam}
-	inviteType={currentInviteType}
-	onclose={handleCloseInviteModal}
-/>
+{#if InvitePlayerModalC}
+	<InvitePlayerModalC
+		isOpen={$isInviteModalOpen}
+		hostTeamNumber={currentInviteHostTeam}
+		inviteType={currentInviteType}
+		onclose={handleCloseInviteModal}
+	/>
+{/if}
 
 <!-- QR Scanner Modal -->
-<QRScanner
-	bind:isOpen={showQRScanner}
-	onScan={handleQRScanResult}
-	onClose={() => showQRScanner = false}
-/>
+{#if QRScannerC}
+	<QRScannerC
+		bind:isOpen={showQRScanner}
+		onScan={handleQRScanResult}
+		onClose={() => showQRScanner = false}
+	/>
+{/if}
 
 <!-- Winner / Tie Splash -->
-<WinnerSplash
-	bind:isVisible={showWinnerSplash}
-	winnerName={splashWinnerName}
-	label={splashLabel}
-	score={splashScore}
-	isTie={splashIsTie}
-/>
+{#if WinnerSplashC}
+	<WinnerSplashC
+		bind:isVisible={showWinnerSplash}
+		winnerName={splashWinnerName}
+		label={splashLabel}
+		score={splashScore}
+		isTie={splashIsTie}
+	/>
+{/if}
 
 <style>
 	.game-page {

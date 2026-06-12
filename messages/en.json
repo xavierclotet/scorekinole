@@ -341,6 +341,8 @@
   "common_clickToCopy": "Click to copy key",
   "common_close": "Close",
   "common_comingSoon": "Coming Soon",
+  "common_storageBlockedTitle": "Storage blocked",
+  "common_storageBlockedMessage": "Your browser is blocking cookies or site data. The app still works, but your games and settings won't be saved on this device. Allow cookies in your browser settings to keep your progress.",
   "common_confirm": "Confirm",
   "common_darkMode": "Dark Mode",
   "common_delete": "Delete",

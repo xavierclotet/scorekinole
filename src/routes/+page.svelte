@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { safeGetItem, safeSetItem } from '$lib/utils/safeStorage';
 	import * as m from '$lib/paraglide/messages.js';
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { canAccessAdmin } from '$lib/stores/admin';
@@ -70,12 +71,12 @@
 
 	onMount(() => {
 		if (!browser) return;
-		const lastSeen = localStorage.getItem(LAST_SEEN_VERSION_KEY);
-		const hasSettings = localStorage.getItem('crokinoleGame');
+		const lastSeen = safeGetItem(LAST_SEEN_VERSION_KEY);
+		const hasSettings = safeGetItem('crokinoleGame');
 
 		if (!lastSeen && !hasSettings) {
 			// Brand new user — set silently, don't show modal
-			localStorage.setItem(LAST_SEEN_VERSION_KEY, APP_VERSION);
+			safeSetItem(LAST_SEEN_VERSION_KEY, APP_VERSION);
 		} else if (lastSeen !== APP_VERSION) {
 			// Existing user with a version change — show toast + badge
 			hasNewVersion = true;
@@ -106,7 +107,7 @@
 		hasNewVersion = false;
 		showToast = false;
 		if (browser) {
-			localStorage.setItem(LAST_SEEN_VERSION_KEY, APP_VERSION);
+			safeSetItem(LAST_SEEN_VERSION_KEY, APP_VERSION);
 		}
 	}
 

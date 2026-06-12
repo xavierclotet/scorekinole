@@ -21,6 +21,7 @@
 
 import type { HistoricalBracketInput, HistoricalBracketRoundInput, HistoricalMatchInput } from '$lib/firebase/tournamentImport';
 import type { ParsedRound } from './groupStageParser';
+import { generateId } from './id';
 export type { ParsedRound };
 
 // Types for parsed data
@@ -596,7 +597,7 @@ export function addByeMatchesToBrackets<T extends GenericBracketEntry>(brackets:
 
 					if (byeWinner && byeWinner !== 'BYE') {
 						positionedMatches.push({
-							id: crypto.randomUUID(),
+							id: generateId(),
 							participantAId: '',
 							participantAName: byeWinner,
 							participantBId: '',

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte';
+  import { generateId } from '$lib/utils/id';
   import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
   import UserPlus from '@lucide/svelte/icons/user-plus';
   import * as Command from '$lib/components/ui/command';
@@ -53,7 +54,7 @@
   function selectUser(user: UserWithRanking) {
     const isGuest = user.authProvider === null;
     const participant: Partial<TournamentParticipant> = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       type: isGuest ? 'GUEST' : 'REGISTERED',
       name: user.playerName,
       userId: user.userId,
@@ -71,7 +72,7 @@
   function setGuest() {
     if (query.trim().length < 3) return;
     const participant: Partial<TournamentParticipant> = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       type: 'GUEST',
       name: query.trim(),
       rankingSnapshot: 0,

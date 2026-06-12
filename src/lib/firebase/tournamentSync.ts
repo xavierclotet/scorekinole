@@ -10,6 +10,7 @@
 
 import { browser } from '$app/environment';
 import { isFirebaseEnabled } from './config';
+import { safeGetItem, safeSetItem, safeRemoveItem } from '$lib/utils/safeStorage';
 import {
   updateTournamentMatchRounds,
   completeTournamentMatch,
@@ -196,17 +197,66 @@ interface PendingTournamentCompletion {
 
 export function savePendingTournamentCompletion(pending: PendingTournamentCompletion): void {
   if (!browser) return;
-  localStorage.setItem(PENDING_TOURNAMENT_COMPLETION_KEY, JSON.stringify(pending));
+  safeSetItem(PENDING_TOURNAMENT_COMPLETION_KEY, JSON.stringify(pending));
 }
 
 export function removePendingTournamentCompletion(): void {
   if (!browser) return;
-  localStorage.removeItem(PENDING_TOURNAMENT_COMPLETION_KEY);
+  safeRemoveItem(PENDING_TOURNAMENT_COMPLETION_KEY);
+}
+
+/**
+ * Read the pending (in-flight or failed) match completion, if any.
+ * Used to hide a just-completed match from "play next match" lists while its
+ * optimistic background sync hasn't been confirmed by the server yet.
+ */
+export function getPendingTournamentCompletion(): PendingTournamentCompletion | null {
+  if (!browser) return null;
+  const raw = safeGetItem(PENDING_TOURNAMENT_COMPLETION_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as PendingTournamentCompletion;
+  } catch {
+    return null;
+  }
+}
+
+// In-flight optimistic completion sync (set by /game when it fires the
+// completion in the background without blocking the UI)
+let inFlightCompletionSync: Promise<unknown> | null = null;
+
+export function trackCompletionSync(promise: Promise<unknown>): void {
+  inFlightCompletionSync = promise;
+  promise
+    .finally(() => {
+      if (inFlightCompletionSync === promise) inFlightCompletionSync = null;
+    })
+    .catch(() => {});
+}
+
+/**
+ * Settle an optimistic match completion before reading playable matches:
+ * waits for the in-flight sync if there is one, then retries a pending
+ * (failed) one. Bounded by timeoutMs so the UI never hangs — if it can't
+ * settle (offline), the pending backup remains and callers keep hiding the
+ * match via getPendingTournamentCompletion().
+ */
+export async function settlePendingCompletion(timeoutMs = 6000): Promise<void> {
+  if (!browser) return;
+  if (!inFlightCompletionSync && !getPendingTournamentCompletion()) return;
+
+  const timeout = new Promise<void>((resolve) => setTimeout(resolve, timeoutMs));
+  if (inFlightCompletionSync) {
+    await Promise.race([inFlightCompletionSync, timeout]);
+  }
+  if (getPendingTournamentCompletion()) {
+    await Promise.race([retryPendingTournamentCompletion().catch(() => false), timeout]);
+  }
 }
 
 export async function retryPendingTournamentCompletion(): Promise<boolean> {
   if (!browser) return false;
-  const raw = localStorage.getItem(PENDING_TOURNAMENT_COMPLETION_KEY);
+  const raw = safeGetItem(PENDING_TOURNAMENT_COMPLETION_KEY);
   if (!raw) return false;
 
   try {

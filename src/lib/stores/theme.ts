@@ -1,5 +1,6 @@
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
+import { safeGetItem, safeSetItem, safeRemoveItem } from '$lib/utils/safeStorage';
 
 // Extended themes: green (default) and violet variants
 type Theme = 'light' | 'dark' | 'violet' | 'violet-light';
@@ -18,15 +19,15 @@ function getInitialTheme(): Theme {
 	if (htmlTheme && THEME_CYCLE.includes(htmlTheme)) return htmlTheme;
 
 	// Check both new and old storage keys for backwards compatibility
-	const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
+	const stored = safeGetItem(STORAGE_KEY) as Theme | null;
 	if (stored && THEME_CYCLE.includes(stored)) return stored;
 
 	// Migration: check old key
-	const oldStored = localStorage.getItem('adminTheme') as Theme | null;
+	const oldStored = safeGetItem('adminTheme') as Theme | null;
 	if (oldStored) {
 		const mapped = oldStored === 'light' ? 'light' : 'dark';
-		localStorage.setItem(STORAGE_KEY, mapped);
-		localStorage.removeItem('adminTheme');
+		safeSetItem(STORAGE_KEY, mapped);
+		safeRemoveItem('adminTheme');
 		return mapped;
 	}
 
@@ -50,7 +51,7 @@ function createTheme() {
 				const nextIndex = (currentIndex + 1) % THEME_CYCLE.length;
 				const newTheme = THEME_CYCLE[nextIndex];
 				if (browser) {
-					localStorage.setItem(STORAGE_KEY, newTheme);
+					safeSetItem(STORAGE_KEY, newTheme);
 				}
 				return newTheme;
 			});
@@ -64,7 +65,7 @@ function createTheme() {
 				else if (current === 'violet') newTheme = 'violet-light';
 				else newTheme = 'violet';
 				if (browser) {
-					localStorage.setItem(STORAGE_KEY, newTheme);
+					safeSetItem(STORAGE_KEY, newTheme);
 				}
 				return newTheme;
 			});
@@ -78,14 +79,14 @@ function createTheme() {
 				else if (current === 'violet') newTheme = 'dark';
 				else newTheme = 'light';
 				if (browser) {
-					localStorage.setItem(STORAGE_KEY, newTheme);
+					safeSetItem(STORAGE_KEY, newTheme);
 				}
 				return newTheme;
 			});
 		},
 		set: (theme: Theme) => {
 			if (browser) {
-				localStorage.setItem(STORAGE_KEY, theme);
+				safeSetItem(STORAGE_KEY, theme);
 			}
 			set(theme);
 		}

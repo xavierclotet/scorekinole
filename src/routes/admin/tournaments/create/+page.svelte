@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { safeGetItem, safeSetItem } from '$lib/utils/safeStorage';
+  import { generateId } from '$lib/utils/id';
   import { get } from 'svelte/store';
   import AdminGuard from '$lib/components/AdminGuard.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
@@ -986,7 +988,7 @@
     if (typeof localStorage === 'undefined') return;
 
     try {
-      const prefsStr = localStorage.getItem(ADMIN_PREFS_KEY);
+      const prefsStr = safeGetItem(ADMIN_PREFS_KEY);
       if (!prefsStr) return;
 
       const prefs = JSON.parse(prefsStr);
@@ -1090,7 +1092,7 @@
       // Step 3: Participants — backfill ids for drafts saved by older builds
       // (the keyed {#each} and removeParticipant() need a unique id per row)
       participants = (data.participants || []).map((p: any) =>
-        p && p.id ? p : { ...p, id: crypto.randomUUID() }
+        p && p.id ? p : { ...p, id: generateId() }
       );
 
       // Step 5 - Time configuration
@@ -1219,10 +1221,10 @@
         regEnabled, regDeadlineDate, regDeadlineTime, regMaxParticipants, regEntryFee, regAllowWaitlist, regNotify, regShowList,
       };
 
-      const prefsStr = localStorage.getItem(ADMIN_PREFS_KEY);
+      const prefsStr = safeGetItem(ADMIN_PREFS_KEY);
       const prefs = prefsStr ? JSON.parse(prefsStr) : {};
       prefs.tournament_create_draft = data;
-      localStorage.setItem(ADMIN_PREFS_KEY, JSON.stringify(prefs));
+      safeSetItem(ADMIN_PREFS_KEY, JSON.stringify(prefs));
     } catch (error) {
       console.error('❌ Error saving tournament draft:', error);
     }
@@ -1231,11 +1233,11 @@
   function clearDraft() {
     if (typeof localStorage === 'undefined') return;
     try {
-      const prefsStr = localStorage.getItem(ADMIN_PREFS_KEY);
+      const prefsStr = safeGetItem(ADMIN_PREFS_KEY);
       if (prefsStr) {
         const prefs = JSON.parse(prefsStr);
         delete prefs.tournament_create_draft;
-        localStorage.setItem(ADMIN_PREFS_KEY, JSON.stringify(prefs));
+        safeSetItem(ADMIN_PREFS_KEY, JSON.stringify(prefs));
       }
       console.log('✅ Tournament draft cleared');
     } catch (error) {

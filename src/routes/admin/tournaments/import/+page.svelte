@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { safeGetItem, safeSetItem, safeRemoveItem } from '$lib/utils/safeStorage';
+  import { generateId } from '$lib/utils/id';
   import AdminGuard from '$lib/components/AdminGuard.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
   import Toast from '$lib/components/Toast.svelte';
@@ -255,10 +257,10 @@
           label: nb.label,
           sourcePositions: nb.sourcePositions || [],
           rounds: nb.bracket?.rounds?.map(r => ({
-            id: crypto.randomUUID(),
+            id: generateId(),
             name: r.name,
             matches: r.matches?.map(match => ({
-              id: crypto.randomUUID(),
+              id: generateId(),
               participantAId: match.participantA || '',
               participantAName: participantNameById(match.participantA),
               participantBId: match.participantB || '',
@@ -408,10 +410,10 @@
           label: nb.label,
           sourcePositions: nb.sourcePositions || [],
           rounds: nb.bracket?.rounds?.map(r => ({
-            id: crypto.randomUUID(),
+            id: generateId(),
             name: r.name,
             matches: r.matches?.map(match => ({
-              id: crypto.randomUUID(),
+              id: generateId(),
               participantAId: match.participantA || '',
               participantAName: tournament.participants?.find(p => p.id === match.participantA)?.name || '',
               participantBId: match.participantB || '',
@@ -555,10 +557,10 @@
           label: nb.label,
           sourcePositions: nb.sourcePositions || [],
           rounds: nb.bracket?.rounds?.map(r => ({
-            id: crypto.randomUUID(),
+            id: generateId(),
             name: r.name,
             matches: r.matches?.map(match => ({
-              id: crypto.randomUUID(),
+              id: generateId(),
               participantAId: match.participantA || '',
               participantAName: tournament.participants?.find(p => p.id === match.participantA)?.name || '',
               participantBId: match.participantB || '',
@@ -884,7 +886,7 @@
     if (typeof localStorage === 'undefined') return;
 
     try {
-      const draft = localStorage.getItem(STORAGE_KEY);
+      const draft = safeGetItem(STORAGE_KEY);
       if (!draft) return;
 
       const data = JSON.parse(draft);
@@ -926,10 +928,10 @@
         ...b,
         rounds: (b.rounds ?? []).map(r => ({
           ...r,
-          id: r.id || crypto.randomUUID(),
+          id: r.id || generateId(),
           matches: (r.matches ?? []).map(m => ({
             ...m,
-            id: m.id || crypto.randomUUID()
+            id: m.id || generateId()
           }))
         }))
       }));
@@ -1006,7 +1008,7 @@
         currentStep
       };
 
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      safeSetItem(STORAGE_KEY, JSON.stringify(data));
     } catch (error) {
       console.error('❌ Error saving import draft:', error);
     }
@@ -1014,7 +1016,7 @@
 
   function clearDraft() {
     if (typeof localStorage === 'undefined') return;
-    localStorage.removeItem(STORAGE_KEY);
+    safeRemoveItem(STORAGE_KEY);
     hasDraft = false;
     console.log('✅ Import draft cleared');
   }
@@ -1463,10 +1465,10 @@
         label: hb.label,
         sourcePositions: hb.sourcePositions,
         rounds: hb.rounds.map(r => ({
-          id: crypto.randomUUID(),
+          id: generateId(),
           name: r.name,
           matches: r.matches.map(m => ({
-            id: crypto.randomUUID(),
+            id: generateId(),
             participantAId: '',  // Will be matched later or created as new
             participantAName: m.participantAName,
             participantBId: '',
@@ -1613,11 +1615,11 @@
     }
 
     // Create empty matches with unique IDs
-    const roundId = crypto.randomUUID();
+    const roundId = generateId();
     const emptyMatches: MatchEntry[] = [];
     for (let i = 0; i < numMatches; i++) {
       emptyMatches.push({
-        id: crypto.randomUUID(),
+        id: generateId(),
         participantAId: '',
         participantAName: '',
         participantBId: '',
@@ -1653,7 +1655,7 @@
     brackets[bracketIndex].rounds[roundIndex].matches = [
       ...brackets[bracketIndex].rounds[roundIndex].matches,
       {
-        id: crypto.randomUUID(),
+        id: generateId(),
         participantAId: '',
         participantAName: '',
         participantBId: '',
@@ -2161,10 +2163,10 @@
           // sourcePositions not in ParsedKnockoutBracket; compute from index or look up from brackets state
           sourcePositions: brackets.find(wb => wb.label === b.label)?.sourcePositions ?? [index * 2 + 1, index * 2 + 2],
           rounds: b.rounds.map(r => ({
-            id: crypto.randomUUID(),
+            id: generateId(),
             name: r.name,
             matches: r.matches.map(match => ({
-              id: crypto.randomUUID(),
+              id: generateId(),
               participantAId: '',
               participantAName: match.participantAName,
               participantBId: '',

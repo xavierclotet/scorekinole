@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { currentMatch } from '$lib/stores/history';
+	import { safeGetItem, safeSetItem } from '$lib/utils/safeStorage';
 	import { team1, team2 } from '$lib/stores/teams';
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
@@ -36,7 +37,7 @@
 	// Load position from localStorage
 	$effect(() => {
 		if (browser) {
-			const saved = localStorage.getItem('roundsPanelPosition');
+			const saved = safeGetItem('roundsPanelPosition');
 			if (saved) {
 				try {
 					const pos = JSON.parse(saved);
@@ -49,7 +50,7 @@
 
 	function savePosition() {
 		if (browser) {
-			localStorage.setItem('roundsPanelPosition', JSON.stringify({ x: posX, y: posY }));
+			safeSetItem('roundsPanelPosition', JSON.stringify({ x: posX, y: posY }));
 		}
 	}
 

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { safeGetItem, safeSetItem } from '$lib/utils/safeStorage';
   import { get } from 'svelte/store';
   import AdminGuard from '$lib/components/AdminGuard.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
@@ -91,7 +92,7 @@
   onMount(() => {
     // Load admin preferences from localStorage
     try {
-      const savedPrefs = localStorage.getItem(ADMIN_PREFS_KEY);
+      const savedPrefs = safeGetItem(ADMIN_PREFS_KEY);
       if (savedPrefs) {
         const prefs = JSON.parse(savedPrefs);
         
@@ -134,7 +135,7 @@
     const currentCreatorFilter = creatorFilter;
 
     try {
-      const savedPrefs = localStorage.getItem(ADMIN_PREFS_KEY);
+      const savedPrefs = safeGetItem(ADMIN_PREFS_KEY);
       const prefs = savedPrefs ? JSON.parse(savedPrefs) : {};
       
       prefs.testFilter = currentTestFilter;
@@ -142,7 +143,7 @@
       prefs.importedFilter = currentImportedFilter;
       prefs.creatorFilter = currentCreatorFilter;
       
-      localStorage.setItem(ADMIN_PREFS_KEY, JSON.stringify(prefs));
+      safeSetItem(ADMIN_PREFS_KEY, JSON.stringify(prefs));
     } catch (e) {
       console.error('Error saving admin preferences', e);
     }

@@ -2,6 +2,7 @@ import { writable } from 'svelte/store';
 import { DEFAULT_GAME_SETTINGS, APP_VERSION } from '$lib/constants';
 import type { GameSettings } from '$lib/types/settings';
 import { browser } from '$app/environment';
+import { safeGetItem, safeSetItem } from '$lib/utils/safeStorage';
 
 /**
  * Validates if the loaded data matches GameSettings interface
@@ -47,7 +48,7 @@ function createGameSettings() {
         load: () => {
             if (!browser) return;
 
-            const saved = localStorage.getItem('crokinoleGame');
+            const saved = safeGetItem('crokinoleGame');
             if (saved) {
                 try {
                     const parsed = JSON.parse(saved);
@@ -68,7 +69,7 @@ function createGameSettings() {
                         // If version changed, save immediately to update localStorage
                         if (parsed.appVersion !== APP_VERSION) {
                             // Version updated in localStorage
-                            localStorage.setItem('crokinoleGame', JSON.stringify(updatedSettings));
+                            safeSetItem('crokinoleGame', JSON.stringify(updatedSettings));
                         }
                     } else {
                         console.warn('Invalid settings in localStorage, using defaults');
@@ -87,7 +88,7 @@ function createGameSettings() {
             if (!browser) return;
 
             update(settings => {
-                localStorage.setItem('crokinoleGame', JSON.stringify(settings));
+                safeSetItem('crokinoleGame', JSON.stringify(settings));
                 return settings;
             });
         }

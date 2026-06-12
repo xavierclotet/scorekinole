@@ -1,5 +1,6 @@
 <script lang="ts">
   import { browser } from '$app/environment';
+  import { safeGetItem, safeSetItem } from '$lib/utils/safeStorage';
   import { untrack } from 'svelte';
   import { vibratePattern } from '$lib/utils/vibration';
   import Play from '@lucide/svelte/icons/play';
@@ -185,7 +186,7 @@
   $effect(() => {
     if (!browser) return;
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+      const saved = safeGetItem(STORAGE_KEY);
       if (saved) {
         const data = JSON.parse(saved);
         posX = data.x ?? (window.innerWidth / 2 - DEFAULT_WIDTH / 2);
@@ -206,7 +207,7 @@
   function savePosition() {
     if (!browser) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ x: posX, y: posY, width, height }));
+      safeSetItem(STORAGE_KEY, JSON.stringify({ x: posX, y: posY, width, height }));
     } catch {
       // Storage full or unavailable
     }

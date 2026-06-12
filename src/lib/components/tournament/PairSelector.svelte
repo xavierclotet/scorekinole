@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte';
+  import { generateId } from '$lib/utils/id';
   import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
   import UserPlus from '@lucide/svelte/icons/user-plus';
   import X from '@lucide/svelte/icons/x';
@@ -188,7 +189,7 @@
     }
 
     const participant: Partial<TournamentParticipant> = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       name: p1Selected.name,
       type: p1Selected.type,
       userId: p1Selected.userId,

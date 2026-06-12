@@ -11,6 +11,7 @@
 	import { adminTheme } from '$lib/stores/theme';
 	import { trackPageView } from '$lib/utils/pageViewTracker';
 	import EmailVerificationBanner from '$lib/components/EmailVerificationBanner.svelte';
+	import StorageBlockedBanner from '$lib/components/StorageBlockedBanner.svelte';
 	import ReloadPrompt from '$lib/components/ReloadPrompt.svelte';
 	import '../app.css';
 
@@ -155,6 +156,8 @@
 {#if $emailVerificationPending && $currentUser}
 	<EmailVerificationBanner />
 {/if}
+
+<StorageBlockedBanner />
 
 {@render children()}
 

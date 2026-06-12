@@ -37,6 +37,13 @@ export async function requestNotificationPermission(): Promise<string | null> {
 		return null;
 	}
 
+	// iOS Safari (not installed as PWA) and some WebViews don't expose the
+	// Notification global at all — referencing it directly throws.
+	if (typeof Notification === 'undefined' || !('serviceWorker' in navigator)) {
+		console.warn('Push notifications not supported in this browser');
+		return null;
+	}
+
 	// Ask for permission
 	const permission = await Notification.requestPermission();
 	if (permission !== 'granted') {

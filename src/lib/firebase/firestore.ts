@@ -2,6 +2,7 @@ import { db, auth, isFirebaseEnabled } from './config';
 import { currentUser } from './auth';
 import { get } from 'svelte/store';
 import { browser } from '$app/environment';
+import { safeGetItem, safeSetItem, safeRemoveItem } from '$lib/utils/safeStorage';
 import type { MatchHistory, MatchGame, MatchRound } from '$lib/types/history';
 import type { Tournament, GroupMatch, BracketMatch, TournamentParticipant } from '$lib/types/tournament';
 import { getParticipantDisplayName } from '$lib/types/tournament';
@@ -125,17 +126,17 @@ interface PendingFriendlyMatch {
 
 export function savePendingFriendlyMatch(data: PendingFriendlyMatch): void {
 	if (!browser) return;
-	localStorage.setItem(PENDING_FRIENDLY_KEY, JSON.stringify(data));
+	safeSetItem(PENDING_FRIENDLY_KEY, JSON.stringify(data));
 }
 
 export function removePendingFriendlyMatch(): void {
 	if (!browser) return;
-	localStorage.removeItem(PENDING_FRIENDLY_KEY);
+	safeRemoveItem(PENDING_FRIENDLY_KEY);
 }
 
 export async function retryPendingFriendlyMatch(): Promise<boolean> {
 	if (!browser) return false;
-	const raw = localStorage.getItem(PENDING_FRIENDLY_KEY);
+	const raw = safeGetItem(PENDING_FRIENDLY_KEY);
 	if (!raw) return false;
 
 	try {

@@ -680,6 +680,8 @@
   "common_clearLocalData": "Borrar datos locales",
   "common_close": "Cerrar",
   "common_comingSoon": "Próximamente",
+  "common_storageBlockedTitle": "Almacenamiento bloqueado",
+  "common_storageBlockedMessage": "Tu navegador bloquea las cookies o los datos de sitios web. La app funciona, pero tus partidas y ajustes no se guardarán en este dispositivo. Permite las cookies en los ajustes del navegador para conservar tu progreso.",
   "common_confirm": "Confirmar",
   "common_darkMode": "Modo Oscuro",
   "common_delete": "Eliminar",

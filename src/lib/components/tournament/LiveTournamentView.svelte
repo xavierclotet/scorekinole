@@ -1060,7 +1060,7 @@
 																			<Check class={['mr-2 size-3', getBumpHighlight(group.id).length === 0 ? 'opacity-100' : 'opacity-0']} />
 																			{m.admin_allPlayers()}
 																		</Command.Item>
-																		{#each (tournament.participants.filter(p => group.participants.includes(p.id))).toSorted((a, b) => (a.name ?? '').localeCompare(b.name ?? '')) as participant}
+																		{#each (tournament.participants.filter(p => group.participants.includes(p.id))).slice().sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '')) as participant}
 																			<Command.Item
 																				value={participant.name ?? participant.id}
 																				onSelect={() => toggleBumpHighlight(group.id, participant.id)}
@@ -2468,7 +2468,7 @@
 											<Check class={['mr-2 size-3', getBumpHighlight(fsGroup.id).length === 0 ? 'opacity-100' : 'opacity-0']} />
 											{m.admin_allPlayers()}
 										</Command.Item>
-										{#each (tournament.participants.filter(p => fsGroup.participants.includes(p.id))).toSorted((a, b) => (a.name ?? '').localeCompare(b.name ?? '')) as participant}
+										{#each (tournament.participants.filter(p => fsGroup.participants.includes(p.id))).slice().sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '')) as participant}
 											<Command.Item
 												value={participant.name ?? participant.id}
 												onSelect={() => toggleBumpHighlight(fsGroup.id, participant.id)}

@@ -161,8 +161,10 @@ describe('updateTeam', () => {
 		expect(t2.name).toBe('Team 2');
 	});
 
-	it('should persist to localStorage after update', () => {
+	it('should persist to localStorage after update', async () => {
 		updateTeam(1, { name: 'Saved Team' });
+		// Saves are coalesced per tick via queueMicrotask
+		await Promise.resolve();
 		expect(localStorageMock.setItem).toHaveBeenCalledWith(
 			'crokinoleTeam1',
 			expect.stringContaining('Saved Team')
@@ -647,11 +649,13 @@ describe('loadTeams', () => {
 });
 
 describe('saveTeams', () => {
-	it('should write both teams to localStorage', () => {
+	it('should write both teams to localStorage', async () => {
 		team1.set({ ...defaultTeam1, name: 'Save1' });
 		team2.set({ ...defaultTeam2, name: 'Save2' });
 
 		saveTeams();
+		// Saves are coalesced per tick via queueMicrotask
+		await Promise.resolve();
 
 		expect(localStorageMock.setItem).toHaveBeenCalledWith(
 			'crokinoleTeam1',
@@ -661,6 +665,19 @@ describe('saveTeams', () => {
 			'crokinoleTeam2',
 			expect.stringContaining('Save2')
 		);
+	});
+
+	it('coalesces multiple same-tick saves into a single write per team', async () => {
+		updateTeam(1, { points: 1 });
+		updateTeam(1, { points: 2 });
+		updateTeam(2, { points: 3 });
+		await Promise.resolve();
+
+		const team1Writes = localStorageMock.setItem.mock.calls.filter(
+			(c: string[]) => c[0] === 'crokinoleTeam1'
+		);
+		expect(team1Writes).toHaveLength(1);
+		expect(team1Writes[0][1]).toContain('"points":2');
 	});
 });
 

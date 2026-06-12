@@ -8,6 +8,7 @@
  * disqualified players, and stale name/photo snapshots.
  */
 import type { TournamentParticipant } from '$lib/types/tournament';
+import { generateId as defaultGenerateId } from '$lib/utils/id';
 
 /** Structural subset of UserProfile the duplication needs. */
 export interface DuplicationProfile {
@@ -40,7 +41,7 @@ export async function duplicateParticipants(
 	gameType: 'singles' | 'doubles',
 	deps: DuplicateParticipantsDeps
 ): Promise<Partial<TournamentParticipant>[]> {
-	const generateId = deps.generateId ?? (() => crypto.randomUUID());
+	const generateId = deps.generateId ?? defaultGenerateId;
 
 	return Promise.all(
 		(participants ?? []).map(async (p) => {
