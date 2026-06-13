@@ -2,6 +2,13 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.54] - 2026-06-13
+- New: post-match "finished" bar — clear "match over" signal with a contextual next action (next tournament match / new friendly) and a locked-board treatment (dimmed loser, trophy/lock)
+- Faster /admin/matches: year filter that scopes Firestore queries server-side (defaults to the current year), so the page no longer loads the whole match history at once
+- /admin/matches: free-text search replaced by a searchable player combobox that lists every player of the selected year
+- Fix: friendly matches no longer fail to save on `undefined` fields (Firestore `ignoreUndefinedProperties` on client + Cloud Functions)
+- Fix: 500 Internal Error on hard refresh (F5) of /admin pages — admin is now client-only (no SSR)
+
 ## [2.5.53] - 2026-06-12
 - Performance: Firestore persistent cache (IndexedDB) — instant reads of recently seen data, writes queue offline and sync on reconnect
 - Performance: tournament tap-to-play skips redundant full-tournament fetches (in-memory cache fed by live subscriptions, unified start/resume in one transaction)
