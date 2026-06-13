@@ -3,15 +3,19 @@
   import MatchEditModal from '$lib/components/MatchEditModal.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
   import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
+  import * as Command from '$lib/components/ui/command';
+  import * as Popover from '$lib/components/ui/popover';
+  import { Button } from '$lib/components/ui/button';
+  import { tick } from 'svelte';
   import * as m from '$lib/paraglide/messages.js';
   import { goto } from '$app/navigation';
   import { adminTheme } from '$lib/stores/theme';
   import { currentUser } from '$lib/firebase/auth';
-  import { getMatchesPaginated, fetchAllMatches, adminDeleteMatch } from '$lib/firebase/admin';
+  import { getMatchesPaginated, fetchAllMatches, adminDeleteMatch, getEarliestMatchYear } from '$lib/firebase/admin';
   import type { MatchHistory } from '$lib/types/history';
   import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
   import ArrowLeft from '@lucide/svelte/icons/arrow-left';
-  import Search from '@lucide/svelte/icons/search';
+  import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
   import Crown from '@lucide/svelte/icons/crown';
   import Trash2 from '@lucide/svelte/icons/trash-2';
   import CircleAlert from '@lucide/svelte/icons/circle-alert';
@@ -23,11 +27,17 @@
   let isDeleting = $state(false);
   let errorMessage = $state('');
   let selectedMatch: MatchHistory | null = $state(null);
-  let searchQuery = $state('');
   let filterType: 'all' | 'singles' | 'doubles' = $state('all');
   let playerFilter = $state('');
   let matchToDelete: MatchHistory | null = $state(null);
   const pageSize = 15;
+
+  // Year filter: scopes all server queries (paginated list, count, search fetch)
+  // to one calendar year so the page never pulls the whole collection at once.
+  const currentYear = new Date().getFullYear();
+  let selectedYear = $state<number | 'all'>(currentYear);
+  let availableYears = $state<number[]>([currentYear]);
+  const yearQuery = (): number | null => (selectedYear === 'all' ? null : selectedYear);
 
   // Infinite scroll state
   let totalCount = $state(0);
@@ -35,14 +45,19 @@
   let hasMore = $state(true);
   let tableContainer: HTMLElement | null = $state(null);
 
-  // Search: load all matches so the search covers the entire collection,
-  // not just the pages loaded so far (same pattern as /admin/users)
+  // Full year set, loaded lazily the first time the player combobox opens, so it
+  // can list every player of the year and filter completely — instead of only
+  // the pages loaded so far. Null until loaded; once set, the table renders over it.
   let allMatchesCache: MatchHistory[] | null = $state(null);
-  let isSearchLoading = $state(false);
+  let isPlayerListLoading = $state(false);
+
+  // Searchable player combobox state
+  let playerComboOpen = $state(false);
+  let playerTriggerRef = $state<HTMLButtonElement | null>(null);
 
   // Derived counts — same source as filteredMatches so the tab counters
   // stay coherent with what the list is actually showing
-  let countSource = $derived(isSearching && allMatchesCache ? allMatchesCache : matches);
+  let countSource = $derived(allMatchesCache ?? matches);
   let singlesCount = $derived(countSource.filter(m => (m.gameType || 'singles') === 'singles').length);
   let doublesCount = $derived(countSource.filter(m => m.gameType === 'doubles').length);
 
@@ -95,9 +110,9 @@
     return Array.from(playerMap.values()).sort((a, b) => a.name.localeCompare(b.name));
   })());
 
-  let isSearching = $derived(searchQuery.trim().length > 0);
   let isFiltering = $derived(filterType !== 'all');
   let isPlayerFiltering = $derived(playerFilter !== '');
+  let selectedPlayerName = $derived(uniquePlayers.find((p) => p.id === playerFilter)?.name ?? '');
 
   // Auto-load more if container doesn't have scroll (also when a filter
   // shrinks the visible rows — filters apply client-side over loaded pages,
@@ -106,7 +121,7 @@
     // Track so the effect re-runs when filters change the visible rows
     const _ = filteredMatches.length;
 
-    if (tableContainer && hasMore && !isLoading && !isLoadingMore && !isSearching) {
+    if (tableContainer && hasMore && !isLoading && !isLoadingMore && !allMatchesCache) {
       // Wait for the DOM to reflect the new rows before measuring scroll
       requestAnimationFrame(() => {
         if (tableContainer && tableContainer.scrollHeight <= tableContainer.clientHeight) {
@@ -116,9 +131,10 @@
     }
   });
 
-  // Filtered matches. While searching, filter over the full cache so results
-  // cover the entire collection instead of only the loaded pages.
-  let filteredMatches = $derived((isSearching && allMatchesCache ? allMatchesCache : matches).filter((match) => {
+  // Filtered matches. Once the full year set is loaded (player combobox opened),
+  // filter over it so type/player filters are complete; otherwise over the
+  // paginated pages loaded so far.
+  let filteredMatches = $derived((allMatchesCache ?? matches).filter((match) => {
     const matchType = match.gameType || 'singles';
     if (filterType === 'singles' && matchType !== 'singles') return false;
     if (filterType === 'doubles' && matchType !== 'doubles') return false;
@@ -126,39 +142,27 @@
     if (isPlayerFiltering && !getMatchPlayerIds(match).includes(playerFilter)) {
       return false;
     }
-
-    if (isSearching) {
-      const query = searchQuery.toLowerCase();
-      return (
-        (match.team1Name ?? '').toLowerCase().includes(query) ||
-        (match.team2Name ?? '').toLowerCase().includes(query) ||
-        match.eventTitle?.toLowerCase().includes(query) ||
-        match.matchPhase?.toLowerCase().includes(query) ||
-        match.id.toLowerCase().includes(query)
-      );
-    }
     return true;
   }));
 
-  let displayTotal = $derived(isSearching || isFiltering || isPlayerFiltering ? filteredMatches.length : totalCount);
+  let displayTotal = $derived(isFiltering || isPlayerFiltering ? filteredMatches.length : totalCount);
 
-  // Debounced search: fetch all matches on first search attempt
+  // Lazily load the full year set the first time the player combobox opens, so
+  // it lists every player of the year and player filtering is complete.
+  async function ensureFullSetLoaded() {
+    if (allMatchesCache || isPlayerListLoading) return;
+    isPlayerListLoading = true;
+    try {
+      allMatchesCache = await fetchAllMatches(yearQuery());
+    } catch (error) {
+      console.error('Error loading matches for player filter:', error);
+    } finally {
+      isPlayerListLoading = false;
+    }
+  }
+
   $effect(() => {
-    const query = searchQuery.trim();
-    if (query.length === 0 || allMatchesCache) return;
-
-    const timer = setTimeout(async () => {
-      isSearchLoading = true;
-      try {
-        allMatchesCache = await fetchAllMatches();
-      } catch (error) {
-        console.error('Error loading matches for search:', error);
-      } finally {
-        isSearchLoading = false;
-      }
-    }, 300);
-
-    return () => clearTimeout(timer);
+    if (playerComboOpen) ensureFullSetLoaded();
   });
 
   // Wait for auth before loading - prevents race condition where
@@ -169,8 +173,37 @@
     if ($currentUser && !initialLoadDone) {
       initialLoadDone = true;
       loadInitialMatches();
+      loadAvailableYears();
     }
   });
+
+  // Build the year-filter options from the oldest match up to the current year.
+  async function loadAvailableYears() {
+    const earliest = await getEarliestMatchYear();
+    if (earliest && earliest < currentYear) {
+      const years: number[] = [];
+      for (let y = currentYear; y >= earliest; y--) years.push(y);
+      availableYears = years;
+    } else {
+      availableYears = [currentYear];
+    }
+  }
+
+  // Reload from scratch when the selected year changes. Invalidates the full-set
+  // cache (re-fetched scoped to the new year when the combobox reopens) and
+  // clears the player filter, since the player may not exist in the new year.
+  function onYearChange() {
+    allMatchesCache = null;
+    playerFilter = '';
+    loadInitialMatches();
+  }
+
+  // Select a player from the combobox (empty id = all players), then close + refocus.
+  function selectPlayer(id: string) {
+    playerFilter = id;
+    playerComboOpen = false;
+    tick().then(() => playerTriggerRef?.focus());
+  }
 
   async function loadInitialMatches() {
     isLoading = true;
@@ -179,7 +212,7 @@
     lastDoc = null;
 
     try {
-      const result = await getMatchesPaginated(pageSize, null);
+      const result = await getMatchesPaginated(pageSize, null, yearQuery());
       totalCount = result.totalCount;
       hasMore = result.hasMore;
       lastDoc = result.lastDoc;
@@ -193,11 +226,11 @@
   }
 
   async function loadMore() {
-    if (isLoadingMore || !hasMore || isSearching) return;
+    if (isLoadingMore || !hasMore || allMatchesCache) return;
 
     isLoadingMore = true;
     try {
-      const result = await getMatchesPaginated(pageSize, lastDoc);
+      const result = await getMatchesPaginated(pageSize, lastDoc, yearQuery());
       hasMore = result.hasMore;
       lastDoc = result.lastDoc;
       matches = [...matches, ...result.matches];
@@ -212,7 +245,7 @@
     const target = e.target as HTMLElement;
     const scrollBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
 
-    if (scrollBottom < 100 && hasMore && !isLoadingMore && !isSearching) {
+    if (scrollBottom < 100 && hasMore && !isLoadingMore && !allMatchesCache) {
       loadMore();
     }
   }
@@ -358,31 +391,61 @@
           </button>
         </div>
 
-        <select bind:value={playerFilter} class="player-filter">
-          <option value="">{m.admin_allPlayers()}</option>
-          {#each uniquePlayers as player}
-            <option value={player.id}>
-              {player.name}
-            </option>
+        <select bind:value={selectedYear} onchange={onYearChange} class="player-filter year-filter">
+          {#each availableYears as y}
+            <option value={y}>{y}</option>
           {/each}
+          <option value="all">{m.admin_allYears()}</option>
         </select>
+
+        <div class="player-combo">
+          <Popover.Root bind:open={playerComboOpen}>
+            <Popover.Trigger>
+              {#snippet child({ props })}
+                <Button
+                  {...props}
+                  bind:ref={playerTriggerRef}
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={playerComboOpen}
+                  class="player-combo-trigger"
+                >
+                  <span class="player-combo-label">
+                    {isPlayerFiltering ? selectedPlayerName : m.admin_allPlayers()}
+                  </span>
+                  <ChevronsUpDown class="combo-chevron" />
+                </Button>
+              {/snippet}
+            </Popover.Trigger>
+            <Popover.Content class="w-[260px] p-0" align="end">
+              <Command.Root>
+                <Command.Input placeholder={m.admin_filterByPlayer()} />
+                <Command.List>
+                  {#if isPlayerListLoading}
+                    <Command.Loading>{m.common_loading()}</Command.Loading>
+                  {:else}
+                    <Command.Empty>{m.admin_noPlayersFound()}</Command.Empty>
+                    <Command.Group>
+                      <Command.Item value={m.admin_allPlayers()} onSelect={() => selectPlayer('')}>
+                        {m.admin_allPlayers()}
+                      </Command.Item>
+                      {#each uniquePlayers as player (player.id)}
+                        <Command.Item value={player.name} onSelect={() => selectPlayer(player.id)}>
+                          {player.name}
+                        </Command.Item>
+                      {/each}
+                    </Command.Group>
+                  {/if}
+                </Command.List>
+              </Command.Root>
+            </Popover.Content>
+          </Popover.Root>
+        </div>
       </div>
     </header>
 
-    <div class="controls-section">
-      <div class="search-box">
-        <Search size={14} class="search-icon-svg" />
-        <input
-          type="text"
-          bind:value={searchQuery}
-          placeholder={m.admin_searchMatches()}
-          class="search-input"
-        />
-      </div>
-    </div>
-
-    {#if isLoading || (isSearching && isSearchLoading && !allMatchesCache)}
-      <LoadingSpinner message={isSearchLoading ? m.admin_searchingAllMatches() : m.common_loading()} />
+    {#if isLoading}
+      <LoadingSpinner message={m.common_loading()} />
     {:else if errorMessage}
       <div class="error-box">
         <CircleAlert size={40} class="error-icon-svg" />
@@ -394,7 +457,7 @@
       <div class="empty-state">
         <Target size={48} class="empty-icon-svg" />
         <h3>{m.admin_noMatchesFound()}</h3>
-        <p>{searchQuery || filterType !== 'all' ? m.admin_noMatchesFilter() : m.admin_noMatchesYet()}</p>
+        <p>{isFiltering || isPlayerFiltering ? m.admin_noMatchesFilter() : m.admin_noMatchesYet()}</p>
       </div>
     {:else}
       <div class="results-info">
@@ -480,7 +543,7 @@
 
         {#if isLoadingMore}
           <LoadingSpinner size="small" message={m.admin_loadingMore()} inline={true} />
-        {:else if hasMore && !isSearching && !isFiltering && !isPlayerFiltering}
+        {:else if hasMore && !allMatchesCache && !isFiltering && !isPlayerFiltering}
           <div class="load-more-hint">
             {m.admin_scrollToLoadMore()}
           </div>
@@ -725,55 +788,35 @@
     color: #8b9bb3;
   }
 
-  /* Controls */
-  .controls-section {
-    display: flex;
-    gap: 1rem;
-    margin-bottom: 0.75rem;
-    flex-wrap: wrap;
+  /* Player combobox (searchable filter) — replaces the old free-text search */
+  .player-combo {
+    width: 180px;
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+
+  .player-combo :global(button) {
+    display: inline-flex;
     align-items: center;
-  }
-
-  .search-box {
-    flex: 1;
-    min-width: 200px;
-    max-width: 300px;
-    position: relative;
-  }
-
-  .search-box :global(.search-icon-svg) {
-    position: absolute;
-    left: 0.75rem;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #999;
-    pointer-events: none;
-  }
-
-  .matches-container:is([data-theme='dark'], [data-theme='violet']) .search-box :global(.search-icon-svg) {
-    color: #6b7a94;
-  }
-
-  .search-input {
+    justify-content: space-between;
+    gap: 0.5rem;
     width: 100%;
-    padding: 0.5rem 0.75rem 0.5rem 2.25rem;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    background: white;
-    transition: all 0.2s;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 400;
   }
 
-  .matches-container:is([data-theme='dark'], [data-theme='violet']) .search-input {
-    background: #1a2332;
-    border-color: #2d3748;
-    color: #e1e8ed;
+  .player-combo-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  .search-input:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 15%, transparent);
+  .player-combo :global(.combo-chevron) {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    opacity: 0.5;
   }
 
   /* Results info */
@@ -1313,15 +1356,6 @@
       height: 32px;
     }
 
-    .controls-section {
-      flex-direction: column;
-      align-items: stretch;
-    }
-
-    .search-box {
-      max-width: none;
-    }
-
     .filters-row {
       flex-direction: column;
       width: 100%;
@@ -1345,6 +1379,11 @@
       width: 100%;
       padding: 0.35rem 0.5rem;
       font-size: 0.75rem;
+      margin-left: 0;
+    }
+
+    .player-combo {
+      width: 100%;
       margin-left: 0;
     }
 

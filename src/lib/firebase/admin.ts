@@ -559,9 +559,15 @@ export async function getAllMatches(limitCount: number = 100): Promise<MatchHist
 /**
  * Get matches with pagination (admin only)
  */
+/** Epoch range [start, end) for a calendar year, in local time. */
+function yearBounds(year: number): { start: number; end: number } {
+  return { start: new Date(year, 0, 1).getTime(), end: new Date(year + 1, 0, 1).getTime() };
+}
+
 export async function getMatchesPaginated(
   pageSize: number = 15,
-  lastDocument: QueryDocumentSnapshot<DocumentData> | null = null
+  lastDocument: QueryDocumentSnapshot<DocumentData> | null = null,
+  year: number | null = null
 ): Promise<PaginatedMatchesResult> {
   const emptyResult: PaginatedMatchesResult = {
     matches: [],
@@ -591,8 +597,20 @@ export async function getMatchesPaginated(
   try {
     const matchesRef = collection(db!, 'matches');
 
-    // Get total count
-    const countSnapshot = await getCountFromServer(matchesRef);
+    // Year scope (server-side): bound startTime to [yearStart, nextYearStart).
+    // Range + orderBy on the same field needs only the automatic single-field index.
+    const yearConstraints =
+      year != null
+        ? (() => {
+            const { start, end } = yearBounds(year);
+            return [where('startTime', '>=', start), where('startTime', '<', end)];
+          })()
+        : [];
+
+    // Get total count (scoped to the year when set)
+    const countSnapshot = await getCountFromServer(
+      year != null ? query(matchesRef, ...yearConstraints) : matchesRef
+    );
     const totalCount = countSnapshot.data().count;
 
     // Build paginated query
@@ -600,12 +618,13 @@ export async function getMatchesPaginated(
     if (lastDocument) {
       q = query(
         matchesRef,
+        ...yearConstraints,
         orderBy('startTime', 'desc'),
         startAfter(lastDocument),
         limit(pageSize)
       );
     } else {
-      q = query(matchesRef, orderBy('startTime', 'desc'), limit(pageSize));
+      q = query(matchesRef, ...yearConstraints, orderBy('startTime', 'desc'), limit(pageSize));
     }
 
     const snapshot = await getDocs(q);
@@ -639,7 +658,7 @@ export async function getMatchesPaginated(
  * Same rationale as fetchAllUsers: searching must cover the entire
  * collection, not just the pages loaded so far by the infinite scroll.
  */
-export async function fetchAllMatches(): Promise<MatchHistory[]> {
+export async function fetchAllMatches(year: number | null = null): Promise<MatchHistory[]> {
   if (!browser || !isFirebaseEnabled()) return [];
 
   const user = get(currentUser);
@@ -650,7 +669,14 @@ export async function fetchAllMatches(): Promise<MatchHistory[]> {
 
   try {
     const matchesRef = collection(db!, 'matches');
-    const snapshot = await getDocs(matchesRef);
+    // Scope the search fetch to the selected year so it doesn't pull the entire
+    // (ever-growing) collection — the main performance win for large datasets.
+    let scopedQuery;
+    if (year != null) {
+      const { start, end } = yearBounds(year);
+      scopedQuery = query(matchesRef, where('startTime', '>=', start), where('startTime', '<', end));
+    }
+    const snapshot = await getDocs(scopedQuery ?? matchesRef);
 
     const matches: MatchHistory[] = [];
     snapshot.forEach((docSnap) => {
@@ -669,6 +695,33 @@ export async function fetchAllMatches(): Promise<MatchHistory[]> {
   } catch (error) {
     console.error('❌ Error fetching all matches:', error);
     return [];
+  }
+}
+
+/**
+ * Calendar year of the oldest match (admin only). Used to build the year-filter
+ * options. Costs a single document read (orderBy startTime asc, limit 1).
+ * Returns null if there are no matches (or on error).
+ */
+export async function getEarliestMatchYear(): Promise<number | null> {
+  if (!browser || !isFirebaseEnabled()) return null;
+
+  const user = get(currentUser);
+  if (!user) return null;
+
+  const adminStatus = await isAdmin();
+  if (!adminStatus) return null;
+
+  try {
+    const matchesRef = collection(db!, 'matches');
+    const snapshot = await getDocs(query(matchesRef, orderBy('startTime', 'asc'), limit(1)));
+    if (snapshot.empty) return null;
+    const startTime = (snapshot.docs[0].data() as MatchHistory).startTime;
+    if (!startTime) return null;
+    return new Date(startTime).getFullYear();
+  } catch (error) {
+    console.error('❌ Error getting earliest match year:', error);
+    return null;
   }
 }
 
