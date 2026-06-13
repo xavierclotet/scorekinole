@@ -2,6 +2,14 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.55] - 2026-06-13
+- Fix: friendly-match invite no longer hangs on "Creando invitación…" — a Firestore rule was rejecting every invite creation
+- Fix: editing your display name no longer fails with a permission error
+- Fix (doubles): the invite QR now updates when you switch invite type (it could show the previous invite's QR → wrong team/role); a guest accepting any invite type is now always placed on the board
+- Analytics: page-view stats are aggregated by a Cloud Function, ending per-visit permission errors for non-admins in production
+- A11y: WinnerSplash banner is dismissible with role=status (no noninteractive-interaction warning)
+- Build: paraglide uses locale-modules in both dev and build to avoid stale per-message chunk 404s
+
 ## [2.5.54] - 2026-06-13
 - New: post-match "finished" bar — clear "match over" signal with a contextual next action (next tournament match / new friendly) and a locked-board treatment (dimmed loser, trophy/lock)
 - Faster /admin/matches: year filter that scopes Firestore queries server-side (defaults to the current year), so the page no longer loads the whole match history at once
