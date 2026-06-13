@@ -2120,3 +2120,59 @@ export const syncTournamentSummary = onDocumentWritten(
     logger.info(`Tournament summary synced: ${tournamentId} (${after.status})`);
   }
 );
+
+// ────────────────────────────────────────────────────────────────────────────
+// Page-view stats aggregation
+// ────────────────────────────────────────────────────────────────────────────
+// Clients (any authenticated visitor) write raw `pageViews` docs, but the
+// `pageViewStats` aggregation is admin-write-only by rules (it must not be
+// world-writable). This trigger performs the daily aggregation with the Admin
+// SDK — bypassing rules — so EVERY visitor's view is counted, not just admins'.
+//
+// One set(merge) with nested-map FieldValue.increment reproduces exactly the
+// document shape the client used to write (totalViews + viewsByPath/Device/
+// Platform/Browser/User maps + userNames), which the /admin analytics dashboard
+// reads via getDailyStats(). Keep the key derivation in sync with
+// src/lib/utils/pageViewPaths.ts (encodePathKey) and pageViews.ts.
+export const onPageViewCreated = onDocumentCreated(
+  {
+    document: "pageViews/{viewId}",
+    region: "europe-west1",
+  },
+  async (event) => {
+    const pv = event.data?.data();
+    if (!pv) return;
+
+    const timestamp = typeof pv.timestamp === "number" ? pv.timestamp : Date.now();
+    const dateKey = new Date(timestamp).toISOString().split("T")[0];
+
+    // encodePathKey: Firestore map keys cannot contain '/' (and we strip brackets).
+    const normalizedPath = typeof pv.normalizedPath === "string" ? pv.normalizedPath : "/";
+    const pathKey = normalizedPath.replace(/\//g, "_").replace(/[[\]]/g, "") || "_root";
+
+    const userId = typeof pv.userId === "string" ? pv.userId : "unknown";
+    const userKey = userId.replace(/\./g, "_");
+    const deviceType = pv.deviceType || "unknown";
+    const platform = pv.platform || "unknown";
+    const browserName = pv.browserName || "unknown";
+    const userName = pv.userName || "Unknown";
+
+    await getDb()
+      .collection("pageViewStats")
+      .doc(dateKey)
+      .set(
+        {
+          date: dateKey,
+          totalViews: FieldValue.increment(1),
+          updatedAt: FieldValue.serverTimestamp(),
+          viewsByPath: { [pathKey]: FieldValue.increment(1) },
+          viewsByDevice: { [deviceType]: FieldValue.increment(1) },
+          viewsByPlatform: { [platform]: FieldValue.increment(1) },
+          viewsByBrowser: { [browserName]: FieldValue.increment(1) },
+          viewsByUser: { [userKey]: FieldValue.increment(1) },
+          userNames: { [userKey]: userName },
+        },
+        { merge: true }
+      );
+  }
+);

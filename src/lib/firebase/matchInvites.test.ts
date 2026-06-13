@@ -485,5 +485,138 @@ describe('createInvite + cancelPendingInvitesForUser (doubles bugs)', () => {
 	});
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// acceptInvite — team & role assignment (singles + doubles)
+// This is the core of correctness for the invite flow: a guest must land on the
+// RIGHT team in the RIGHT role for every invite type, and bad accepts must fail.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('acceptInvite — team & role assignment', () => {
+	beforeEach(() => {
+		hoisted.resetStore();
+		hoisted.browserEnabled = true;
+		hoisted.firebaseEnabled = true;
+		hoisted.currentUser = { id: 'host-user', name: 'Host' };
+	});
+
+	afterEach(() => {
+		hoisted.browserEnabled = false;
+		hoisted.firebaseEnabled = false;
+	});
+
+	async function seedAndAccept(
+		inviteType: InviteType,
+		hostTeamNumber: 1 | 2,
+		guestUserId = 'guest-1'
+	) {
+		const inv = await createInvite(makeCreateData({ inviteType, hostTeamNumber }));
+		return acceptInvite(inv!.inviteCode, {
+			guestUserId,
+			guestUserName: 'Guest',
+			guestUserPhotoURL: null
+		});
+	}
+
+	it('singles opponent (host T1): guest joins T2 as player', async () => {
+		const r = await seedAndAccept('opponent', 1);
+		expect(r).not.toBeNull();
+		expect(r!.status).toBe('accepted');
+		expect(r!.guestTeamNumber).toBe(2);
+		expect(r!.guestRole).toBe('player');
+	});
+
+	it('opponent (host T2): guest joins T1 as player', async () => {
+		const r = await seedAndAccept('opponent', 2);
+		expect(r!.guestTeamNumber).toBe(1);
+		expect(r!.guestRole).toBe('player');
+	});
+
+	it('doubles my_partner (host T1): guest joins T1 as partner', async () => {
+		const r = await seedAndAccept('my_partner', 1);
+		expect(r!.guestTeamNumber).toBe(1);
+		expect(r!.guestRole).toBe('partner');
+	});
+
+	it('doubles my_partner (host T2): guest joins T2 as partner', async () => {
+		const r = await seedAndAccept('my_partner', 2);
+		expect(r!.guestTeamNumber).toBe(2);
+		expect(r!.guestRole).toBe('partner');
+	});
+
+	it('doubles opponent_partner (host T1): guest joins T2 as partner', async () => {
+		const r = await seedAndAccept('opponent_partner', 1);
+		expect(r!.guestTeamNumber).toBe(2);
+		expect(r!.guestRole).toBe('partner');
+	});
+
+	it('doubles opponent_partner (host T2): guest joins T1 as partner', async () => {
+		const r = await seedAndAccept('opponent_partner', 2);
+		expect(r!.guestTeamNumber).toBe(1);
+		expect(r!.guestRole).toBe('partner');
+	});
+
+	it('persists guest identity onto the invite doc', async () => {
+		const inv = await createInvite(makeCreateData({ inviteType: 'opponent', hostTeamNumber: 1 }));
+		await acceptInvite(inv!.inviteCode, {
+			guestUserId: 'guest-xyz',
+			guestUserName: 'Bob',
+			guestUserPhotoURL: 'https://x/p.jpg'
+		});
+		const stored = hoisted.store.get(inv!.id)!;
+		expect(stored.status).toBe('accepted');
+		expect(stored.guestUserId).toBe('guest-xyz');
+		expect(stored.guestUserName).toBe('Bob');
+		expect(stored.guestTeamNumber).toBe(2);
+		expect(stored.guestRole).toBe('player');
+	});
+
+	it('cannot accept your OWN invite', async () => {
+		const r = await seedAndAccept('opponent', 1, 'host-user'); // guest === host
+		expect(r).toBeNull();
+	});
+
+	it('cannot double-accept: second guest is rejected', async () => {
+		const inv = await createInvite(makeCreateData({ inviteType: 'opponent' }));
+		const first = await acceptInvite(inv!.inviteCode, {
+			guestUserId: 'guest-1',
+			guestUserName: 'G1',
+			guestUserPhotoURL: null
+		});
+		const second = await acceptInvite(inv!.inviteCode, {
+			guestUserId: 'guest-2',
+			guestUserName: 'G2',
+			guestUserPhotoURL: null
+		});
+		expect(first).not.toBeNull();
+		expect(second).toBeNull();
+		// The original guest's data must survive — not overwritten by guest-2
+		expect(hoisted.store.get(inv!.id)!.guestUserId).toBe('guest-1');
+	});
+
+	it('cannot accept an expired invite (and marks it expired)', async () => {
+		const inv = await createInvite(makeCreateData({ inviteType: 'opponent' }));
+		hoisted.store.set(inv!.id, {
+			...hoisted.store.get(inv!.id),
+			expiresAt: Timestamp.fromMillis(Date.now() - 1000)
+		});
+		const r = await acceptInvite(inv!.inviteCode, {
+			guestUserId: 'guest-1',
+			guestUserName: 'G1',
+			guestUserPhotoURL: null
+		});
+		expect(r).toBeNull();
+		expect(hoisted.store.get(inv!.id)!.status).toBe('expired');
+	});
+
+	it('returns null for an unknown invite code', async () => {
+		const r = await acceptInvite('ZZZZZZ', {
+			guestUserId: 'guest-1',
+			guestUserName: 'G1',
+			guestUserPhotoURL: null
+		});
+		expect(r).toBeNull();
+	});
+});
+
 // Import afterEach at the top level
 import { afterEach } from 'vitest';

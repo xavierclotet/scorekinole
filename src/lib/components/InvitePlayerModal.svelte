@@ -40,6 +40,8 @@
 
 	let { isOpen = false, hostTeamNumber = 1, inviteType = 'opponent', onclose }: Props = $props();
 
+	const INVITE_TYPES: InviteType[] = ['opponent', 'my_partner', 'opponent_partner'];
+
 	// Get game type from settings
 	const isDoubles = $derived($gameSettings.gameType === 'doubles');
 
@@ -75,6 +77,7 @@
 	})());
 
 	let qrCodeSvg = $state('');
+	let qrCodeUrl = $state(''); // the inviteUrl the current qrCodeSvg encodes
 	let isCreating = $state(false);
 	let isCopied = $state(false);
 	let error = $state('');
@@ -106,36 +109,50 @@
 	let secondsLeft = $derived(Math.floor((timeRemaining % 60000) / 1000));
 	let formattedSeconds = $derived(secondsLeft.toString().padStart(2, '0'));
 
-	// Generate QR code when invite is created
+	// (Re)generate the QR whenever the invite URL changes — NOT only when it's empty.
+	// Switching invite type (doubles) or renewing an expired invite changes
+	// inviteUrl; guarding on `!qrCodeSvg` left a STALE QR from the previous invite
+	// on screen, so a guest could scan it and join the WRONG team/role.
 	$effect(() => {
-		if (inviteUrl && !qrCodeSvg) {
+		if (inviteUrl && inviteUrl !== qrCodeUrl) {
+			qrCodeSvg = ''; // show the placeholder spinner while regenerating
 			generateQRCode(inviteUrl);
 		}
 	});
 
-	// When guest accepts, update the team store with their info
+	// Apply an accepted invite to the team store — for ALL invite types, not just
+	// the one currently on screen. In doubles the host can have 3 invites pending
+	// at once (opponent, my_partner, opponent_partner); a guest accepting a type
+	// that isn't the visible modal must still be placed on the board. Each invite
+	// is applied exactly once (tracked by id) so re-runs never clobber later manual
+	// edits to a team.
+	const appliedInviteIds = new Set<string>();
 	$effect(() => {
-		if (isAccepted && currentInvite) {
-			const guestTeamNumber = currentInvite.guestTeamNumber;
-			const guestRole = currentInvite.guestRole || 'player';
+		const invites = $activeInvites;
+		for (const type of INVITE_TYPES) {
+			const inv = invites[type];
+			if (!inv || inv.status !== 'accepted' || !inv.guestUserId) continue;
+			if (appliedInviteIds.has(inv.id)) continue;
 
-			if (guestTeamNumber) {
-				if (guestRole === 'partner') {
-					// Guest joins as partner
-					assignPartnerToTeam(
-						guestTeamNumber,
-						currentInvite.guestUserName || '',
-						currentInvite.guestUserId || null,
-						currentInvite.guestUserPhotoURL || null
-					);
-				} else {
-					// Guest joins as player (existing behavior)
-					updateTeam(guestTeamNumber, {
-						userId: currentInvite.guestUserId || null,
-						name: currentInvite.guestUserName || '',
-						userPhotoURL: currentInvite.guestUserPhotoURL || null
-					});
-				}
+			const guestTeamNumber = inv.guestTeamNumber;
+			if (!guestTeamNumber) continue; // malformed — don't mark applied, never assign
+			appliedInviteIds.add(inv.id);
+
+			if ((inv.guestRole || 'player') === 'partner') {
+				// Guest joins as partner
+				assignPartnerToTeam(
+					guestTeamNumber,
+					inv.guestUserName || '',
+					inv.guestUserId || null,
+					inv.guestUserPhotoURL || null
+				);
+			} else {
+				// Guest joins as player
+				updateTeam(guestTeamNumber, {
+					userId: inv.guestUserId || null,
+					name: inv.guestUserName || '',
+					userPhotoURL: inv.guestUserPhotoURL || null
+				});
 			}
 		}
 	});
@@ -190,6 +207,7 @@
 					light: '#ffffff'
 				}
 			});
+			qrCodeUrl = url; // remember which URL this SVG encodes (see the QR $effect)
 		} catch (err) {
 			console.error('Error generating QR code:', err);
 		}

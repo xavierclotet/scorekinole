@@ -7,22 +7,17 @@ import {
 	addDoc,
 	getDocs,
 	getCountFromServer,
-	doc,
-	setDoc,
-	updateDoc,
 	query,
 	where,
 	orderBy,
 	limit,
 	startAfter,
 	serverTimestamp,
-	increment,
 	type QueryDocumentSnapshot,
 	type DocumentData
 } from 'firebase/firestore';
 import { get } from 'svelte/store';
 import { browser } from '$app/environment';
-import { encodePathKey } from '$lib/utils/pageViewPaths';
 
 /**
  * Write a page view to Firestore + update daily aggregation
@@ -31,33 +26,13 @@ export async function writePageView(pageView: Omit<PageView, 'id'>): Promise<voi
 	if (!browser || !isFirebaseEnabled() || !db) return;
 
 	try {
-		// Write raw page view
+		// Write the raw page view only. The daily `pageViewStats` aggregation is
+		// owned by the onPageViewCreated Cloud Function (Admin SDK): pageViewStats is
+		// admin-write-only by Firestore rules, so a client increment here would be
+		// rejected with "Missing or insufficient permissions" for every non-admin.
 		await addDoc(collection(db, 'pageViews'), {
 			...pageView,
 			createdAt: serverTimestamp()
-		});
-
-		// Update daily aggregation
-		const dateKey = new Date(pageView.timestamp).toISOString().split('T')[0];
-		const pathKey = encodePathKey(pageView.normalizedPath);
-		const statsDocRef = doc(db, 'pageViewStats', dateKey);
-
-		// setDoc with merge creates/updates top-level fields (does NOT support dot-notation as field paths)
-		await setDoc(statsDocRef, {
-			date: dateKey,
-			totalViews: increment(1),
-			updatedAt: serverTimestamp()
-		}, { merge: true });
-
-		// updateDoc supports dot-notation for nested map fields
-		const userKey = pageView.userId.replace(/\./g, '_');
-		await updateDoc(statsDocRef, {
-			[`viewsByPath.${pathKey}`]: increment(1),
-			[`viewsByDevice.${pageView.deviceType}`]: increment(1),
-			[`viewsByPlatform.${pageView.platform}`]: increment(1),
-			[`viewsByBrowser.${pageView.browserName}`]: increment(1),
-			[`viewsByUser.${userKey}`]: increment(1),
-			[`userNames.${userKey}`]: pageView.userName
 		});
 	} catch (error) {
 		console.warn('Failed to write page view:', error);

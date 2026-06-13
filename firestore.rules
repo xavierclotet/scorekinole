@@ -122,8 +122,12 @@ service cloud.firestore {
       //     (isAdmin, isSuperAdmin, disabled, disabledBy). Disable/enable go through
       //     the disableUser/enableUser Cloud Functions (admin SDK, super-admin gated).
       //   - Owner (self): standard per-field guards.
-      //     CF-owned fields cannot be touched: tournaments[], rankingSnapshot,
-      //     playerNameLower, registrationIP, deviceFingerprint, authProvider, mergedTo.
+      //     CF/security-owned fields cannot be touched: tournaments[], rankingSnapshot,
+      //     registrationIP, deviceFingerprint, authProvider, mergedTo.
+      //     NOTE: playerNameLower is NOT locked — it is client-owned (saveUserProfile
+      //     rewrites it whenever the user edits their display name; no CF derives it).
+      //     authProvider is set once at create and never re-sent on updates, so the
+      //     lock below only blocks a malicious explicit change, not normal edits.
       allow update: if isAuthenticated() && (
         isSuperAdmin() ||
         (isAdmin()
@@ -136,7 +140,6 @@ service cloud.firestore {
          && request.resource.data.get('isSuperAdmin',      false) == resource.data.get('isSuperAdmin',      false)
          && request.resource.data.get('tournaments',          []) == resource.data.get('tournaments',          [])
          && request.resource.data.get('rankingSnapshot',    null) == resource.data.get('rankingSnapshot',    null)
-         && request.resource.data.get('playerNameLower',      '') == resource.data.get('playerNameLower',      '')
          && request.resource.data.get('registrationIP',    null) == resource.data.get('registrationIP',    null)
          && request.resource.data.get('deviceFingerprint', null) == resource.data.get('deviceFingerprint', null)
          && request.resource.data.get('authProvider',      null) == resource.data.get('authProvider',      null)
@@ -217,16 +220,17 @@ service cloud.firestore {
       // Anyone can read invites to validate invite codes
       allow read: if true;
 
-      // Authenticated + verified users may create invites with validated payload
+      // Authenticated + verified users may create invites with validated payload.
+      // NOTE: guest fields (guestUserId/guestUserName) are NOT present at create —
+      // an invite is created with only host data + a 6-char code; the guest fills in
+      // their identity when they scan the QR and accept (see the update rule below).
+      // Requiring guestUserId here rejected every invite creation.
       allow create: if isAuthenticated()
           && isEmailVerified()
           && request.resource.data.hostUserId  == request.auth.uid
           && request.resource.data.status      == 'pending'
           && request.resource.data.expiresAt   is timestamp
           && request.resource.data.expiresAt   <  request.time + duration.value(24, 'h')
-          && request.resource.data.guestUserId is string
-          && request.resource.data.guestUserId.size() > 0
-          && request.resource.data.guestUserId.size() < 200
           && (!('guestUserName' in request.resource.data) || request.resource.data.guestUserName.size() < 200)
           && (!('hostUserName'  in request.resource.data) || request.resource.data.hostUserName.size()  < 200);
 
@@ -292,7 +296,10 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // Aggregated daily page-view stats (admin-write only — was world-writable!)
+    // Aggregated daily page-view stats. Written by the onPageViewCreated Cloud
+    // Function (Admin SDK, bypasses rules) so EVERY visitor is counted — clients
+    // only create raw `pageViews` docs above. Admin-only here keeps it from being
+    // world-written; the isAdmin() create/update allows the one-off backfill tool.
     match /pageViewStats/{dateId} {
       allow create, update: if isAdmin();
       allow read: if isAdmin();

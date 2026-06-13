@@ -597,6 +597,28 @@ describe('Users', () => {
 			);
 		});
 
+		// REGRESSION (profile name edit denied with "Missing or insufficient permissions"):
+		// saveUserProfile() rewrites playerNameLower whenever the user changes their display
+		// name. playerNameLower is CLIENT-owned (no Cloud Function derives it), so a self-update
+		// that changes it MUST be allowed. authProvider is set once at create and is NOT sent on
+		// updates, so it stays locked (see U11). This payload mirrors the real update write.
+		it('U5b — usuario puede editar su nombre (payload real de saveUserProfile, cambia playerNameLower)', async () => {
+			await setupUser('user1', {
+				playerName: 'Old Name',
+				playerNameLower: 'old name',
+				authProvider: 'google',
+				key: 'ABC123'
+			});
+			const ctx = userCtx('user1');
+			await assertSucceeds(
+				updateDoc(doc(ctx.firestore(), 'users', 'user1'), {
+					playerName: 'New Name',
+					playerNameLower: 'new name',
+					country: 'ES'
+				})
+			);
+		});
+
 		it('U6 — usuario NO puede autopromocionar a isAdmin', async () => {
 			await setupUser('user1', { isAdmin: false });
 			const ctx = userCtx('user1');
@@ -810,19 +832,44 @@ describe('Users', () => {
 // -------------------------------------------------------------------------
 
 describe('MatchInvites', () => {
+	// Mirrors EXACTLY the payload that src/lib/firebase/matchInvites.ts → createInvite()
+	// writes to Firestore. Guest fields (guestUserId/guestUserName/...) are intentionally
+	// ABSENT: an invite is born with only host data + a 6-char code, and the guest fills in
+	// their identity later via an UPDATE (accept), never at create.
+	//
+	// ⚠️ REGRESSION GUARD: a create rule that requires guestUserId rejects every invitation.
+	// Because the client uses Firestore's persistent cache, the rejected setDoc() never
+	// settles, so the invite modal hangs forever on "Creando invitación...". Keep this in
+	// sync with createInvite(): the rule must accept this exact shape.
+	const realCreatePayload = () => ({
+		inviteCode: 'ETNP6A',
+		createdAt: Timestamp.fromDate(new Date()),
+		expiresAt: Timestamp.fromDate(new Date(Date.now() + 1000 * 60 * 60)), // 1h, as in the app
+		status: 'pending',
+		hostUserId: 'host-uid',
+		hostUserName: 'Alice',
+		hostUserPhotoURL: null,
+		hostTeamNumber: 1,
+		inviteType: 'opponent',
+		matchContext: {
+			team1Name: 'A', team1Color: '#ffffff',
+			team2Name: 'B', team2Color: '#000000',
+			gameMode: 'rounds', pointsToWin: 7, roundsToPlay: 4, matchesToWin: 1, gameType: 'singles'
+		}
+	});
+
+	// Minimal valid payload for targeted single-field rejection tests. Still NO guest fields.
 	const validInvite = () => ({
 		hostUserId: 'host-uid',
 		hostUserName: 'Alice',
-		guestUserId: 'guest-uid',
-		guestUserName: 'Bob',
 		status: 'pending',
 		expiresAt: Timestamp.fromDate(new Date(Date.now() + 1000 * 60 * 60 * 12)) // 12h from now
 	});
 
-	it('MI1 — usuario verificado puede crear invite válida', async () => {
+	it('MI1 — verificado puede crear invite con el payload REAL de createInvite (sin guestUserId)', async () => {
 		const ctx = userCtx('host-uid');
 		await assertSucceeds(
-			setDoc(doc(ctx.firestore(), 'matchInvites', 'invite1'), validInvite())
+			setDoc(doc(ctx.firestore(), 'matchInvites', 'invite1'), realCreatePayload())
 		);
 	});
 
@@ -863,32 +910,28 @@ describe('MatchInvites', () => {
 		);
 	});
 
-	it('MI6 — NO puede crear invite con guestUserId vacío', async () => {
+	it('MI6 — NO puede crear invite con guestUserName de 500 chars (cap defensivo si está presente)', async () => {
 		const ctx = userCtx('host-uid');
 		await assertFails(
 			setDoc(doc(ctx.firestore(), 'matchInvites', 'invite6'), {
 				...validInvite(),
-				guestUserId: ''
-			})
-		);
-	});
-
-	it('MI7 — NO puede crear invite con guestUserId de 500 chars', async () => {
-		const ctx = userCtx('host-uid');
-		await assertFails(
-			setDoc(doc(ctx.firestore(), 'matchInvites', 'invite7'), {
-				...validInvite(),
-				guestUserId: 'a'.repeat(500)
-			})
-		);
-	});
-
-	it('MI8 — NO puede crear invite con guestUserName de 500 chars', async () => {
-		const ctx = userCtx('host-uid');
-		await assertFails(
-			setDoc(doc(ctx.firestore(), 'matchInvites', 'invite8'), {
-				...validInvite(),
 				guestUserName: 'a'.repeat(500)
+			})
+		);
+	});
+
+	it('MI7 — guest puede ACEPTAR (update) una invite pending poniendo su guestUserId', async () => {
+		// Seed a pending invite created by the host (bypassing rules, like the real DB state).
+		await testEnv.withSecurityRulesDisabled(async (ctx) => {
+			await setDoc(doc(ctx.firestore(), 'matchInvites', 'invite7'), realCreatePayload());
+		});
+		// The guest scans the QR and accepts — this is where guestUserId is first written.
+		const ctx = userCtx('guest-uid');
+		await assertSucceeds(
+			updateDoc(doc(ctx.firestore(), 'matchInvites', 'invite7'), {
+				status: 'accepted',
+				guestUserId: 'guest-uid',
+				guestUserName: 'Bob'
 			})
 		);
 	});

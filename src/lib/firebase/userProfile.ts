@@ -203,17 +203,19 @@ export async function saveUserProfile(
     const profile: Partial<UserProfile & { playerNameLower: string }> = {
       playerName: playerName.trim(),
       playerNameLower: playerName.trim().toLowerCase(),
-      authProvider: getAuthProvider(),
       updatedAt: serverTimestamp()
     };
 
-    // photoURL is only written at profile CREATION (seeded from the auth
-    // provider). After that, uploadAvatar/deleteAvatar manage it directly in
-    // Firestore — rewriting it here from the in-memory currentUser would
-    // overwrite a custom photo uploaded from another device/session with a
-    // stale value on every name/country edit.
+    // photoURL and authProvider are only written at profile CREATION.
+    // - photoURL: seeded from the auth provider; after that, uploadAvatar/deleteAvatar
+    //   manage it directly — rewriting it here from the in-memory currentUser would
+    //   overwrite a custom photo uploaded from another device with a stale value.
+    // - authProvider: set once (it never changes for a user) and locked by Firestore
+    //   rules on self-update. Re-sending it on every edit would be rejected for legacy
+    //   docs where the stored value differs from getAuthProvider() → profile save fails.
     if (isNewUser) {
       profile.photoURL = user.photoURL;
+      profile.authProvider = getAuthProvider();
     }
 
     // Add optional fields
