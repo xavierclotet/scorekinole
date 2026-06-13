@@ -16,6 +16,7 @@
 	import TimeoutRoundModal from '$lib/components/TimeoutRoundModal.svelte';
 	import type { TournamentTimer } from '$lib/types/tournament';
 	import RoundsPanel from '$lib/components/RoundsPanel.svelte';
+	import MatchFinishedBar from '$lib/components/MatchFinishedBar.svelte';
 	import GameCustomizePanel from '$lib/components/GameCustomizePanel.svelte';
 	import HammerDialog from '$lib/components/HammerDialog.svelte';
 	import TwentyInputDialog from '$lib/components/TwentyInputDialog.svelte';
@@ -302,12 +303,76 @@
 		? (team1GamesWon >= 1 || team2GamesWon >= 1 || ($currentMatchGames.length > 0 && !$team1.hasWon && !$team2.hasWon))
 		: (team1GamesWon >= requiredWinsToComplete || team2GamesWon >= requiredWinsToComplete));
 
+	// ── Match-finished bar state ─────────────────────────────────
+	// Winner name (empty when tie), final score, and whether this finished
+	// match came from a tournament (decides the bar's primary CTA).
+	let finishedWinnerName = $derived($team1.hasWon ? $team1.name : ($team2.hasWon ? $team2.name : ''));
+	let finishedScore = $derived.by(() => {
+		const bestOf = ($gameSettings.matchesToWin ?? 1) > 1;
+		const winnerVal = $team2.hasWon ? (bestOf ? team2GamesWon : $team2.points) : (bestOf ? team1GamesWon : $team1.points);
+		const loserVal = $team2.hasWon ? (bestOf ? team1GamesWon : $team1.points) : (bestOf ? team2GamesWon : $team2.points);
+		if (winnerVal === 0 && loserVal === 0) return '';
+		return `${winnerVal} – ${loserVal}`;
+	});
+	let finishedFromTournament = $derived(!!$gameSettings.lastTournamentResult);
+
+	// ── Finished-bar match identity ("which match was this") ─────
+	// Mirrors the in-game tournament header wording (round/group names).
+	function translateRoundName(name: string): string {
+		const key = name.toLowerCase();
+		const roundTranslations: Record<string, string> = {
+			'final': m.tournament_final(),
+			'finals': m.tournament_final(),
+			'semifinal': m.tournament_semifinal(),
+			'semifinals': m.tournament_semifinal(),
+			'quarterfinal': m.import_quarterfinals?.() || 'Cuartos',
+			'quarterfinals': m.import_quarterfinals?.() || 'Cuartos',
+			'round of 16': m.import_round16?.() || 'Octavos',
+			'round16': m.import_round16?.() || 'Octavos',
+			'third place': m.tournament_thirdPlace?.() || '3º/4º'
+		};
+		return roundTranslations[key] || name.charAt(0).toUpperCase() + name.slice(1);
+	}
+
+	function translateGroupName(name: string): string {
+		if (name === 'Swiss') return m.tournament_swissSystem();
+		if (name === 'SINGLE_GROUP') return m.tournament_singleGroup();
+		const idMatch = name.match(/^GROUP_([A-H])$/);
+		if (idMatch) return `${m.tournament_group()} ${idMatch[1]}`;
+		if (name === 'Grupo Único') return m.tournament_singleGroup();
+		const legacyMatch = name.match(/^Grupo ([A-H])$/);
+		if (legacyMatch) return `${m.tournament_group()} ${legacyMatch[1]}`;
+		return name;
+	}
+
+	function buildTournamentMatchLabel(ctx: TournamentMatchContext): string {
+		if (ctx.phase === 'GROUP') {
+			const parts: string[] = [];
+			if (ctx.groupName) parts.push(translateGroupName(ctx.groupName));
+			if (ctx.roundNumber) parts.push(`${m.tournament_round()} ${ctx.roundNumber}`);
+			return parts.join(' · ') || m.tournament_groupStage();
+		}
+		const parts: string[] = [];
+		if (ctx.bracketRoundName) parts.push(translateRoundName(ctx.bracketRoundName));
+		if (ctx.bracketType === 'gold') parts.push(m.scoring_gold());
+		else if (ctx.bracketType === 'silver') parts.push(m.scoring_silver());
+		return parts.join(' · ') || m.tournament_finalStage();
+	}
+
+	// Stored tournament round/group label for the finished bar's chip.
+	// Friendly matches get their own status text in MatchFinishedBar, no chip.
+	let finishedContext = $derived($gameSettings.lastTournamentResult?.context ?? '');
+
 	// Bracket tiebreaker state - when in bracket mode and tied, we play extra rounds
 	let isInExtraRounds = $state(false);
 	let isExitingTournament = $state(false);
 	let isProcessingNextGame = $state(false);
 	let isStartingMatch = $state(false);
 	let isBracketMatch = $derived($gameTournamentContext?.phase === 'FINAL');
+
+	// Show the persistent "match finished" bar: only once we've left tournament
+	// mode (after the completion sync) and not while playing bracket extra rounds.
+	let showFinishedBar = $derived(isMatchComplete && !isInExtraRounds && !inTournamentMode);
 
 	// Whether a winner is required (no ties allowed):
 	// - Tournament bracket matches: always require winner
@@ -984,7 +1049,8 @@
 				team2Name: context.participantBName,
 				pointsA: isUserSideA ? totalPointsA : totalPointsB,
 				pointsB: isUserSideA ? totalPointsB : totalPointsA,
-				matchesToWin: matchesToWin
+				matchesToWin: matchesToWin,
+					context: buildTournamentMatchLabel(context)
 			}
 		}));
 
@@ -2123,7 +2189,8 @@
 					team2Name: context.participantBName,
 					pointsA: isUserSideA ? totalPointsA : totalPointsB,
 					pointsB: isUserSideA ? totalPointsB : totalPointsA,
-					matchesToWin: context.gameConfig.matchesToWin ?? 1
+					matchesToWin: context.gameConfig.matchesToWin ?? 1,
+					context: buildTournamentMatchLabel(context)
 				}
 			}));
 		}
@@ -2796,7 +2863,7 @@
 	<meta name="robots" content="noindex, nofollow" />
 </svelte:head>
 
-<div class="game-page" data-theme={$theme}>
+<div class="game-page" class:has-bottom-bar={showFinishedBar} data-theme={$theme}>
 	<header class="game-header" class:tournament-mode={inTournamentMode}>
 		{#if inTournamentMode}
 			<!-- Tournament mode header -->
@@ -3091,8 +3158,8 @@
 		</div>
 	{/if}
 
-	<!-- FABs (friendly mode only) -->
-	{#if !inTournamentMode}
+	<!-- FABs (friendly mode, match in progress) -->
+	{#if !inTournamentMode && !isMatchComplete}
 		<button
 			class="friendly-fab"
 			onclick={() => showFriendlyModal = true}
@@ -3115,6 +3182,21 @@
 			{/if}
 			<span>{m.tournament_playMatch()}</span>
 		</button>
+	{/if}
+
+	<!-- Match finished bar: persistent "match over" signal + contextual next action.
+	     Only once we've left tournament mode (after completion sync) to avoid CTA flicker. -->
+	{#if showFinishedBar}
+		<MatchFinishedBar
+			winnerName={finishedWinnerName}
+			score={finishedScore}
+			context={finishedContext}
+			isTie={isTieMatch || !finishedWinnerName}
+			fromTournament={finishedFromTournament}
+			tournamentLoading={isCheckingTournament}
+			onTournament={handleJoinTournament}
+			onFriendly={() => showFriendlyModal = true}
+		/>
 	{/if}
 </div>
 
@@ -3211,6 +3293,12 @@
 		background: linear-gradient(135deg, var(--game-bg-start) 0%, var(--game-bg-end) 100%);
 		color: var(--game-text);
 		overflow: hidden;
+	}
+
+	/* When the finished bar is in flow, it handles its own safe-area inset, so
+	   drop the page's bottom inset to let the bar sit flush against the edge. */
+	.game-page.has-bottom-bar {
+		padding-bottom: 0;
 	}
 
 	.watermark {

@@ -322,14 +322,14 @@
 								class="hammer-btn"
 								class:selected={selectedHammer === 1}
 								style="background-color: {selectedTeam1Color}; color: {getContrastColor(selectedTeam1Color)}"
-								disabled={!hasTable || isLoading}
+								disabled={isLoading}
 								onclick={() => handleHammerSelect(1)}
 							>
 								{matchInfo.participantAName.split(' / ')[0]}
 							</button>
 							<button
 								class="hammer-btn random-btn"
-								disabled={!hasTable || isLoading}
+								disabled={isLoading}
 								onclick={handleRandomHammer}
 							>
 								<Dices size={20} />
@@ -338,7 +338,7 @@
 								class="hammer-btn"
 								class:selected={selectedHammer === 2}
 								style="background-color: {selectedTeam2Color}; color: {getContrastColor(selectedTeam2Color)}"
-								disabled={!hasTable || isLoading}
+								disabled={isLoading}
 								onclick={() => handleHammerSelect(2)}
 							>
 								{matchInfo.participantBName.split(' / ')[0]}

@@ -12,6 +12,7 @@
 	import { currentUser } from '$lib/firebase/auth';
 	import { get } from 'svelte/store';
 	import PlayerAssignButton from './PlayerAssignButton.svelte';
+	import { Trophy, Lock } from '@lucide/svelte';
 
 	interface Props {
 		teamNumber?: 1 | 2;
@@ -832,6 +833,7 @@
 <div
 	class="team-card name-size-{$gameSettings.nameSize || 'medium'}"
 	class:winner={team.hasWon}
+	class:finished={isMatchComplete}
 	class:has-hammer={effectiveShowHammer && team.hasHammer}
 	style="--team-color: {team.color}; --text-color: {getContrastColor(team.color)}; --main-score-size: {$gameSettings.mainScoreSize || 12}rem"
 >
@@ -979,6 +981,17 @@
 			tabindex="0"
 			aria-label="{displayName} score: {team.points}"
 		>{team.points}</div>
+
+		<!-- Finished state: trophy for the winner, lock for everyone else (scoring is disabled) -->
+		{#if isMatchComplete}
+			<div class="match-lock" class:is-winner={team.hasWon} aria-hidden="true">
+				{#if team.hasWon}
+					<Trophy size={18} />
+				{:else}
+					<Lock size={15} />
+				{/if}
+			</div>
+		{/if}
 	</div>
 
 </div>
@@ -1003,6 +1016,35 @@
 
 	.team-card.winner {
 		box-shadow: 0 0 40px color-mix(in srgb, var(--team-color) 50%, transparent);
+	}
+
+	/* Match finished: dim the non-winner so the board reads as "settled", and
+	   make the score area no longer look tappable (scoring is already disabled). */
+	.team-card.finished:not(.winner) {
+		opacity: 0.5;
+		filter: saturate(0.85);
+	}
+	.team-card.finished .score {
+		cursor: default;
+	}
+
+	/* Trophy (winner) / lock (others) badge below the score */
+	.match-lock {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 36px;
+		height: 36px;
+		border-radius: 9999px;
+		background: color-mix(in srgb, var(--text-color) 12%, transparent);
+		color: var(--text-color);
+		opacity: 0.85;
+		z-index: 2;
+		pointer-events: none;
+	}
+	.match-lock.is-winner {
+		background: color-mix(in srgb, var(--text-color) 20%, transparent);
+		opacity: 1;
 	}
 
 	.team-header {

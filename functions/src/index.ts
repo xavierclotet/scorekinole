@@ -33,6 +33,17 @@ if (getApps().length === 0) {
   initializeApp();
 }
 
+// Omit undefined fields instead of throwing on writes. The Admin SDK rejects
+// undefined values by default (just like the client SDK), which would fail an
+// entire write — and silently drop the record — if any optional field (ranking
+// points, partner data, edition, etc.) is undefined. settings() must run once,
+// before any Firestore use; the try/catch guards warm re-evaluations.
+try {
+  getFirestore().settings({ ignoreUndefinedProperties: true });
+} catch {
+  // Already configured/used on a warm instance — safe to ignore.
+}
+
 function getDb(): Firestore {
   return getFirestore();
 }

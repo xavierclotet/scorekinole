@@ -39,7 +39,13 @@ if (browser && isFirebaseEnabled()) {
     // write queueing, cache-first onSnapshot. Multi-tab safe. Falls back to
     // in-memory cache automatically on browsers without IndexedDB.
     db = initializeFirestore(app, {
-      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+      // Optional document fields (e.g. pointsToWin in rounds mode, eventEdition for
+      // non-event matches, savedBy when logged out) are legitimately undefined.
+      // Firestore rejects undefined in setDoc/updateDoc by default, which silently
+      // dropped friendly matches. Omitting undefined fields instead fixes that class
+      // of error across every write.
+      ignoreUndefinedProperties: true
     });
     // Firebase initialized (errors are logged below)
   } catch (error) {

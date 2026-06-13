@@ -2759,10 +2759,30 @@ export async function revertBracketMatch(
       delete (loc.match as any).rounds;
       delete (loc.match as any).completedAt;
       delete (loc.match as any).duration;
+      const previousTable = (loc.match as any).playedOnTable as number | undefined;
       delete (loc.match as any).playedOnTable;
+      delete (loc.match as any).tableNumber;
       delete (loc.match as any).walkedOverAt;
       delete (loc.match as any).noShowParticipant;
       loc.match.status = 'PENDING';
+
+      // Completing a match releases its table (tableNumber → undefined). On revert,
+      // hand the match a table back so it lands on a board instead of "TBD": reuse
+      // the one it was played on if still free, otherwise the next free table. If
+      // every table is busy it stays undefined (the play dialog allows playing anyway).
+      {
+        const fs = tournament.finalStage!;
+        const numTables = tournament.numTables ?? 4;
+        const used = new Set<number>();
+        if (fs.goldBracket) for (const t of getUsedTables(fs.goldBracket)) used.add(t);
+        if (fs.silverBracket) for (const t of getUsedTables(fs.silverBracket)) used.add(t);
+        const available = getAvailableTables(used, numTables);
+        if (previousTable && !used.has(previousTable)) {
+          loc.match.tableNumber = previousTable;
+        } else if (available.length > 0) {
+          loc.match.tableNumber = available[0];
+        }
+      }
 
       // Clear winner slot in next-winner match
       if (winnerNext && oldWinner) {

@@ -81,5 +81,7 @@ export interface GameSettings {
         pointsA?: number;
         pointsB?: number;
         matchesToWin?: number;
+        /** Match identity for the finished bar: round/group label (e.g. "Cuartos · Oro", "Grupo A · Ronda 2") */
+        context?: string;
     } | null;
 }
