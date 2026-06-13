@@ -3,18 +3,23 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
 
-export default defineConfig(({ command }) => ({
+export default defineConfig(() => ({
 	plugins: [
 		paraglideVitePlugin({
 			project: './project.inlang',
 			outdir: './src/lib/paraglide',
-			// Per paraglide docs: 'locale-modules' for dev (avoids thousands of
-			// module requests in the dev server), 'message-modules' for production
-			// builds (per-message tree-shaking — each route bundles only the
-			// messages it uses instead of one ~288 KB all-messages chunk).
-			// True lazy-loading of a single locale is not supported by Paraglide
-			// (sync message functions; see inlang/paraglide-js#88).
-			outputStructure: command === 'build' ? 'message-modules' : 'locale-modules'
+			// 'locale-modules' in BOTH dev and build so paraglide always emits the
+			// same filenames (one module per locale) regardless of command. When
+			// dev and build used different layouts (message-modules for build),
+			// switching `npm run build` → `npm run dev` left open browser tabs
+			// requesting per-message files that no longer existed → spurious 404s.
+			// Trade-off: build no longer tree-shakes per message, so each route
+			// pulls the full all-messages chunk (~288 KB raw / locale) instead of
+			// only the messages it uses. Accepted because most messages are used
+			// app-wide, so the tree-shaking delta is small (re-measure if messages
+			// grow a lot). True single-locale lazy-loading isn't supported by
+			// Paraglide (sync message functions; see inlang/paraglide-js#88).
+			outputStructure: 'locale-modules'
 		}),
 		tailwindcss(),
 		sveltekit()
