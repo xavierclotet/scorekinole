@@ -88,7 +88,13 @@ export function parseRegistrationConfig(value: unknown): RegistrationConfig | un
   return {
     enabled: raw.enabled === true,
     deadline: toMillisMaybe(raw.deadline),
-    maxParticipants: typeof raw.maxParticipants === "number" ? raw.maxParticipants : undefined,
+    // Treat 0 / negative / non-finite as "no limit" — mirrors the client's
+    // buildRegistrationConfig sanitization. A stored negative would otherwise be
+    // truthy and waitlist/block EVERY sign-up.
+    maxParticipants:
+      typeof raw.maxParticipants === "number" && raw.maxParticipants > 0
+        ? raw.maxParticipants
+        : undefined,
     allowWaitlist: typeof raw.allowWaitlist === "boolean" ? raw.allowWaitlist : undefined,
   };
 }
@@ -435,7 +441,10 @@ export function applyUnregister(
   let newWaitlist = waitlist;
   let promoted = false;
 
-  if (shouldAutoPromote(waitlist, registration, newParticipants.length)) {
+  // Capacity is measured by ACTIVE rows (WITHDRAWN/DSQ free their slot), matching
+  // applyRegister — not the raw array length, which would over-count and skip a
+  // valid promotion.
+  if (shouldAutoPromote(waitlist, registration, countActiveParticipants(newParticipants))) {
     const next = waitlist[0];
     const remainingWaitlist = waitlist.slice(1);
     const safePartner = sanitizePromotedPartner(next.partner, newParticipants, remainingWaitlist, next.userId);

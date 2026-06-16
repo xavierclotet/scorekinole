@@ -576,7 +576,7 @@
 {#if reg.showParticipantList && participantCount > 0}
   <div class="enrolled-section">
     <div class="enrolled-header">
-      <span class="enrolled-title">{isDoubles ? ((m as any).registration_pairs?.() ?? 'Parejas') : m.registration_participants()}</span>
+      <span class="enrolled-title">{isDoubles ? ((m as any).registration_pairs?.() ?? 'Parejas') : m.registration_participants()}:</span>
       <span class="enrolled-count">{participantCount}{reg.maxParticipants ? `/${reg.maxParticipants}` : ''}</span>
     </div>
     <ul class="enrolled-grid">
@@ -1370,8 +1370,9 @@
 
   .enrolled-header {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    align-items: baseline;
+    justify-content: flex-start;
+    gap: 0.3rem;
     margin-bottom: 0.6rem;
   }
 

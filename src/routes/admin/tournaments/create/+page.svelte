@@ -3526,7 +3526,7 @@
               <div class="rv-section">
                 <div class="rv-label">{m.registration_enableRegistration()}</div>
                 <div class="rv-value">
-                  {#if regMaxParticipants}{m.registration_spots({ current: '0', max: String(regMaxParticipants) })}{:else}{m.registration_participants()}: {m.registration_full()}{/if}
+                  {#if regMaxParticipants}{m.registration_spots({ current: '0', max: String(regMaxParticipants) })}{:else}{m.registration_noParticipantLimit()}{/if}
                   {#if regDeadlineDate} · {m.registration_deadline()}: {regDeadlineDate}{/if}
                   {#if regEntryFee} · {regEntryFee}{/if}
                 </div>

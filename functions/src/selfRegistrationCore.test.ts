@@ -6,6 +6,7 @@ import {
   sanitizePartnerInput,
   sanitizeTeamNameInput,
   toMillisMaybe,
+  parseRegistrationConfig,
   type SelfUserInfo,
   type TournamentDocLike,
 } from "./selfRegistrationCore";
@@ -104,6 +105,30 @@ describe("toMillisMaybe", () => {
     expect(toMillisMaybe(undefined)).toBeUndefined();
     expect(toMillisMaybe("2026-01-01")).toBeUndefined();
     expect(toMillisMaybe(NaN)).toBeUndefined();
+  });
+});
+
+describe("parseRegistrationConfig", () => {
+  it("returns undefined for non-object input", () => {
+    expect(parseRegistrationConfig(null)).toBeUndefined();
+    expect(parseRegistrationConfig("nope")).toBeUndefined();
+  });
+
+  it("keeps a valid positive maxParticipants", () => {
+    expect(parseRegistrationConfig({ enabled: true, maxParticipants: 8 })?.maxParticipants).toBe(8);
+  });
+
+  // Hardening: a stored negative max is truthy and would waitlist/block EVERYONE.
+  it("treats a negative maxParticipants as no limit (undefined)", () => {
+    expect(parseRegistrationConfig({ enabled: true, maxParticipants: -3 })?.maxParticipants).toBeUndefined();
+  });
+
+  it("treats 0 maxParticipants as no limit (undefined)", () => {
+    expect(parseRegistrationConfig({ enabled: true, maxParticipants: 0 })?.maxParticipants).toBeUndefined();
+  });
+
+  it("treats a NaN maxParticipants as no limit (undefined)", () => {
+    expect(parseRegistrationConfig({ enabled: true, maxParticipants: NaN })?.maxParticipants).toBeUndefined();
   });
 });
 
@@ -216,6 +241,89 @@ describe("applyRegister", () => {
     });
     expect(() => applyRegister(data, alice, undefined, undefined, NOW, "p-1")).toThrow("tournament_full");
   });
+
+  // --- No participant cap (maxParticipants undefined ⇒ unlimited registration) ---
+
+  it("registers with no maxParticipants even when many are already registered (never full)", () => {
+    const participants = Array.from({ length: 50 }, (_, i) => ({
+      id: `p-${i}`,
+      userId: `u-${i}`,
+      name: `Player ${i}`,
+      status: "ACTIVE",
+    }));
+    const data = draftTournament({
+      registration: { enabled: true }, // no maxParticipants → unlimited
+      participants,
+    });
+    const result = applyRegister(data, alice, undefined, undefined, NOW, "p-new");
+    expect(result.outcome).toBe("registered");
+    const update = result.update as { participants: any[] };
+    expect(update.participants).toHaveLength(51);
+    expect(update.participants.some((p) => p.userId === "alice-uid")).toBe(true);
+  });
+
+  it("registers with no maxParticipants even when waitlist is disabled (no cap ⇒ never routes to waitlist or blocks)", () => {
+    const participants = Array.from({ length: 30 }, (_, i) => ({
+      id: `p-${i}`,
+      userId: `u-${i}`,
+      name: `Player ${i}`,
+      status: "ACTIVE",
+    }));
+    const data = draftTournament({
+      registration: { enabled: true, allowWaitlist: false }, // no max + no waitlist must NOT lock anyone out
+      participants,
+    });
+    const result = applyRegister(data, alice, undefined, undefined, NOW, "p-new");
+    expect(result.outcome).toBe("registered");
+    const update = result.update as { participants: any[] };
+    expect(update.participants).toHaveLength(31);
+  });
+
+  it("rejects when the caller is already on the waitlist", () => {
+    const data = draftTournament({
+      waitlist: [{ userId: "alice-uid", userName: "Alice" }],
+    });
+    expect(() => applyRegister(data, alice, undefined, undefined, NOW, "p-1")).toThrow("already_waitlisted");
+  });
+
+  it("rejects registering with yourself as your own partner", () => {
+    const partner = { type: "REGISTERED" as const, userId: "alice-uid", name: "Alice" };
+    expect(() => applyRegister(draftTournament(), alice, partner, undefined, NOW, "p-1")).toThrow("self_as_partner");
+  });
+
+  it("rejects when the chosen partner is already on the waitlist", () => {
+    const data = draftTournament({
+      waitlist: [{ userId: "bob-uid", userName: "Bob" }],
+    });
+    const partner = { type: "REGISTERED" as const, userId: "bob-uid", name: "Bob" };
+    expect(() => applyRegister(data, alice, partner, undefined, NOW, "p-1")).toThrow("partner_on_waitlist");
+  });
+
+  // Doubles: maxParticipants counts PAIRS (one participant row per team), not players.
+  it("routes a doubles team to the waitlist when pair capacity (maxParticipants) is reached", () => {
+    const data = draftTournament({
+      registration: { enabled: true, maxParticipants: 2 }, // 2 = max PAIRS
+      participants: [
+        { id: "p-0", userId: "bob-uid", name: "Bob", status: "ACTIVE", partner: { type: "GUEST", name: "B2" } },
+        { id: "p-1", userId: "carl-uid", name: "Carl", status: "ACTIVE", partner: { type: "GUEST", name: "C2" } },
+      ],
+    });
+    const partner = { type: "GUEST" as const, name: "A2" };
+    const result = applyRegister(data, alice, partner, "Team A", NOW, "p-new");
+    expect(result.outcome).toBe("waitlisted");
+    const update = result.update as { waitlist: any[] };
+    expect(update.waitlist[0]).toMatchObject({ userId: "alice-uid", partner: { type: "GUEST", name: "A2" } });
+  });
+
+  // Hardening: a corrupt negative max must NOT silently waitlist every sign-up.
+  it("registers normally when maxParticipants is negative (treated as no limit)", () => {
+    const data = draftTournament({
+      registration: { enabled: true, maxParticipants: -1 },
+      participants: [{ id: "p-0", userId: "bob-uid", name: "Bob", status: "ACTIVE" }],
+    });
+    const result = applyRegister(data, alice, undefined, undefined, NOW, "p-1");
+    expect(result.outcome).toBe("registered");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -296,6 +404,84 @@ describe("applyUnregister", () => {
     expect(() => applyUnregister(data, "alice-uid", NOW, "p-new")).toThrow(
       "Cannot unregister after tournament has started"
     );
+  });
+
+  // Capacity-aware promotion: the freed slot is filled up to (and not beyond) maxParticipants.
+  it("promotes the waitlister into the freed slot, filling exactly up to maxParticipants", () => {
+    const data = draftTournament({
+      registration: { enabled: true, maxParticipants: 2 },
+      participants: [
+        { id: "p-0", userId: "alice-uid", name: "Alice", status: "ACTIVE" },
+        { id: "p-1", userId: "bob-uid", name: "Bob", status: "ACTIVE" },
+      ],
+      waitlist: [{ userId: "carol-uid", userName: "Carol", userKey: "CCCCCC", registeredAt: 1 }],
+    });
+    const result = applyUnregister(data, "alice-uid", NOW, "p-new");
+    expect(result.promoted).toBe(true);
+    expect(result.update.participants).toHaveLength(2); // back to exactly max, never over
+    expect(result.update.participants.some((p) => p.userId === "carol-uid")).toBe(true);
+    expect(result.update.waitlist).toHaveLength(0);
+  });
+
+  // Integrity: a promoted waitlister's stale REGISTERED partner ref must be dropped
+  // when that partner is now a primary participant (otherwise they'd appear twice).
+  it("drops a promoted waitlister's partner ref when that partner is already a primary participant", () => {
+    const data = draftTournament({
+      participants: [
+        { id: "p-0", userId: "alice-uid", name: "Alice", status: "ACTIVE" },
+        { id: "p-1", userId: "bob-uid", name: "Bob", status: "ACTIVE" },
+      ],
+      waitlist: [
+        {
+          userId: "carol-uid",
+          userName: "Carol",
+          registeredAt: 1,
+          partner: { type: "REGISTERED", userId: "bob-uid", name: "Bob" },
+        },
+      ],
+    });
+    const result = applyUnregister(data, "alice-uid", NOW, "p-new");
+    expect(result.promoted).toBe(true);
+    const carol = result.update.participants.find((p) => p.userId === "carol-uid");
+    expect(carol?.partner).toBeUndefined();
+  });
+
+  // Hardening: capacity for promotion counts ACTIVE rows only. WITHDRAWN rows
+  // still occupy array slots but free their registration slot, so they must not
+  // block a valid promotion.
+  it("counts only ACTIVE participants for promotion capacity (WITHDRAWN rows free their slot)", () => {
+    const data = draftTournament({
+      registration: { enabled: true, maxParticipants: 2 },
+      participants: [
+        { id: "p-0", userId: "alice-uid", name: "Alice", status: "ACTIVE" },
+        { id: "p-1", userId: "bob-uid", name: "Bob", status: "WITHDRAWN" },
+        { id: "p-2", userId: "carl-uid", name: "Carl", status: "WITHDRAWN" },
+      ],
+      waitlist: [{ userId: "dave-uid", userName: "Dave", registeredAt: 1 }],
+    });
+    const result = applyUnregister(data, "alice-uid", NOW, "p-new");
+    expect(result.promoted).toBe(true);
+    expect(result.update.participants.some((p) => p.userId === "dave-uid")).toBe(true);
+    expect(result.update.waitlist).toHaveLength(0);
+  });
+
+  it("keeps a promoted waitlister's GUEST partner and teamName intact", () => {
+    const data = draftTournament({
+      participants: [{ id: "p-0", userId: "alice-uid", name: "Alice", status: "ACTIVE" }],
+      waitlist: [
+        {
+          userId: "carol-uid",
+          userName: "Carol",
+          registeredAt: 1,
+          partner: { type: "GUEST", name: "Zoe" },
+          teamName: "CZ",
+        },
+      ],
+    });
+    const result = applyUnregister(data, "alice-uid", NOW, "p-new");
+    const carol = result.update.participants.find((p) => p.userId === "carol-uid");
+    expect(carol?.partner).toEqual({ type: "GUEST", name: "Zoe" });
+    expect(carol?.teamName).toBe("CZ");
   });
 });
 
