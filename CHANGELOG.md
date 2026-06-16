@@ -2,6 +2,12 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.56] - 2026-06-16
+- Registration: max participants is now clearly optional — the wizard summary no longer shows "Full" when no cap is set (now "No participant limit")
+- Registration: public card header reads "ENROLLED: n/max" (label and count together instead of split apart)
+- Hardening (self-registration): a stored max ≤ 0 is treated as no-limit; waitlist promotion counts only ACTIVE participants for capacity
+- Tests: added edge cases for the no-limit path, doubles pair capacity, and waitlist-promotion integrity
+
 ## [2.5.55] - 2026-06-13
 - Fix: friendly-match invite no longer hangs on "Creando invitación…" — a Firestore rule was rejecting every invite creation
 - Fix: editing your display name no longer fails with a permission error
