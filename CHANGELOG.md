@@ -2,6 +2,11 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.57] - 2026-06-26
+- Performance: player profiles now load only the player's own tournaments (via a participantUserIds index) instead of downloading every completed tournament on the platform — scales as the platform grows
+- Fix: the profile year filter now defaults to the most recent year with matches, so a player inactive in the current year no longer opens to a blank profile
+- Ranking: violet and violet-light theme support
+
 ## [2.5.56] - 2026-06-16
 - Registration: max participants is now clearly optional — the wizard summary no longer shows "Full" when no cap is set (now "No participant limit")
 - Registration: public card header reads "ENROLLED: n/max" (label and count together instead of split apart)
