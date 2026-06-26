@@ -13,7 +13,7 @@
 <Popover.Root bind:open>
   <Popover.Trigger>
     {#snippet child({ props })}
-      <button {...props} class="info-btn" aria-label={label} onclick={(e) => e.stopPropagation()}>
+      <button {...props} class="info-btn" aria-label={label}>
         <Info class="size-3.5" />
       </button>
     {/snippet}
