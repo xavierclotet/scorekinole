@@ -3,6 +3,7 @@
 	import type { MatchHistory } from '$lib/types/history';
 	import type { TournamentRecord } from '$lib/types/tournament';
 	import { PAGE_SIZE } from '$lib/constants';
+	import { getMatchYears, pickDefaultYearFilter } from '$lib/utils/playerStatsFilters';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import Trophy from '@lucide/svelte/icons/trophy';
 	import Users from '@lucide/svelte/icons/users';
@@ -51,7 +52,9 @@
 	// svelte-ignore state_referenced_locally -- intentional: prop only seeds the initial filter values
 	let filterTournament = $state(initialTournamentFilter);
 	// svelte-ignore state_referenced_locally -- intentional: prop only seeds the initial filter values
-	let filterYear = $state(initialTournamentFilter ? '' : new Date().getFullYear().toString());
+	// Default to the current year only if it has matches, else the most recent year
+	// with data — otherwise a player inactive this year would open to a blank profile.
+	let filterYear = $state(pickDefaultYearFilter(matches, new Date().getFullYear(), !!initialTournamentFilter));
 
 	// Expanded matches for detail view
 	let expandedMatches = new SvelteSet<string>();
@@ -130,13 +133,7 @@
 		return Array.from(tournaments).sort();
 	})());
 
-	let uniqueYears = $derived((() => {
-		const years = new SvelteSet<number>();
-		for (const match of matches) {
-			years.add(new Date(match.startTime).getFullYear());
-		}
-		return Array.from(years).sort((a, b) => b - a);
-	})());
+	let uniqueYears = $derived(getMatchYears(matches));
 
 	let filteredMatches = $derived((() => {
 		return matches.filter((match) => {

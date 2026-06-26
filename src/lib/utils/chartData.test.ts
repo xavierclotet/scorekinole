@@ -157,6 +157,26 @@ describe('buildTwentiesAccuracyData', () => {
 		expect(result.doublesPoints).toEqual([]);
 	});
 
+	it('tolerates an undefined startTime without throwing (imported tournament, no dates)', () => {
+		// firestore.ts derives startTime = startedAt ?? completedAt; both can be absent.
+		const match = makeMatch({
+			gameType: 'singles',
+			startTime: undefined as unknown as number,
+			games: [{
+				gameNumber: 1, team1Points: 0, team2Points: 0, winner: null,
+				rounds: [
+					{ team1Points: 5, team2Points: 3, team1Twenty: 4, team2Twenty: 0, hammerTeam: 1, roundNumber: 1 },
+				],
+			}],
+		});
+
+		const result = buildTwentiesAccuracyData([match], getUserTeam1, getOpponent);
+		// The 20s data is still valid even without a date — the point is kept.
+		expect(result.singlesPoints).toHaveLength(1);
+		expect(result.singlesPoints[0].count).toBe(4);
+		expect(result.singlesPoints[0].percentage).toBe(50);
+	});
+
 	it('computes moving average with window = 5', () => {
 		// Create 6 singles matches with known percentages
 		const matches = Array.from({ length: 6 }, (_, i) => makeMatch({
