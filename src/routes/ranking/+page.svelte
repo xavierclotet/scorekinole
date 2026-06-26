@@ -1144,4 +1144,315 @@
 	.rankings-container[data-theme='light'] .end-of-list {
 		border-top-color: #e2e8f0;
 	}
+
+	/* ============================================
+	   Violet (dark) theme — violet-tinted variant of the base dark palette
+	   ============================================ */
+	.rankings-container[data-theme='violet'] {
+		background: #0e0e1a;
+	}
+
+	.rankings-container[data-theme='violet'] .page-header {
+		background: #161628;
+		border-bottom-color: #2a2d50;
+	}
+
+	.rankings-container[data-theme='violet'] .title-section h1 {
+		color: #e8e9f7;
+	}
+
+	.rankings-container[data-theme='violet'] .count-badge {
+		background: #0e0e1a;
+		color: #9098c0;
+	}
+
+	.rankings-container[data-theme='violet'] .filter-tab {
+		background: #1a1a30;
+		border-color: #2a2d50;
+		color: #9098c0;
+	}
+
+	.rankings-container[data-theme='violet'] .filter-tab:hover {
+		background: #23234a;
+		border-color: #818cf8;
+	}
+
+	.rankings-container[data-theme='violet'] .filter-tab.active {
+		background: linear-gradient(135deg, #818cf8 0%, #a855f7 100%);
+		color: #fff;
+		border-color: transparent;
+	}
+
+	.rankings-container[data-theme='violet'] .filter-select {
+		background-color: #1a1a30;
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%239098c0' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+		border-color: #2a2d50;
+		color: #e8e9f7;
+	}
+
+	.rankings-container[data-theme='violet'] .filter-select:focus {
+		border-color: #818cf8;
+	}
+
+	.rankings-container[data-theme='violet'] .filter-select option {
+		background: #1a1a30;
+		color: #e8e9f7;
+	}
+
+	.rankings-container[data-theme='violet'] .mode-hint,
+	.rankings-container[data-theme='violet'] .results-info {
+		color: #6a6f9c;
+	}
+
+	.rankings-container[data-theme='violet'] .spinner {
+		border-color: #2a2d50;
+		border-top-color: #818cf8;
+	}
+
+	.rankings-container[data-theme='violet'] .loading-state p {
+		color: #9098c0;
+	}
+
+	.rankings-container[data-theme='violet'] .empty-icon {
+		background: linear-gradient(135deg, rgba(129, 140, 248, 0.15) 0%, rgba(168, 85, 247, 0.15) 100%);
+	}
+
+	.rankings-container[data-theme='violet'] .empty-icon svg {
+		stroke: #818cf8;
+	}
+
+	.rankings-container[data-theme='violet'] .empty-title {
+		color: #e8e9f7;
+	}
+
+	.rankings-container[data-theme='violet'] .table-container {
+		background: #1a1a30;
+		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+	}
+
+	.rankings-container[data-theme='violet'] .rankings-table thead {
+		background: #0e0e1a;
+		border-bottom-color: #2a2d50;
+	}
+
+	.rankings-container[data-theme='violet'] .rankings-table th {
+		color: #9098c0;
+	}
+
+	.rankings-container[data-theme='violet'] .player-row {
+		border-bottom-color: #2a2d50;
+	}
+
+	.rankings-container[data-theme='violet'] .player-row:nth-child(even):not(.top-1):not(.top-2):not(.top-3) {
+		background: rgba(14, 14, 26, 0.5);
+	}
+
+	.rankings-container[data-theme='violet'] .player-row:hover {
+		background: #12121f;
+	}
+
+	.rankings-container[data-theme='violet'] .rankings-table td {
+		color: #e8e9f7;
+	}
+
+	.rankings-container[data-theme='violet'] .position {
+		background: #2a2d50;
+		color: #9098c0;
+	}
+
+	.rankings-container[data-theme='violet'] .player-avatar-placeholder {
+		background: linear-gradient(135deg, #818cf8 0%, #a855f7 100%);
+	}
+
+	.rankings-container[data-theme='violet'] .points-unit {
+		color: #6a6f9c;
+	}
+
+	.rankings-container[data-theme='violet'] .tournament-pts-value {
+		color: #9098c0;
+	}
+
+	.rankings-container[data-theme='violet'] .tournament-pts-empty {
+		color: #3a3a5e;
+	}
+
+	.rankings-container[data-theme='violet'] .load-more-hint,
+	.rankings-container[data-theme='violet'] .end-of-list {
+		color: #6a6f9c;
+	}
+
+	.rankings-container[data-theme='violet'] .end-of-list {
+		border-top-color: #2a2d50;
+	}
+
+	/* ============================================
+	   Violet (light) theme — violet-tinted variant of the light palette
+	   ============================================ */
+	.rankings-container[data-theme='violet-light'] {
+		background: #f4f4fc;
+	}
+
+	.rankings-container[data-theme='violet-light'] .page-header {
+		background: #ffffff;
+		border-bottom-color: #e7e7f5;
+	}
+
+	.rankings-container[data-theme='violet-light'] .title-section h1 {
+		color: #151525;
+	}
+
+	.rankings-container[data-theme='violet-light'] .count-badge {
+		background: #ececf7;
+		color: #5b60a0;
+	}
+
+	.rankings-container[data-theme='violet-light'] .filter-tab {
+		background: #ffffff;
+		border-color: #e7e7f5;
+		color: #5b60a0;
+	}
+
+	.rankings-container[data-theme='violet-light'] .filter-tab:hover {
+		background: #f3f3fc;
+		border-color: #6366f1;
+	}
+
+	.rankings-container[data-theme='violet-light'] .filter-tab.active {
+		background: linear-gradient(135deg, #6366f1 0%, #9333ea 100%);
+		color: #fff;
+		border-color: transparent;
+	}
+
+	.rankings-container[data-theme='violet-light'] .filter-select {
+		background-color: #ffffff;
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%235b60a0' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+		border-color: #e7e7f5;
+		color: #151525;
+	}
+
+	.rankings-container[data-theme='violet-light'] .filter-select:focus {
+		border-color: #6366f1;
+	}
+
+	.rankings-container[data-theme='violet-light'] .filter-select option {
+		background: #ffffff;
+		color: #151525;
+	}
+
+	.rankings-container[data-theme='violet-light'] .mode-hint,
+	.rankings-container[data-theme='violet-light'] .results-info {
+		color: #7177ab;
+	}
+
+	.rankings-container[data-theme='violet-light'] .spinner {
+		border-color: #e7e7f5;
+		border-top-color: #6366f1;
+	}
+
+	.rankings-container[data-theme='violet-light'] .loading-state p {
+		color: #7177ab;
+	}
+
+	.rankings-container[data-theme='violet-light'] .empty-icon {
+		background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(168, 85, 247, 0.1) 100%);
+	}
+
+	.rankings-container[data-theme='violet-light'] .empty-icon svg {
+		stroke: #a3a3cc;
+	}
+
+	.rankings-container[data-theme='violet-light'] .empty-title {
+		color: #151525;
+	}
+
+	.rankings-container[data-theme='violet-light'] .table-container {
+		background: #ffffff;
+		box-shadow: 0 1px 3px rgba(40, 30, 90, 0.08);
+	}
+
+	.rankings-container[data-theme='violet-light'] .rankings-table thead {
+		background: #f3f3fc;
+		border-bottom-color: #e7e7f5;
+	}
+
+	.rankings-container[data-theme='violet-light'] .rankings-table th {
+		color: #5b60a0;
+	}
+
+	.rankings-container[data-theme='violet-light'] .player-row {
+		border-bottom-color: #e7e7f5;
+	}
+
+	.rankings-container[data-theme='violet-light'] .player-row:nth-child(even):not(.top-1):not(.top-2):not(.top-3) {
+		background: rgba(243, 243, 252, 0.6);
+	}
+
+	.rankings-container[data-theme='violet-light'] .player-row:hover {
+		background: #f3f3fc;
+	}
+
+	.rankings-container[data-theme='violet-light'] .player-row.top-1:hover {
+		background: rgba(255, 215, 0, 0.15);
+	}
+
+	.rankings-container[data-theme='violet-light'] .player-row.top-2:hover {
+		background: rgba(192, 192, 192, 0.15);
+	}
+
+	.rankings-container[data-theme='violet-light'] .player-row.top-3:hover {
+		background: rgba(205, 127, 50, 0.15);
+	}
+
+	.rankings-container[data-theme='violet-light'] .rankings-table td {
+		color: #151525;
+	}
+
+	.rankings-container[data-theme='violet-light'] .position {
+		background: #ececf7;
+		color: #5b60a0;
+	}
+
+	.rankings-container[data-theme='violet-light'] .player-avatar-placeholder {
+		background: linear-gradient(135deg, #6366f1 0%, #9333ea 100%);
+	}
+
+	.rankings-container[data-theme='violet-light'] .points-button {
+		background: rgba(217, 119, 6, 0.06);
+		border-color: rgba(217, 119, 6, 0.2);
+	}
+
+	.rankings-container[data-theme='violet-light'] .points-button:hover {
+		background: rgba(217, 119, 6, 0.12);
+		border-color: rgba(217, 119, 6, 0.35);
+	}
+
+	.rankings-container[data-theme='violet-light'] .points-button :global(.points-chevron) {
+		color: rgba(217, 119, 6, 0.4);
+	}
+
+	.rankings-container[data-theme='violet-light'] .points-unit {
+		color: #7177ab;
+	}
+
+	.rankings-container[data-theme='violet-light'] .tournament-pts-value {
+		color: #7177ab;
+	}
+
+	.rankings-container[data-theme='violet-light'] .tournament-pts-cell.counted .tournament-pts-value {
+		color: #b45309;
+		font-weight: 700;
+	}
+
+	.rankings-container[data-theme='violet-light'] .tournament-pts-empty {
+		color: #c9c9e4;
+	}
+
+	.rankings-container[data-theme='violet-light'] .load-more-hint,
+	.rankings-container[data-theme='violet-light'] .end-of-list {
+		color: #7177ab;
+	}
+
+	.rankings-container[data-theme='violet-light'] .end-of-list {
+		border-top-color: #e7e7f5;
+	}
 </style>
