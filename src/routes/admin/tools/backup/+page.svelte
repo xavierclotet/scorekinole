@@ -27,6 +27,8 @@
 		backfillTournamentSummaries,
 		type BackfillResult
 	} from '$lib/firebase/tournamentSummaries';
+	import { recomputeAllStats } from '$lib/firebase/playerStats';
+	import * as m from '$lib/paraglide/messages.js';
 
 	// Tab state
 	let activeTab: 'export' | 'import' = $state('export');
@@ -53,6 +55,11 @@
 	let backfillResult = $state<BackfillResult | null>(null);
 	let backfillError = $state('');
 
+	// Maintenance: player stats recompute
+	let isRecomputing = $state(false);
+	let recomputeResult = $state<{ processed: number } | null>(null);
+	let recomputeError = $state('');
+
 	async function handleBackfillSummaries() {
 		isBackfilling = true;
 		backfillResult = null;
@@ -64,6 +71,19 @@
 			backfillError = 'Error al regenerar los resúmenes (revisa la consola)';
 		}
 		isBackfilling = false;
+	}
+
+	async function handleRecomputeStats() {
+		isRecomputing = true;
+		recomputeResult = null;
+		recomputeError = '';
+		try {
+			recomputeResult = await recomputeAllStats();
+		} catch (err) {
+			console.error('Recompute stats error:', err);
+			recomputeError = `Error al recalcular (revisa la consola): ${err instanceof Error ? err.message : err}`;
+		}
+		isRecomputing = false;
 	}
 
 	// Restore state
@@ -453,6 +473,43 @@
 								<span>{backfillError}</span>
 							</div>
 						{/if}
+
+						<div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border)">
+							<p class="maintenance-hint">
+								Recalcula todas las estadísticas de jugadores (<code>playerStats</code>) a partir de los torneos existentes. Invoca la Cloud Function <code>backfillPlayerStats</code>.
+							</p>
+							<div class="section-card-footer">
+								<Button
+									variant="outline"
+									disabled={isRecomputing}
+									onclick={handleRecomputeStats}
+								>
+									{#if isRecomputing}
+										<LoaderCircle size={16} class="animate-spin" />
+										Recalculando...
+									{:else}
+										<RefreshCw size={16} />
+										{m.leaderboards_recompute?.() ?? 'Recalcular estadísticas'}
+									{/if}
+								</Button>
+							</div>
+
+							{#if recomputeResult}
+								<div class="result-banner success" style="margin-top: 8px">
+									<CircleCheck size={18} />
+									<span>
+										Estadísticas recalculadas: <strong>{recomputeResult.processed}</strong> jugadores procesados
+									</span>
+								</div>
+							{/if}
+
+							{#if recomputeError}
+								<div class="result-banner error" style="margin-top: 8px">
+									<CircleAlert size={18} />
+									<span>{recomputeError}</span>
+								</div>
+							{/if}
+						</div>
 					</div>
 				</section>
 			{/if}

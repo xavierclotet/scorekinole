@@ -1,5 +1,7 @@
 import { writable } from 'svelte/store';
 import { collection, getDocs } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getApp } from 'firebase/app';
 import { db, isFirebaseEnabled } from './config';
 import { browser } from '$app/environment';
 import type { PlayerStats } from '$lib/types/playerStats';
@@ -20,4 +22,12 @@ export async function getAllPlayerStats(): Promise<PlayerStats[]> {
     console.error('Error loading playerStats:', error);
     return [];
   }
+}
+
+/** Trigger the backfillPlayerStats Cloud Function (superadmin only). */
+export async function recomputeAllStats(): Promise<{ processed: number }> {
+  const fns = getFunctions(getApp(), 'europe-west1');
+  const call = httpsCallable<unknown, { processed: number }>(fns, 'backfillPlayerStats');
+  const res = await call({});
+  return res.data;
 }
