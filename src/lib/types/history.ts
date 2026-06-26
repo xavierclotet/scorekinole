@@ -1,3 +1,5 @@
+import type { TournamentTier } from './tournament';
+
 export interface MatchRound {
     team1Points: number;
     team2Points: number;
@@ -74,4 +76,16 @@ export interface CurrentMatch {
     startTime: number;
     games: MatchGame[];
     rounds: MatchRound[];
+}
+
+/**
+ * Per-tournament metadata for a player's palmarés, derived from the tournament
+ * doc during getTournamentMatchesForUser (no extra Firestore reads).
+ */
+export interface PalmaresMeta {
+    gameType: 'singles' | 'doubles';
+    tier?: TournamentTier;
+    partnerName?: string;
+    partnerUserId?: string;
+    edition?: number;
 }

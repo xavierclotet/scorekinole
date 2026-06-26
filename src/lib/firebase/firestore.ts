@@ -3,7 +3,7 @@ import { currentUser } from './auth';
 import { get } from 'svelte/store';
 import { browser } from '$app/environment';
 import { safeGetItem, safeSetItem, safeRemoveItem } from '$lib/utils/safeStorage';
-import type { MatchHistory, MatchGame, MatchRound } from '$lib/types/history';
+import type { MatchHistory, MatchGame, MatchRound, PalmaresMeta } from '$lib/types/history';
 import type { Tournament, GroupMatch, BracketMatch, TournamentParticipant } from '$lib/types/tournament';
 import { getParticipantDisplayName } from '$lib/types/tournament';
 import {
@@ -611,10 +611,10 @@ export async function getUserTournamentMatches(): Promise<MatchHistory[]> {
  */
 export async function getTournamentMatchesForUser(
 	userId: string
-): Promise<{ matches: MatchHistory[]; completedTournamentIds: Set<string> | null }> {
+): Promise<{ matches: MatchHistory[]; completedTournamentIds: Set<string> | null; tournamentMeta: Map<string, PalmaresMeta> }> {
 	if (!browser || !isFirebaseEnabled()) {
 		console.warn('Firebase disabled - returning empty tournament matches');
-		return { matches: [], completedTournamentIds: null };
+		return { matches: [], completedTournamentIds: null, tournamentMeta: new Map() };
 	}
 
 	return _fetchTournamentMatchesForUser(userId);
@@ -625,7 +625,7 @@ export async function getTournamentMatchesForUser(
  */
 async function _fetchTournamentMatchesForUser(
 	userId: string
-): Promise<{ matches: MatchHistory[]; completedTournamentIds: Set<string> | null }> {
+): Promise<{ matches: MatchHistory[]; completedTournamentIds: Set<string> | null; tournamentMeta: Map<string, PalmaresMeta> }> {
 	try {
 		const tournamentsRef = collection(db!, 'tournaments');
 		// Only fetch COMPLETED tournaments the user actually played in, via the
@@ -644,6 +644,7 @@ async function _fetchTournamentMatchesForUser(
 
 		const tournamentMatches: MatchHistory[] = [];
 		const completedTournamentIds = new Set<string>();
+		const tournamentMeta = new Map<string, PalmaresMeta>();
 
 		snapshot.forEach((docSnap) => {
 			const data = docSnap.data();
@@ -675,6 +676,27 @@ async function _fetchTournamentMatchesForUser(
 
 			const userParticipantIds = new Set(userParticipants.map((p: TournamentParticipant) => p.id));
 			const isDoubles = tournament.gameType === 'doubles';
+
+			// Palmarés meta — derived from the doc already in hand (no extra reads).
+			const palmaresParticipant = userParticipants[0];
+			let palmaresPartnerName: string | undefined;
+			let palmaresPartnerUserId: string | undefined;
+			if (isDoubles && palmaresParticipant) {
+				if (palmaresParticipant.userId === userId) {
+					palmaresPartnerName = palmaresParticipant.partner?.name;
+					palmaresPartnerUserId = palmaresParticipant.partner?.userId ?? undefined;
+				} else {
+					palmaresPartnerName = palmaresParticipant.name;
+					palmaresPartnerUserId = palmaresParticipant.userId ?? undefined;
+				}
+			}
+			tournamentMeta.set(docSnap.id, {
+				gameType: tournament.gameType || 'singles',
+				tier: tournament.rankingConfig?.tier,
+				partnerName: palmaresPartnerName,
+				partnerUserId: palmaresPartnerUserId,
+				edition: tournament.edition
+			});
 
 
 
@@ -952,9 +974,9 @@ async function _fetchTournamentMatchesForUser(
 		tournamentMatches.sort((a, b) => b.startTime - a.startTime);
 
 		console.log(`✅ Retrieved ${tournamentMatches.length} tournament matches for user`);
-		return { matches: tournamentMatches, completedTournamentIds };
+		return { matches: tournamentMatches, completedTournamentIds, tournamentMeta };
 	} catch (error) {
 		console.error('❌ Error getting tournament matches:', error);
-		return { matches: [], completedTournamentIds: null };
+		return { matches: [], completedTournamentIds: null, tournamentMeta: new Map() };
 	}
 }

@@ -1,7 +1,8 @@
 <script lang="ts">
 	import * as m from '$lib/paraglide/messages.js';
-	import type { MatchHistory } from '$lib/types/history';
+	import type { MatchHistory, PalmaresMeta } from '$lib/types/history';
 	import type { TournamentRecord } from '$lib/types/tournament';
+	import Palmares from '$lib/components/Palmares.svelte';
 	import { PAGE_SIZE } from '$lib/constants';
 	import { getMatchYears, pickDefaultYearFilter } from '$lib/utils/playerStatsFilters';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
@@ -28,6 +29,7 @@
 		matches: MatchHistory[];
 		userId: string;
 		tournamentRecords: TournamentRecord[];
+		tournamentMeta?: Map<string, PalmaresMeta>;
 		show20s: boolean;
 		showFriendlyFilter?: boolean;
 		showPerfectBadge?: boolean;
@@ -38,6 +40,7 @@
 		matches,
 		userId,
 		tournamentRecords,
+		tournamentMeta = new Map(),
 		show20s,
 		showFriendlyFilter = true,
 		showPerfectBadge = true,
@@ -494,6 +497,11 @@
 				</ChartWrapper>
 			{/if}
 		</div>
+
+		<!-- Palmarés -->
+		{#if filterType !== 'friendly'}
+			<Palmares records={filteredTournamentRecords} meta={tournamentMeta} year={filterYear} />
+		{/if}
 
 		<!-- Perfect Rounds Achievement -->
 		{#if showPerfectBadge && stats.perfectRounds > 0}

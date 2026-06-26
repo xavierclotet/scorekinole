@@ -6,7 +6,7 @@
 	import { buildUserProfileParam, extractUserKeyFromParam } from '$lib/utils/userProfileUrl';
 	import { getUserProfileById, getUserProfileByKey, type UserProfile } from '$lib/firebase/userProfile';
 	import { getTournamentMatchesForUser } from '$lib/firebase/firestore';
-	import type { MatchHistory } from '$lib/types/history';
+	import type { MatchHistory, PalmaresMeta } from '$lib/types/history';
 	import type { TournamentRecord } from '$lib/types/tournament';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import PullToRefresh from '$lib/components/PullToRefresh.svelte';
@@ -28,6 +28,7 @@
 	let profile = $state<UserProfile | null>(null);
 	let matches: MatchHistory[] = $state([]);
 	let tournamentRecords: TournamentRecord[] = $state([]);
+	let tournamentMeta = $state<Map<string, PalmaresMeta>>(new Map());
 	let notFound = $state(false);
 
 	// Canonical route param (slug-key) for the SEO tag — one canonical URL per
@@ -65,6 +66,7 @@
 		resolvedUserId = null;
 		matches = [];
 		tournamentRecords = [];
+		tournamentMeta = new Map();
 		try {
 			const timeout = new Promise<never>((_, reject) =>
 				setTimeout(() => reject(new Error('Timeout')), 15000)
@@ -110,13 +112,14 @@
 				});
 			}
 
-			const { matches: tournamentMatches, completedTournamentIds } = await Promise.race([
+			const { matches: tournamentMatches, completedTournamentIds, tournamentMeta: meta } = await Promise.race([
 				getTournamentMatchesForUser(userId),
 				timeout
 			]) as Awaited<ReturnType<typeof getTournamentMatchesForUser>>;
 			if (seq !== loadSeq) return;
 
 			matches = tournamentMatches;
+			tournamentMeta = meta;
 			// Mirror /ranking: drop records from test or deleted tournaments.
 			// completedTournamentIds === null means the query failed — keep all records.
 			const records = userProfile.tournaments ?? [];
@@ -237,6 +240,7 @@
 			{matches}
 			userId={resolvedUserId}
 			{tournamentRecords}
+			{tournamentMeta}
 			show20s={true}
 			showFriendlyFilter={false}
 			showPerfectBadge={false}

@@ -426,3 +426,85 @@ describe('getTournamentMatchesForUser — errors', () => {
 		expect(completedTournamentIds).toBeNull();
 	});
 });
+
+// ─────────────────────────────────────────────────
+// Palmarés metadata
+// ─────────────────────────────────────────────────
+describe('getTournamentMatchesForUser — tournamentMeta', () => {
+	it('returns singles meta with tier and edition', async () => {
+		mockSnapshot([
+			{
+				id: 'tour-1',
+				data: makeTournament({
+					gameType: 'singles',
+					edition: 3,
+					rankingConfig: { enabled: true, tier: 'SERIES_25' }
+				})
+			}
+		]);
+		const { tournamentMeta } = await getTournamentMatchesForUser(USER);
+
+		const meta = tournamentMeta.get('tour-1');
+		expect(meta).toBeDefined();
+		expect(meta?.gameType).toBe('singles');
+		expect(meta?.tier).toBe('SERIES_25');
+		expect(meta?.edition).toBe(3);
+		expect(meta?.partnerName).toBeUndefined();
+	});
+
+	it('resolves partnerName when the user is the main participant', async () => {
+		mockSnapshot([
+			{
+				id: 'tour-1',
+				data: makeTournament({
+					gameType: 'doubles',
+					participants: [
+						{
+							id: 'p1',
+							name: 'Alice',
+							userId: USER,
+							status: 'ACTIVE',
+							partner: { name: 'Pat', userId: 'pat-1' }
+						},
+						{ id: 'p2', name: 'Bob', userId: OPPONENT_USER, status: 'ACTIVE' }
+					]
+				})
+			}
+		]);
+		const { tournamentMeta } = await getTournamentMatchesForUser(USER);
+		expect(tournamentMeta.get('tour-1')?.partnerName).toBe('Pat');
+		expect(tournamentMeta.get('tour-1')?.partnerUserId).toBe('pat-1');
+	});
+
+	it('resolves partnerName when the user is the partner', async () => {
+		mockSnapshot([
+			{
+				id: 'tour-1',
+				data: makeTournament({
+					gameType: 'doubles',
+					participants: [
+						{
+							id: 'p1',
+							name: 'Alice',
+							userId: 'main-1',
+							status: 'ACTIVE',
+							partner: { name: 'Pat', userId: USER }
+						},
+						{ id: 'p2', name: 'Bob', userId: OPPONENT_USER, status: 'ACTIVE' }
+					]
+				})
+			}
+		]);
+		const { tournamentMeta } = await getTournamentMatchesForUser(USER);
+		expect(tournamentMeta.get('tour-1')?.partnerName).toBe('Alice');
+		expect(tournamentMeta.get('tour-1')?.partnerUserId).toBe('main-1');
+	});
+
+	it('omits meta for test tournaments', async () => {
+		mockSnapshot([
+			{ id: 'tour-test', data: makeTournament({ id: 'tour-test', isTest: true }) }
+		]);
+		const { tournamentMeta } = await getTournamentMatchesForUser(USER);
+		expect(tournamentMeta.has('tour-test')).toBe(false);
+	});
+});
