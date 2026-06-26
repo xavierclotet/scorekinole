@@ -11,6 +11,7 @@
 	import Check from '@lucide/svelte/icons/check';
 	import Trophy from '@lucide/svelte/icons/trophy';
 	import BarChart3 from '@lucide/svelte/icons/bar-chart-3';
+	import Medal from '@lucide/svelte/icons/medal';
 	import ChartLine from '@lucide/svelte/icons/chart-line';
 	import CirclePlus from '@lucide/svelte/icons/circle-plus';
 	import Shield from '@lucide/svelte/icons/shield';
@@ -22,7 +23,7 @@
 	import { saveUserLanguage } from '$lib/firebase/userProfile';
 	import { isAdminUser, isSuperAdminUser } from '$lib/stores/admin';
 
-	type PageId = 'game' | 'tournaments' | 'ranking' | 'my-stats';
+	type PageId = 'game' | 'tournaments' | 'ranking' | 'leaderboards' | 'my-stats';
 
 	interface Props {
 		showHome?: boolean;
@@ -66,6 +67,7 @@
 		{ id: 'game', href: '/game', labelKey: () => m.common_newGame() },
 		{ id: 'tournaments', href: '/tournaments', labelKey: () => m.common_tournaments() },
 		{ id: 'ranking', href: '/ranking', labelKey: () => m.common_rankings() },
+		{ id: 'leaderboards', href: '/leaderboards', labelKey: () => m.leaderboards_title() },
 		{ id: 'my-stats', href: '/my-stats', labelKey: () => m.stats_myStatistics() }
 	];
 
@@ -95,7 +97,8 @@
 		u: 'tournaments',
 		r: 'ranking',
 		g: 'game',
-		s: 'my-stats'
+		s: 'my-stats',
+		l: 'leaderboards'
 	};
 
 	// Keyboard shortcuts
@@ -133,7 +136,7 @@
 	});
 
 	function getNavIcon(id: PageId) {
-		return { game: CirclePlus, tournaments: Trophy, ranking: BarChart3, 'my-stats': User }[id];
+		return { game: CirclePlus, tournaments: Trophy, ranking: BarChart3, leaderboards: Medal, 'my-stats': User }[id];
 	}
 
 	function getNavShortcut(id: PageId): string | null {
@@ -141,6 +144,7 @@
 			game: 'G',
 			tournaments: 'U',
 			ranking: 'R',
+			leaderboards: 'L',
 			'my-stats': 'S'
 		};
 		return shortcuts[id] ? `Ctrl+${shortcuts[id]}` : null;
