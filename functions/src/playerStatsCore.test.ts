@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { emptyBlock, addBlock, type CounterBlock, accumulateMatch, type RawMatch } from './playerStatsCore';
+import { emptyBlock, addBlock, accumulateMatch, type RawMatch } from './playerStatsCore';
 import { computeUserStats, type RawTournament } from './playerStatsCore';
 
 describe('CounterBlock helpers', () => {
