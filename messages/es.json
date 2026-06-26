@@ -1769,6 +1769,7 @@
   "leaderboards_addPlayer": "Añadir",
   "leaderboards_noPlayers": "Sin resultados",
   "leaderboards_comparePrompt": "Añade jugadores para comparar.",
+  "leaderboards_tiedPlayers": "{n} jugadores",
   "leaderboards_scrollNote": "↔ Desliza para ver todas las columnas",
   "leaderboards_compareWith": "Comparar con…",
   "leaderboards_doublesPalmares": "Palmarés de dobles",

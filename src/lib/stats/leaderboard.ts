@@ -36,6 +36,30 @@ export function buildLeaderboard(
   return entries;
 }
 
+export interface RankedEntry extends LeaderboardEntry { rank: number; }
+
+/**
+ * Assign standard competition ranks (ties share a rank): values [5,5,4] → ranks [1,1,3].
+ * `entries` must already be sorted descending (as buildLeaderboard returns).
+ */
+export function rankEntries(entries: LeaderboardEntry[]): RankedEntry[] {
+  let rank = 0;
+  let prev = Number.NaN;
+  return entries.map((e, i) => {
+    if (e.value !== prev) { rank = i + 1; prev = e.value; }
+    return { ...e, rank };
+  });
+}
+
+/** How many entries share the top (first) value — i.e. how many are tied for #1. */
+export function topTieCount(entries: LeaderboardEntry[]): number {
+  if (entries.length === 0) return 0;
+  const top = entries[0].value;
+  let n = 0;
+  for (const e of entries) { if (e.value === top) n++; else break; }
+  return n;
+}
+
 export function availableYears(players: PlayerStats[]): string[] {
   const years = new Set<string>();
   for (const p of players) for (const y of Object.keys(p.byYear)) years.add(y);

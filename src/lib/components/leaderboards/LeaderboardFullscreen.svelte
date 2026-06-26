@@ -4,13 +4,14 @@
   import * as m from '$lib/paraglide/messages.js';
   import X from '@lucide/svelte/icons/x';
   import { formatMetric, type MetricDescriptor } from '$lib/stats/metrics';
-  import type { LeaderboardEntry } from '$lib/stats/leaderboard';
+  import { rankEntries, type LeaderboardEntry } from '$lib/stats/leaderboard';
 
   let { metric, entries, onclose }:
     { metric: MetricDescriptor; entries: LeaderboardEntry[]; onclose: () => void } = $props();
 
   let q = $state('');
-  let filtered = $derived(entries.filter((e) => e.stats.displayName.toLowerCase().includes(q.toLowerCase())));
+  let ranked = $derived(rankEntries(entries));
+  let filtered = $derived(ranked.filter((e) => e.stats.displayName.toLowerCase().includes(q.toLowerCase())));
   let label = $derived((m[metric.labelKey as keyof typeof m] as () => string)?.() ?? metric.id);
 
   onMount(() => {
@@ -31,7 +32,7 @@
     <div class="fs-list">
       {#each filtered as e (e.stats.userId)}
         <a class="fs-row" href={`/users/${e.stats.userId}`}>
-          <span class="rk">{entries.indexOf(e) + 1}</span>
+          <span class="rk">{e.rank}</span>
           {#if e.stats.photoURL}<img class="av" src={e.stats.photoURL} alt="" />{:else}<span class="av ph">{e.stats.displayName.charAt(0)}</span>{/if}
           <span class="nm">{e.stats.displayName}</span>
           <span class="val">{formatMetric(metric, e.value)}</span>

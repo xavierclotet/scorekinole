@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { scopeBlock, allTimeBlock, buildLeaderboard, availableYears } from './leaderboard';
+import { scopeBlock, allTimeBlock, buildLeaderboard, availableYears, rankEntries, topTieCount } from './leaderboard';
 import { getMetric } from './metrics';
 import { emptyCounterBlock, type CounterBlock, type PlayerStats } from '$lib/types/playerStats';
 
@@ -48,5 +48,25 @@ describe('buildLeaderboard', () => {
 
   it('availableYears returns sorted desc years present in data', () => {
     expect(availableYears([a, player('z', { '2023': {}, '2025': {} })])).toEqual(['2025', '2023']);
+  });
+});
+
+describe('rankEntries (ties share a rank)', () => {
+  const e = (id: string, value: number) => ({ stats: player(id, {}), value });
+
+  it('assigns competition ranks: [5,5,4] → [1,1,3]', () => {
+    const ranked = rankEntries([e('a', 5), e('b', 5), e('c', 4)]);
+    expect(ranked.map((r) => r.rank)).toEqual([1, 1, 3]);
+  });
+
+  it('all tied at the top share rank 1', () => {
+    const ranked = rankEntries([e('a', 1), e('b', 1), e('c', 1)]);
+    expect(ranked.map((r) => r.rank)).toEqual([1, 1, 1]);
+  });
+
+  it('topTieCount counts how many share the top value', () => {
+    expect(topTieCount([e('a', 1), e('b', 1), e('c', 1)])).toBe(3);
+    expect(topTieCount([e('a', 5), e('b', 4)])).toBe(1);
+    expect(topTieCount([])).toBe(0);
   });
 });

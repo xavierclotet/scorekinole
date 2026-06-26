@@ -4,7 +4,7 @@
   import ChevronDown from '@lucide/svelte/icons/chevron-down';
   import ChevronUp from '@lucide/svelte/icons/chevron-up';
   import Maximize from '@lucide/svelte/icons/maximize-2';
-  import { buildLeaderboard, type LeaderboardEntry } from '$lib/stats/leaderboard';
+  import { buildLeaderboard, rankEntries, type LeaderboardEntry } from '$lib/stats/leaderboard';
   import { formatMetric, type MetricDescriptor } from '$lib/stats/metrics';
   import type { PlayerStats } from '$lib/types/playerStats';
 
@@ -13,8 +13,9 @@
       onexpand: (metric: MetricDescriptor, entries: LeaderboardEntry[]) => void } = $props();
 
   let entries = $derived(buildLeaderboard(players, metric, { year, minMatches }));
+  let ranked = $derived(rankEntries(entries));
   let showTen = $state(false);
-  let visible = $derived(entries.slice(0, showTen ? 10 : 5));
+  let visible = $derived(ranked.slice(0, showTen ? 10 : 5));
   const label = $derived((m[metric.labelKey as keyof typeof m] as () => string)?.() ?? metric.id);
 </script>
 
@@ -26,9 +27,9 @@
   {#if visible.length === 0}
     <div class="lb-empty">{m.leaderboards_noData?.() ?? 'Sin datos suficientes'}</div>
   {:else}
-    {#each visible as e, i (e.stats.userId)}
-      <a class="lb-row" class:r1={i === 0} class:r2={i === 1} class:r3={i === 2} href={`/users/${e.stats.userId}`}>
-        <span class="rk">{i + 1}</span>
+    {#each visible as e (e.stats.userId)}
+      <a class="lb-row" class:r1={e.rank === 1} class:r2={e.rank === 2} class:r3={e.rank === 3} href={`/users/${e.stats.userId}`}>
+        <span class="rk">{e.rank}</span>
         {#if e.stats.photoURL}<img class="av" src={e.stats.photoURL} alt="" />{:else}<span class="av ph">{e.stats.displayName.charAt(0)}</span>{/if}
         <span class="nm">{e.stats.displayName}</span>
         <span class="val">{formatMetric(metric, e.value)}</span>

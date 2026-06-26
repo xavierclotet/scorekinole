@@ -1768,6 +1768,7 @@
   "leaderboards_addPlayer": "Add",
   "leaderboards_noPlayers": "No results",
   "leaderboards_comparePrompt": "Add players to compare.",
+  "leaderboards_tiedPlayers": "{n} players",
   "leaderboards_scrollNote": "↔ Swipe to see all columns",
   "leaderboards_compareWith": "Compare with…",
   "leaderboards_doublesPalmares": "Doubles record",

@@ -84,7 +84,7 @@
       {:else if players.length === 0}
         <p class="state">{m.leaderboards_empty?.() ?? 'Aún no hay estadísticas.'}</p>
       {:else if tab === 'records'}
-        <RecordsBand {players} />
+        <RecordsBand {players} onexpand={openFullscreen} />
         <div class="filters-wrap"><LeaderboardFilters bind:family bind:year bind:minMatches {years} /></div>
         <div class="grid">
           {#each shownMetrics as metric (metric.id)}
