@@ -113,6 +113,15 @@ export interface Tournament {
   // Participants
   participants: TournamentParticipant[];
 
+  // Flattened index of every participant + partner userId in this tournament.
+  // Exists solely to power the `array-contains` profile query in
+  // `_fetchTournamentMatchesForUser` (so a profile loads only the user's own
+  // tournaments instead of every COMPLETED tournament on the platform).
+  // Populated by the onTournamentComplete Cloud Function when a tournament
+  // completes, and backfilled for pre-existing tournaments. Absent on LIVE
+  // tournaments (the profile query only reads COMPLETED ones).
+  participantUserIds?: string[];
+
   // Phases
   groupStage?: GroupStage;
   finalStage?: FinalStage;

@@ -602,10 +602,12 @@ export async function getUserTournamentMatches(): Promise<MatchHistory[]> {
 
 /**
  * Public tournament data for a user profile (no auth required).
- * Returns the user's tournament matches plus the set of completed non-test tournament IDs,
- * so callers can filter profile tournament records the same way /ranking does
- * (test and deleted tournaments excluded). `completedTournamentIds` is null when the
- * query failed — callers should then skip filtering rather than drop everything.
+ * Returns the user's tournament matches plus the set of completed non-test tournament
+ * IDs the user participated in, so callers can filter profile tournament records the
+ * same way /ranking does (test and deleted tournaments excluded). A user's own records
+ * can only reference tournaments they played in, so the narrowed set still filters
+ * correctly. `completedTournamentIds` is null when the query failed — callers should
+ * then skip filtering rather than drop everything.
  */
 export async function getTournamentMatchesForUser(
 	userId: string
@@ -626,7 +628,18 @@ async function _fetchTournamentMatchesForUser(
 ): Promise<{ matches: MatchHistory[]; completedTournamentIds: Set<string> | null }> {
 	try {
 		const tournamentsRef = collection(db!, 'tournaments');
-		const completedQuery = query(tournamentsRef, where('status', '==', 'COMPLETED'));
+		// Only fetch COMPLETED tournaments the user actually played in, via the
+		// `participantUserIds` array-contains index — instead of downloading every
+		// COMPLETED tournament on the platform and filtering client-side.
+		// Requires the composite index (status + participantUserIds) AND the field
+		// to be populated (onTournamentComplete + one-off backfill). Deploy the
+		// index + backfill BEFORE this client change, or legacy tournaments missing
+		// the field silently drop out of profiles.
+		const completedQuery = query(
+			tournamentsRef,
+			where('status', '==', 'COMPLETED'),
+			where('participantUserIds', 'array-contains', userId)
+		);
 		const snapshot = await getDocs(completedQuery);
 
 		const tournamentMatches: MatchHistory[] = [];

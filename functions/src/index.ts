@@ -142,6 +142,7 @@ interface Tournament {
     scoringSystem?: ScoringSystem;
   };
   participants: TournamentParticipant[];
+  participantUserIds?: string[];   // Flattened participant+partner userIds (array-contains index for profile queries)
   completedAt?: number;
 }
 
@@ -570,6 +571,22 @@ async function syncGuestNames(
 /**
  * Cloud Function: Trigger when tournament status changes to COMPLETED
  */
+/**
+ * Flatten every participant + partner userId into the `participantUserIds`
+ * array-contains index read by the profile match query. De-dupes and skips
+ * empty values. Status-agnostic on purpose: the index is a coarse "did this
+ * user appear in this tournament" filter; the client still decides which
+ * individual matches to surface.
+ */
+function collectParticipantUserIds(participants: TournamentParticipant[]): string[] {
+  const ids = new Set<string>();
+  for (const p of participants ?? []) {
+    if (p.userId) ids.add(p.userId);
+    if (p.partner?.userId) ids.add(p.partner.userId);
+  }
+  return Array.from(ids);
+}
+
 export const onTournamentComplete = onDocumentUpdated(
   {
     document: "tournaments/{tournamentId}",
@@ -604,6 +621,19 @@ export const onTournamentComplete = onDocumentUpdated(
     } catch (error) {
       logger.error("Error syncing guest names:", error);
       // Non-blocking — ranking processing continues regardless
+    }
+
+    // Populate the array-contains index used by profile match queries. Do this
+    // BEFORE the ranking-disabled early return so EVERY completed tournament is
+    // indexed, not just ranked ones. Derived from afterData here; the post-ranking
+    // update below refreshes it once any guest userIds are resolved. (This .update
+    // re-fires onTournamentComplete, but the status guard above short-circuits it.)
+    try {
+      await getDb().collection("tournaments").doc(tournamentId).update({
+        participantUserIds: collectParticipantUserIds(afterData.participants),
+      });
+    } catch (error) {
+      logger.error("Error writing participantUserIds index:", error);
     }
 
     const rankingEnabled = afterData.rankingConfig?.enabled ?? false;
@@ -698,6 +728,8 @@ export const onTournamentComplete = onDocumentUpdated(
 
       await getDb().collection("tournaments").doc(tournamentId).update({
         participants: updatedParticipants,
+        // Refresh the array-contains index now that guest userIds are resolved.
+        participantUserIds: collectParticipantUserIds(updatedParticipants),
       });
 
       logger.info(`Updated participant rankings and userIds in tournament ${tournamentId}`);

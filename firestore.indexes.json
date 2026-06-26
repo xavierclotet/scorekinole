@@ -228,6 +228,14 @@
       ]
     },
     {
+      "collectionGroup": "tournaments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "participantUserIds", "arrayConfig": "CONTAINS" }
+      ]
+    },
+    {
       "collectionGroup": "venues",
       "queryScope": "COLLECTION",
       "fields": [
