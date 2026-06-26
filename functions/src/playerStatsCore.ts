@@ -131,7 +131,16 @@ function tournamentMillis(t: RawTournament): number {
 function yearOf(ms: number): string { return String(new Date(ms).getUTCFullYear()); }
 
 function activeParticipants(t: RawTournament): RawParticipant[] {
+  // treat missing status as ACTIVE (legacy records pre-dating the status field)
   return t.participants.filter((p) => p.status === 'ACTIVE' || !p.status);
+}
+
+function maybeRecord(
+  current: RecordRef | null,
+  candidate: number,
+  ctx: { tournamentId: string; tournamentName: string; date: number; opponentName?: string }
+): RecordRef | null {
+  return candidate > (current?.value ?? -1) ? { value: candidate, ...ctx } : current;
 }
 
 /** All bracket matches with their phase ('final' for the championship final, else 'ko'). */
@@ -145,7 +154,11 @@ function* bracketMatches(t: RawTournament): Generator<{ match: RawMatch; phase: 
   for (const br of brackets) {
     if (!br) continue;
     for (const round of br.rounds ?? []) {
-      const phase: MatchPhase = round.name === 'Final' ? 'final' : 'ko';
+      // App emits lowercase 'finals'; imported data may use 'Final'. 'semifinals'/'quarterfinals'
+      // also contain "final", so exclude them. Mirrors src/lib/firebase/tournamentMatches.ts:910.
+      const n = (round.name ?? '').toLowerCase();
+      const isFinal = n === 'finals' || (n.includes('final') && !n.includes('semi') && !n.includes('quarter'));
+      const phase: MatchPhase = isFinal ? 'final' : 'ko';
       for (const m of round.matches ?? []) yield { match: m, phase };
     }
     if (br.thirdPlaceMatch) yield { match: br.thirdPlaceMatch, phase: 'ko' };
@@ -179,6 +192,7 @@ export function computeUserStats(userId: string, tournaments: RawTournament[]): 
     if (!part) continue;
 
     const ms = tournamentMillis(t);
+    if (ms === 0) continue; // no reliable date; don't bucket under "1970" or corrupt streak order
     const year = yearOf(ms);
     stats.displayName = part.userId === userId ? part.name : (part.partner?.name ?? part.name);
 
@@ -219,21 +233,14 @@ export function computeUserStats(userId: string, tournaments: RawTournament[]): 
 
       const oppId = match.participantA === part.id ? match.participantB : match.participantA;
       const opponentName = (oppId && nameById.get(oppId)) || undefined;
-      if (ctx.maxTwentiesInRound > (stats.records.maxTwentiesInRound?.value ?? -1)) {
-        stats.records.maxTwentiesInRound = {
-          value: ctx.maxTwentiesInRound, tournamentId: t.id, tournamentName: t.name, date: ms, opponentName,
-        };
-      }
-      if (ctx.maxTwentiesInGame > (stats.records.maxTwentiesInGame?.value ?? -1)) {
-        stats.records.maxTwentiesInGame = {
-          value: ctx.maxTwentiesInGame, tournamentId: t.id, tournamentName: t.name, date: ms, opponentName,
-        };
-      }
+      const refCtx = { tournamentId: t.id, tournamentName: t.name, date: ms, opponentName };
+      stats.records.maxTwentiesInRound = maybeRecord(stats.records.maxTwentiesInRound, ctx.maxTwentiesInRound, refCtx);
+      stats.records.maxTwentiesInGame = maybeRecord(stats.records.maxTwentiesInGame, ctx.maxTwentiesInGame, refCtx);
     }
   }
 
   // Longest consecutive run of wins over the chronological timeline.
-  timeline.sort((a, b) => a.ms - b.ms);
+  timeline.sort((a, b) => a.ms - b.ms); // outer loop is already chronological; this guards future refactors
   let cur = 0;
   for (const m of timeline) { cur = m.won ? cur + 1 : 0; if (cur > stats.records.bestWinStreak) stats.records.bestWinStreak = cur; }
 

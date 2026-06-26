@@ -88,7 +88,7 @@ function singlesTournament(over: Partial<RawTournament> = {}): RawTournament {
         { gameNumber: 1, roundInGame: 2, pointsA: 2, pointsB: 0, twentiesA: 4, twentiesB: 2, hammer: 'pB' },
       ],
     }] }] }] },
-    finalStage: { goldBracket: { rounds: [{ name: 'Final', matches: [{
+    finalStage: { goldBracket: { rounds: [{ name: 'finals', matches: [{
       participantA: 'pA', participantB: 'pB', winner: 'pA', totalPointsA: 7, totalPointsB: 5,
       rounds: [{ gameNumber: 1, roundInGame: 1, pointsA: 2, pointsB: 0, twentiesA: 8, twentiesB: 0, hammer: 'pA' }],
     }] }] } },
@@ -141,5 +141,61 @@ describe('computeUserStats', () => {
     expect(Object.keys(stats.byYear)).toHaveLength(0);
     expect(stats.singlesTitles).toBe(0);
     expect(stats.records.maxTwentiesInRound).toBeNull();
+  });
+
+  it('classifies finals robustly: app "finals" / imported "Final" count, "semifinals" does not', () => {
+    const t: RawTournament = {
+      id: 't2', name: 'KO Cup', status: 'COMPLETED', gameType: 'singles',
+      tournamentDate: Date.UTC(2025, 5, 1),
+      participants: [
+        { id: 'pA', userId: 'u1', name: 'Juan', finalPosition: 1, status: 'ACTIVE' },
+        { id: 'pB', userId: 'u2', name: 'Ana', finalPosition: 2, status: 'ACTIVE' },
+      ],
+      finalStage: { goldBracket: { rounds: [
+        { name: 'semifinals', matches: [{ participantA: 'pA', participantB: 'pB', winner: 'pB' }] },
+        { name: 'finals', matches: [{ participantA: 'pA', participantB: 'pB', winner: 'pA' }] },
+      ] } },
+    };
+    const stats = computeUserStats('u1', [t]);
+    const y = stats.byYear['2025'];
+    expect(y.finalsPlayed).toBe(1);          // only the 'finals' round
+    expect(y.finalsWon).toBe(1);
+    expect(y.koMatches).toBe(2);             // semifinal + final are both KO matches
+    expect(y.matches).toBe(2);
+  });
+
+  it('classifies an imported-style "Final" round as a final', () => {
+    const t: RawTournament = {
+      id: 't3', name: 'Imported Cup', status: 'COMPLETED', gameType: 'singles',
+      tournamentDate: Date.UTC(2025, 6, 1),
+      participants: [
+        { id: 'pA', userId: 'u1', name: 'Juan', finalPosition: 1, status: 'ACTIVE' },
+        { id: 'pB', userId: 'u2', name: 'Ana', finalPosition: 2, status: 'ACTIVE' },
+      ],
+      finalStage: { goldBracket: { rounds: [
+        { name: 'Final', matches: [{ participantA: 'pA', participantB: 'pB', winner: 'pA' }] },
+      ] } },
+    };
+    const stats = computeUserStats('u1', [t]);
+    expect(stats.byYear['2025'].finalsPlayed).toBe(1);
+    expect(stats.byYear['2025'].finalsWon).toBe(1);
+  });
+
+  it('handles the user being the partner (not primary) of a doubles team', () => {
+    const dbl: RawTournament = {
+      id: 'd2', name: 'Partner Cup', status: 'COMPLETED', gameType: 'doubles',
+      tournamentDate: Date.UTC(2025, 2, 3),
+      participants: [
+        { id: 'tm', userId: 'u9', name: 'Sam', status: 'ACTIVE', finalPosition: 1,
+          partner: { userId: 'u1', name: 'Juan' } },
+        { id: 'tm2', userId: 'u4', name: 'Lee', status: 'ACTIVE', finalPosition: 2,
+          partner: { userId: 'u5', name: 'Mia' } },
+      ],
+    };
+    const stats = computeUserStats('u1', [dbl]);
+    expect(stats.displayName).toBe('Juan');
+    expect(stats.doublesTitles).toBe(1);
+    expect(stats.doublesResults[0].partnerName).toBe('Sam');
+    expect(stats.doublesResults[0].partnerId).toBe('u9');
   });
 });
