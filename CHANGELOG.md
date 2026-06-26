@@ -2,6 +2,13 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.58] - 2026-06-26
+- New Leaderboards page (Records + Compare) with curious crokinole stats — 20s per round, % of 20s with the hammer, win streaks, titles and more — reachable from the landing, the app menu (Ctrl+L) and player profiles
+- Compare players head-to-head in a multi-player table, deep-linkable from any profile ("Compare with…")
+- Per-metric info popovers explain what each stat means; all tied record holders are shown
+- Backed by precomputed /playerStats aggregates (Cloud Function on tournament completion + superadmin backfill tool)
+- Doubles palmarés table added to player profiles
+
 ## [2.5.57] - 2026-06-26
 - Performance: player profiles now load only the player's own tournaments (via a participantUserIds index) instead of downloading every completed tournament on the platform — scales as the platform grows
 - Fix: the profile year filter now defaults to the most recent year with matches, so a player inactive in the current year no longer opens to a blank profile
