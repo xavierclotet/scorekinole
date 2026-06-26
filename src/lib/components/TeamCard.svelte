@@ -865,7 +865,7 @@
 					</div>
 					<span class="player-name-badge has-avatar">{displayName}</span>
 					{#if effectiveShowHammer && team.hasHammer}
-						<span class={["hammer-floating", getContrastColor(team.color) === '#ffffff' && "light-img"]} title={m.scoring_hammer()}><img src="/4150-rblxbanhammer.png" alt="Hammer" width="32" height="32" /></span>
+						<span class={["hammer-floating", getContrastColor(team.color) === '#ffffff' && "light-img"]} title={m.scoring_hammer()}><img src="/hammer.png" alt="Hammer" width="32" height="32" /></span>
 					{/if}
 				</div>
 			{:else if isEditingName}
@@ -957,7 +957,7 @@
 							</div>
 						{/if}
 					{#if effectiveShowHammer && team.hasHammer}
-						<span class={["hammer-floating", getContrastColor(team.color) === '#ffffff' && "light-img"]} title={m.scoring_hammer()}><img src="/4150-rblxbanhammer.png" alt="Hammer" width="32" height="32" /></span>
+						<span class={["hammer-floating", getContrastColor(team.color) === '#ffffff' && "light-img"]} title={m.scoring_hammer()}><img src="/hammer.png" alt="Hammer" width="32" height="32" /></span>
 					{/if}
 					</div>
 				</div>

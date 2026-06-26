@@ -1,6 +1,5 @@
 # Claude Code configuration
 .claude/
-CLAUDE.md
 
 # AI Assistant rules & skills
 .agent/
@@ -8,8 +7,9 @@ CLAUDE.md
 .roo/
 .superpowers/
 docs/superpowers/
-AGENTS.md
 skills-lock.json
+
+# Project guide for agents & contributors (AGENTS.md / CLAUDE.md) is tracked on purpose
 
 # Environment variables
 .env

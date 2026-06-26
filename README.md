@@ -313,6 +313,12 @@ See [CHANGELOG.md](CHANGELOG.md) for a complete list of changes in each version.
 
 ---
 
+## 🛠️ Development
+
+Contributors and AI agents: start with **[AGENTS.md](AGENTS.md)** — architecture, styling, i18n, Firebase, testing, and critical rules. Deploy steps live in [docs/en/DEPLOYMENT.md](docs/en/DEPLOYMENT.md).
+
+---
+
 ## 🏆 Credits
 
 Developed with ❤️ by Xavi Clotet

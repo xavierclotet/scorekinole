@@ -212,7 +212,7 @@
 
 				<div class="flex flex-col items-center gap-1.5 py-3 px-2 min-[600px]:py-4 bg-feature-card-bg border border-feature-card-border rounded-[10px] transition-all w-[125px] min-h-[70px] hover:bg-feature-card-bg-hover hover:border-feature-card-border-hover">
 					<div class="w-7 h-7 flex items-center justify-center">
-						<img class="hammer-icon" src="/4150-rblxbanhammer.png" alt="Hammer" width="24" height="24" />
+						<img class="hammer-icon" src="/hammer.png" alt="Hammer" width="24" height="24" />
 					</div>
 					<span class="text-[0.7rem] font-medium text-feature-label text-center">{m.scoring_hammer()}</span>
 				</div>

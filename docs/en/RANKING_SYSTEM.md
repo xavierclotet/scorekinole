@@ -1,148 +1,148 @@
 # Crokinole Series Ranking System
 
-Sistema de puntos de ranking basado en el sistema Crokinole Series español.
+Ranking points system based on the Spanish Crokinole Series system.
 
-## Base Points por Serie
+## Base Points per Series
 
-| Serie | Base Points |
-|-------|-------------|
+| Series | Base Points |
+|--------|-------------|
 | Series 35 | 35 |
 | Series 25 | 25 |
 | Series 15 | 15 |
 
-## Curvas de Drops Estándar
+## Standard Drop Curves
 
 **Singles:** pos2 = -3, pos3-5 = -2, pos6+ = -1
 **Doubles:** pos2 = -5, pos3 = -4, pos4+ = -2
 
-## Umbral Natural (Natural Threshold)
+## Natural Threshold
 
-El umbral es el número de participantes a partir del cual el ganador recibe los basePoints completos. Se calcula dinámicamente:
+The threshold is the number of participants at or above which the winner receives the full base points. It is computed dynamically:
 
 - **Singles**: `threshold = basePoints - 5`
-- **Doubles**: `threshold = basePoints` (el ganador recibe exactamente N puntos, donde N = nº equipos, hasta llegar a basePoints)
+- **Doubles**: `threshold = basePoints` (the winner receives exactly N points, where N = number of teams, up to basePoints)
 
-| Serie | Singles | Doubles |
-|-------|---------|---------|
-| Series 35 | **30 jugadores** | **35 equipos** |
-| Series 25 | **20 jugadores** | **25 equipos** |
-| Series 15 | **10 jugadores** | **15 equipos** |
+| Series | Singles | Doubles |
+|--------|---------|---------|
+| Series 35 | **30 players** | **35 teams** |
+| Series 25 | **20 players** | **25 teams** |
+| Series 15 | **10 players** | **15 teams** |
 
-**Nota**: En doubles el threshold es más alto para que, a igual número de participantes, los puntos sean menores que en singles. Esto refleja que el mérito individual pesa más en singles.
+**Note**: In doubles the threshold is higher so that, for the same number of participants, points are lower than in singles. This reflects that individual merit weighs more in singles.
 
-## Cálculo de puntos
+## Points Calculation
 
-El ganador recibe `round(basePoints * min(1, N / threshold))` puntos. **Siempre se usa interpolación** para distribuir los puntos desde el ganador hasta 1 punto para el último clasificado.
+The winner receives `round(basePoints * min(1, N / threshold))` points. **Interpolation is always used** to distribute points from the winner down to 1 point for the last-placed participant.
 
-- **N ≥ threshold**: winnerPoints = basePoints (puntos completos). La interpolación reparte los puntos de forma uniforme entre todas las posiciones.
-- **N < threshold**: winnerPoints escalado proporcionalmente. Misma interpolación.
-- **N = threshold**: la interpolación produce exactamente la misma tabla que los raw drops (caso trivial).
+- **N ≥ threshold**: winnerPoints = basePoints (full points). Interpolation spreads points uniformly across all positions.
+- **N < threshold**: winnerPoints scaled proportionally. Same interpolation.
+- **N = threshold**: interpolation produces exactly the same table as the raw drops (trivial case).
 
-### Métodos de interpolación
+### Interpolation Methods
 
-- **Hamilton (mayor residuo)**: cuando los drops estándar suman más que targetDrop (N > threshold en singles, siempre en doubles). Reduce los drops proporcionalmente preservando la forma front-heavy. Mejora significativa vs raw drops: más posiciones diferenciadas.
-- **Level fill**: cuando los drops estándar suman menos que targetDrop (N < threshold en singles). Incrementa los drops más pequeños primero (de izquierda a derecha dentro del mismo nivel), preservando el orden monotónicamente no-creciente.
+- **Hamilton (largest remainder)**: used when the standard drops sum to more than targetDrop (N > threshold in singles, always in doubles). Reduces drops proportionally while preserving the front-heavy shape. Significant improvement over raw drops: more differentiated positions.
+- **Level fill**: used when the standard drops sum to less than targetDrop (N < threshold in singles). Increments the smallest drops first (left to right within the same level), preserving the monotonically non-increasing order.
 
-## Tablas Oficiales (referencia, N = threshold)
+## Official Tables (reference, N = threshold)
 
 ### Series 35 (35 pts)
 
-**Singles (30 posiciones):** 35, 32, 30, 28, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1
+**Singles (30 positions):** 35, 32, 30, 28, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1
 
-**Doubles (35 equipos):** En el threshold, el ganador recibe 35 pts con raw drops. Con interpolación Hamilton para N < 35.
+**Doubles (35 teams):** At the threshold, the winner receives 35 pts with raw drops. Hamilton interpolation is used for N < 35.
 
 ### Series 25 (25 pts)
 
-**Singles (20 posiciones):** 25, 22, 20, 18, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1
+**Singles (20 positions):** 25, 22, 20, 18, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1
 
-**Doubles (25 equipos):** En el threshold, el ganador recibe 25 pts con raw drops. Con interpolación Hamilton para N < 25.
+**Doubles (25 teams):** At the threshold, the winner receives 25 pts with raw drops. Hamilton interpolation is used for N < 25.
 
 ### Series 15 (15 pts)
 
-**Singles (10 posiciones):** 15, 12, 10, 8, 6, 5, 4, 3, 2, 1
+**Singles (10 positions):** 15, 12, 10, 8, 6, 5, 4, 3, 2, 1
 
-**Doubles (15 equipos):** En el threshold, el ganador recibe 15 pts con raw drops. Con interpolación Hamilton para N < 15.
+**Doubles (15 teams):** At the threshold, the winner receives 15 pts with raw drops. Hamilton interpolation is used for N < 15.
 
-## Ejemplos con Interpolación (N < threshold)
+## Examples with Interpolation (N < threshold)
 
-### 16 jugadores, Series 25, Singles (threshold=20)
+### 16 players, Series 25, Singles (threshold=20)
 - winnerPoints = round(25 * 16/20) = 20
-- Level fill: interpola para llegar de 20 a 1
+- Level fill: interpolates from 20 down to 1
 
-### 10 jugadores, Series 15, Singles (threshold=10)
-- winnerPoints = round(15 * 10/10) = 15 (puntos completos)
-- Raw drops: último recibe 1 punto
+### 10 players, Series 15, Singles (threshold=10)
+- winnerPoints = round(15 * 10/10) = 15 (full points)
+- Raw drops: last place receives 1 point
 
-### 8 jugadores, Series 15, Singles (threshold=10)
+### 8 players, Series 15, Singles (threshold=10)
 - winnerPoints = round(15 * 8/10) = 12
-- Level fill: interpola para llegar de 12 a 1
+- Level fill: interpolates from 12 down to 1
 
-### 8 equipos, Series 15, Doubles (threshold=15)
+### 8 teams, Series 15, Doubles (threshold=15)
 - winnerPoints = round(15 * 8/15) = 8
-- Hamilton: reduce drops proporcionalmente → 8, 6, 4, 3, 2, 2, 1, 1
+- Hamilton: reduces drops proportionally → 8, 6, 4, 3, 2, 2, 1, 1
 
-### 8 equipos, Series 25, Doubles (threshold=25)
+### 8 teams, Series 25, Doubles (threshold=25)
 - winnerPoints = round(25 * 8/25) = 8
-- Hamilton: reduce drops proporcionalmente
+- Hamilton: reduces drops proportionally
 
-### Comparativa Singles vs Doubles (8 participantes, Series 15)
-- **Singles**: 1º = 12 pts (threshold=10, interpolación)
-- **Doubles**: 1º = 8 pts (threshold=15, interpolación) → menos puntos en doubles
+### Singles vs Doubles comparison (8 participants, Series 15)
+- **Singles**: 1st = 12 pts (threshold=10, interpolation)
+- **Doubles**: 1st = 8 pts (threshold=15, interpolation) → fewer points in doubles
 
 ---
 
-## Sistema FSI (Field Strength Index) — Sistema Alternativo
+## FSI System (Field Strength Index) — Alternative System
 
-Sistema inspirado en la NCA (National Crokinole Association). Los puntos del torneo son **dinámicos y objetivos**: se calculan según el nivel real de los jugadores inscritos, no solo por el tier asignado al torneo.
+A system inspired by the NCA (National Crokinole Association). The tournament's points are **dynamic and objective**: they are computed from the actual strength of the registered players, not just from the tier assigned to the tournament.
 
-### Concepto clave
+### Key concept
 
-El tier sigue existiendo, pero solo como **suelo mínimo** garantizado para el ganador:
+The tier still exists, but only as a guaranteed **minimum floor** for the winner:
 
-| Tier | Puntos mínimos ganador |
+| Tier | Minimum winner points |
 |------|----------------------|
 | Tier 1 (Series 35) | 25 pts |
 | Tier 2 (Series 25) | 18 pts |
 | Tier 3 (Series 15) | 12 pts |
 
-Los suelos se han calibrado por debajo de los puntos máximos del sistema clásico (35/25/15) para que un campo flojo otorgue menos que el clásico y solo los campos fuertes (FSI alto) superen esos máximos.
+The floors are calibrated below the maximum points of the classic system (35/25/15) so that a weak field awards less than the classic system, and only strong fields (high FSI) exceed those maximums.
 
-Si el FSI del torneo es alto (campo competitivo), el ganador puede superar ese mínimo. Si es bajo, el suelo actúa de garantía.
+If the tournament's FSI is high (competitive field), the winner can exceed that minimum. If it is low, the floor acts as a guarantee.
 
-### Fórmula FSI
+### FSI Formula
 
 ```
 fsi = (0.6 × avg_top10) + (0.3 × avg_all) + (0.1 × size_bonus)
 winnerPoints = max(tier_floor, round(fsi))
 ```
 
-Componentes:
-- **`avg_top10`**: media de `rankingSnapshot` de los 10 mejores jugadores inscritos (o todos si hay <10)
-- **`avg_all`**: media de `rankingSnapshot` de todos los participantes
-- **`size_bonus`**: `min(N / 20, 1) × 10` — bonificación por tamaño (máx 10 pts extra con ≥20 jugadores)
+Components:
+- **`avg_top10`**: average `rankingSnapshot` of the 10 highest-ranked registered players (or all of them if there are fewer than 10)
+- **`avg_all`**: average `rankingSnapshot` of all participants
+- **`size_bonus`**: `min(N / 20, 1) × 10` — size bonus (max 10 extra pts with ≥20 players)
 
-La distribución por posiciones (interpolación/Hamilton) se aplica igual que en el sistema clásico, usando el `winnerPoints` resultante.
+Per-position distribution (interpolation/Hamilton) is applied the same way as in the classic system, using the resulting `winnerPoints`.
 
-### Pesos y rationale
+### Weights and rationale
 
-| Factor | Peso | Por qué |
-|--------|------|---------|
-| Fuerza del top (FSI) | 60% | Factor principal: quién está en la cima del campo |
-| Fuerza media del campo | 30% | Refleja la profundidad competitiva |
-| Tamaño del torneo | 10% | Factor secundario: más participantes = torneo más exigente |
+| Factor | Weight | Why |
+|--------|--------|-----|
+| Strength of the top (FSI) | 60% | Primary factor: who is at the top of the field |
+| Average field strength | 30% | Reflects competitive depth |
+| Tournament size | 10% | Secondary factor: more participants = more demanding tournament |
 
-### Diferencias vs sistema clásico
+### Differences vs the classic system
 
-| | Sistema Clásico | Sistema FSI |
-|--|----------------|-------------|
-| **Puntos ganador** | `basePoints × min(1, N/threshold)` — escalan hacia abajo con pocos jugadores | `max(tier_floor, fsi)` — depende del nivel del campo |
-| **Tier** | Determina los puntos máximos | Solo fija el suelo mínimo |
-| **Campo de élite pequeño** | Penalizado por N bajo | Recompensado por FSI alto |
-| **Campo grande mediocre** | Bonus automático por N alto | Limitado por FSI bajo |
+| | Classic System | FSI System |
+|--|----------------|------------|
+| **Winner points** | `basePoints × min(1, N/threshold)` — scale down with few players | `max(tier_floor, fsi)` — depends on field strength |
+| **Tier** | Determines the maximum points | Only sets the minimum floor |
+| **Small elite field** | Penalized by low N | Rewarded by high FSI |
+| **Large mediocre field** | Automatic bonus from high N | Limited by low FSI |
 
-### Selección del sistema
+### System selection
 
-El admin elige el sistema **al crear el torneo** (paso de configuración de ranking). La elección queda almacenada en `rankingConfig.scoringSystem`:
+The admin chooses the system **when creating the tournament** (ranking configuration step). The choice is stored in `rankingConfig.scoringSystem`:
 
 ```typescript
 type ScoringSystem = 'CLASSIC' | 'FSI';
@@ -154,28 +154,28 @@ interface RankingConfig {
 }
 ```
 
-Todos los torneos existentes sin este campo usan automáticamente el sistema clásico.
+All existing tournaments without this field automatically use the classic system.
 
 ---
 
-## Migración desde sistema anterior
+## Migration from the previous system
 
-Los datos existentes en Firestore usan los nombres antiguos. La función `normalizeTier()` mapea:
-- `SERIES_50` → `SERIES_35`, `SERIES_40` → `SERIES_25`, `SERIES_35` (antiguo) → `SERIES_15`
+Existing Firestore data uses the old names. The `normalizeTier()` function maps:
+- `SERIES_50` → `SERIES_35`, `SERIES_40` → `SERIES_25`, `SERIES_35` (old) → `SERIES_15`
 - `MAJOR` → `SERIES_35`, `NATIONAL` → `SERIES_25`, `REGIONAL`/`CLUB` → `SERIES_15`
 
-Una Cloud Function `migrateTierNames` actualiza los documentos de Firestore para usar los nuevos nombres.
+A `migrateTierNames` Cloud Function updates the Firestore documents to use the new names.
 
-## Implementación
+## Implementation
 
-### Sistema Clásico
+### Classic System
 - **Client-side**: `src/lib/algorithms/ranking.ts` → `calculateRankingPoints(position, tier, participantsCount, mode)` + `getNaturalThreshold(basePoints, mode)`
-- **Cloud Function**: `functions/src/index.ts` → misma lógica duplicada (deben estar sincronizadas)
-- **UI Preview**: Step 3 del wizard de creación de torneos muestra la tabla de distribución reactiva según serie, participantes y modo (singles/doubles)
-- **Compatibilidad**: La función `normalizeTier()` en `src/lib/types/tournament.ts` mapea valores legacy
+- **Cloud Function**: `functions/src/index.ts` → same logic duplicated (must stay in sync)
+- **UI Preview**: Step 3 of the tournament creation wizard shows the distribution table reactively based on series, participants, and mode (singles/doubles)
+- **Compatibility**: the `normalizeTier()` function in `src/lib/types/tournament.ts` maps legacy values
 
-### Sistema FSI
+### FSI System
 - **Client-side**: `src/lib/algorithms/rankingFsi.ts` → `calculateFsiWinnerPoints(participants, tier, mode)` + `calculateFsi(participants)`
-- **Cloud Function**: `functions/src/index.ts` → misma lógica duplicada (sincronizada con rankingFsi.ts)
-- **Dispatch**: `applyRankingUpdates()` comprueba `tournament.rankingConfig.scoringSystem` y llama al algoritmo correspondiente
-- **UI Preview**: mismo wizard, nueva vista previa FSI cuando el sistema FSI está seleccionado
+- **Cloud Function**: `functions/src/index.ts` → same logic duplicated (kept in sync with rankingFsi.ts)
+- **Dispatch**: `applyRankingUpdates()` checks `tournament.rankingConfig.scoringSystem` and calls the corresponding algorithm
+- **UI Preview**: same wizard, new FSI preview when the FSI system is selected

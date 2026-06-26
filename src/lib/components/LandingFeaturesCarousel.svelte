@@ -19,7 +19,7 @@
 		<!-- Hammer -->
 		<Carousel.Item class="basis-1/4">
 			<div class="mobile-feature-card">
-				<div class="w-6 h-6 flex items-center justify-center"><img class="hammer-icon" src="/4150-rblxbanhammer.png" alt="Hammer" width="20" height="20" /></div>
+				<div class="w-6 h-6 flex items-center justify-center"><img class="hammer-icon" src="/hammer.png" alt="Hammer" width="20" height="20" /></div>
 				<span class="text-[0.65rem] font-medium text-feature-label text-center leading-tight line-clamp-2">{m.scoring_hammer()}</span>
 			</div>
 		</Carousel.Item>
