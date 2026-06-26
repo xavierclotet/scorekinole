@@ -23,6 +23,7 @@ import {
   sanitizeTeamNameInput,
 } from "./selfRegistrationCore";
 import { buildTournamentSummary, summariesEqual } from "./tournamentSummaryCore";
+import { recomputeUserStats } from "./playerStatsIO";
 
 // Telegram secrets
 const telegramBotToken = defineSecret("TELEGRAM_BOT_TOKEN");
@@ -735,6 +736,18 @@ export const onTournamentComplete = onDocumentUpdated(
       logger.info(`Updated participant rankings and userIds in tournament ${tournamentId}`);
     } catch (error) {
       logger.error("Error updating tournament participants:", error);
+    }
+
+    // Recompute aggregate player stats for everyone who played this tournament.
+    // Idempotent: each user's PlayerStats is rebuilt from scratch from their
+    // tournaments (read via the participantUserIds index), so retries are safe.
+    try {
+      const db = getDb();
+      const statsUserIds = collectParticipantUserIds(afterData.participants);
+      await Promise.allSettled(statsUserIds.map((uid) => recomputeUserStats(db, uid)));
+      logger.info(`Recomputed playerStats for ${statsUserIds.length} user(s)`);
+    } catch (error) {
+      logger.error("Error recomputing playerStats:", error);
     }
 
     // Send ranking push notifications to all participants with userId
