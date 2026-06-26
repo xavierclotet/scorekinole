@@ -7,6 +7,7 @@
   import { scopeBlock, allTimeBlock } from '$lib/stats/leaderboard';
   import type { PlayerStats } from '$lib/types/playerStats';
   import PlayerPicker from './PlayerPicker.svelte';
+  import MetricInfo from './MetricInfo.svelte';
 
   let { players, initialIds = [], year = 'all' }:
     { players: PlayerStats[]; initialIds?: string[]; year?: string } = $props();
@@ -70,7 +71,7 @@
           {#each METRICS.filter((mm) => mm.family === fam.id) as metric (metric.id)}
             {@const r = row(metric.id)}
             <tr>
-              <td class="mcol">{(m[metric.labelKey as keyof typeof m] as () => string)?.() ?? metric.id}</td>
+              <td class="mcol">{(m[metric.labelKey as keyof typeof m] as () => string)?.() ?? metric.id}<MetricInfo {metric} /></td>
               {#each r.vals as v, i (i)}
                 <td class="cell" class:lead={i === r.leader && v !== null}>
                   {#if v === null}<span class="dash">—</span>

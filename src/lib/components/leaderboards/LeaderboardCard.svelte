@@ -7,6 +7,7 @@
   import { buildLeaderboard, rankEntries, type LeaderboardEntry } from '$lib/stats/leaderboard';
   import { formatMetric, type MetricDescriptor } from '$lib/stats/metrics';
   import type { PlayerStats } from '$lib/types/playerStats';
+  import MetricInfo from './MetricInfo.svelte';
 
   let { metric, players, year, minMatches, onexpand }:
     { metric: MetricDescriptor; players: PlayerStats[]; year: string; minMatches: number;
@@ -22,6 +23,7 @@
 <div class="lb-card">
   <div class="lb-head">
     <span class="lb-title">{label}</span>
+    <MetricInfo {metric} />
     {#if metric.kind === 'avg'}<span class="lb-min">{m.leaderboards_minTag?.({ n: minMatches }) ?? `Mín. ${minMatches}`}</span>{/if}
   </div>
   {#if visible.length === 0}
