@@ -18,15 +18,18 @@
       </button>
     {/snippet}
   </Popover.Trigger>
-  <Popover.Content class="w-[260px] p-3">
-    <p class="mi-title">{label}</p>
-    <p class="mi-desc">{desc}</p>
+  <Popover.Content class="w-[260px]">
+    <div class="mi-pop">
+      <p class="mi-title">{label}</p>
+      <p class="mi-desc">{desc}</p>
+    </div>
   </Popover.Content>
 </Popover.Root>
 
 <style>
   .info-btn { display: inline-flex; align-items: center; justify-content: center; padding: 0; background: none; border: none; color: var(--muted-foreground); cursor: pointer; vertical-align: middle; }
   .info-btn:hover { color: var(--primary); }
+  .mi-pop { padding: 0.85rem 0.9rem; }
   .mi-title { margin: 0 0 0.3rem; font-weight: 700; font-size: 0.82rem; }
   .mi-desc { margin: 0; font-size: 0.76rem; line-height: 1.45; color: var(--muted-foreground); }
 </style>
