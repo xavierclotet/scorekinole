@@ -342,97 +342,97 @@
 		}
 	}
 
-	/* Light theme */
-	.ranking-detail[data-theme='light'] .tournament-row {
+	/* Light themes (matches both 'light' and 'violet-light' via the ends-with selector) */
+	.ranking-detail[data-theme$='light'] .tournament-row {
 		background: rgba(0, 0, 0, 0.03);
 	}
 
-	.ranking-detail[data-theme='light'] .tournament-row:hover {
+	.ranking-detail[data-theme$='light'] .tournament-row:hover {
 		background: rgba(0, 0, 0, 0.06);
 	}
 
-	.ranking-detail[data-theme='light'] .position-badge {
+	.ranking-detail[data-theme$='light'] .position-badge {
 		background: rgba(0, 0, 0, 0.05);
 		border-color: rgba(0, 0, 0, 0.1);
 	}
 
-	.ranking-detail[data-theme='light'] .position-badge.gold {
+	.ranking-detail[data-theme$='light'] .position-badge.gold {
 		background: rgba(255, 215, 0, 0.15);
 		border-color: rgba(255, 215, 0, 0.4);
 	}
 
-	.ranking-detail[data-theme='light'] .position-badge.silver {
+	.ranking-detail[data-theme$='light'] .position-badge.silver {
 		background: rgba(192, 192, 192, 0.2);
 		border-color: rgba(192, 192, 192, 0.5);
 	}
 
-	.ranking-detail[data-theme='light'] .position-badge.bronze {
+	.ranking-detail[data-theme$='light'] .position-badge.bronze {
 		background: rgba(205, 127, 50, 0.15);
 		border-color: rgba(205, 127, 50, 0.4);
 	}
 
-	.ranking-detail[data-theme='light'] .position-number {
+	.ranking-detail[data-theme$='light'] .position-number {
 		color: #1a202c;
 	}
 
-	.ranking-detail[data-theme='light'] .position-badge.gold .position-number {
+	.ranking-detail[data-theme$='light'] .position-badge.gold .position-number {
 		color: #b8860b;
 	}
 
-	.ranking-detail[data-theme='light'] .position-badge.silver .position-number {
+	.ranking-detail[data-theme$='light'] .position-badge.silver .position-number {
 		color: #6b7280;
 	}
 
-	.ranking-detail[data-theme='light'] .position-badge.bronze .position-number {
+	.ranking-detail[data-theme$='light'] .position-badge.bronze .position-number {
 		color: #a0522d;
 	}
 
-	.ranking-detail[data-theme='light'] .position-total {
+	.ranking-detail[data-theme$='light'] .position-total {
 		color: rgba(0, 0, 0, 0.45);
 	}
 
-	.ranking-detail[data-theme='light'] .tournament-name {
+	.ranking-detail[data-theme$='light'] .tournament-name {
 		color: #1a202c;
 	}
 
-	.ranking-detail[data-theme='light'] .tournament-date {
+	.ranking-detail[data-theme$='light'] .tournament-date {
 		color: rgba(0, 0, 0, 0.5);
 	}
 
-	.ranking-detail[data-theme='light'] .tournament-points {
+	.ranking-detail[data-theme$='light'] .tournament-points {
 		color: #059669;
 	}
 
-	.ranking-detail[data-theme='light'] .total-row {
+	.ranking-detail[data-theme$='light'] .total-row {
 		background: rgba(0, 0, 0, 0.025);
 		border-left-color: rgba(5, 150, 105, 0.5);
 	}
 
-	.ranking-detail[data-theme='light'] .total-calc {
+	.ranking-detail[data-theme$='light'] .total-calc {
 		color: rgba(0, 0, 0, 0.4);
 	}
 
-	.ranking-detail[data-theme='light'] .total-label {
+	.ranking-detail[data-theme$='light'] .total-label {
 		color: rgba(0, 0, 0, 0.5);
 	}
 
-	.ranking-detail[data-theme='light'] .total-value {
+	.ranking-detail[data-theme$='light'] .total-value {
 		color: #059669;
 	}
 
-	.ranking-detail[data-theme='light'] .total-unit {
+	.ranking-detail[data-theme$='light'] .total-unit {
 		color: rgba(5, 150, 105, 0.45);
 	}
 
-	.ranking-detail[data-theme='light'] .other-section {
+	.ranking-detail[data-theme$='light'] .other-section {
 		border-top-color: rgba(0, 0, 0, 0.1);
 	}
 
-	.ranking-detail[data-theme='light'] .other-header {
+	.ranking-detail[data-theme$='light'] .other-header {
 		color: rgba(0, 0, 0, 0.35);
 	}
 
-	.ranking-detail[data-theme='light'] .other-points {
+	.ranking-detail[data-theme$='light'] .other-points {
 		color: rgba(0, 0, 0, 0.35) !important;
 	}
 </style>
