@@ -23,7 +23,7 @@ import {
   sanitizeTeamNameInput,
 } from "./selfRegistrationCore";
 import { buildTournamentSummary, summariesEqual } from "./tournamentSummaryCore";
-import { recomputeUserStats } from "./playerStatsIO";
+import { recomputeUserStats, collectAllPlayerUserIds } from "./playerStatsIO";
 
 // Telegram secrets
 const telegramBotToken = defineSecret("TELEGRAM_BOT_TOKEN");
@@ -2013,6 +2013,39 @@ export const deleteUserAccount = onCall(
       logger.error(`Failed to delete user ${userId}:`, error);
       throw new HttpsError("internal", "Failed to delete user");
     }
+  }
+);
+
+/**
+ * Recompute /playerStats for ALL players (superadmin one-shot backfill).
+ * Processes users in batches of 10 to avoid overwhelming Firestore.
+ */
+export const backfillPlayerStats = onCall(
+  { region: "europe-west1", timeoutSeconds: 540, memory: "512MiB" },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Must be signed in");
+    }
+
+    const callerUid = request.auth.uid;
+
+    // Validate caller is super admin
+    const db = getDb();
+    const callerDoc = await db.collection("users").doc(callerUid).get();
+    if (!callerDoc.exists || !callerDoc.data()?.isSuperAdmin) {
+      throw new HttpsError("permission-denied", "Super admin access required");
+    }
+
+    const userIds = await collectAllPlayerUserIds(db);
+
+    let done = 0;
+    for (let i = 0; i < userIds.length; i += 10) {
+      const batch = userIds.slice(i, i + 10);
+      await Promise.allSettled(batch.map((uid) => recomputeUserStats(db, uid)));
+      done += batch.length;
+      logger.info(`backfillPlayerStats: ${done}/${userIds.length}`);
+    }
+    return { processed: userIds.length };
   }
 );
 
