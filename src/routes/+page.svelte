@@ -18,6 +18,7 @@
 	import BarChart3 from '@lucide/svelte/icons/bar-chart-3';
 	import Download from '@lucide/svelte/icons/download';
 	import X from '@lucide/svelte/icons/x';
+	import Trophy from '@lucide/svelte/icons/trophy';
 	import { canInstall, triggerInstall, showIOSInstallBanner, dismissIOSInstallBanner } from '$lib/stores/pwaInstall';
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
@@ -310,7 +311,7 @@
 		{/if}
 
 		<!-- Quick Links -->
-		<div class="grid grid-cols-3 gap-2 w-full max-w-[320px]">
+		<div class="grid grid-cols-2 min-[640px]:grid-cols-4 gap-2 w-full max-w-[420px]">
 			<Button
 				variant="ghost"
 				href="/tournaments"
@@ -343,6 +344,16 @@
 			>
 				<BarChart3 class="w-4 h-4" />
 				<span class="text-[0.7rem] font-medium">{m.common_myStats()}</span>
+			</Button>
+
+			<Button
+				variant="ghost"
+				href="/leaderboards"
+				data-webmcp="link-leaderboards"
+				class="flex-col h-auto min-h-[60px] gap-1 px-2 py-3 bg-[var(--link-card-bg)] border border-[var(--link-card-border)] text-[var(--link-card-text)] hover:bg-[var(--link-card-bg-hover)] hover:border-[var(--link-card-border-hover)] hover:text-[var(--link-card-text-hover)]"
+			>
+				<Trophy class="w-4 h-4" />
+				<span class="text-[0.7rem] font-medium">{m.leaderboards_title?.() ?? 'Leaderboards'}</span>
 			</Button>
 		</div>
 

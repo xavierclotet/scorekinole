@@ -16,6 +16,9 @@
 	import SEO from '$lib/components/SEO.svelte';
 	import PlayerStatsContent from '$lib/components/PlayerStatsContent.svelte';
 	import { getFlagUrl } from '$lib/utils/countryFlags';
+	import DoublesPalmaresTable from '$lib/components/leaderboards/DoublesPalmaresTable.svelte';
+	import { getAllPlayerStats } from '$lib/firebase/playerStats';
+	import type { PlayerStats } from '$lib/types/playerStats';
 
 	let urlParam = $derived(page.params.id);
 	let tournamentParam = $derived(page.url.searchParams.get('tournament') ?? '');
@@ -30,6 +33,7 @@
 	let tournamentRecords: TournamentRecord[] = $state([]);
 	let tournamentMeta = $state<Map<string, PalmaresMeta>>(new Map());
 	let notFound = $state(false);
+	let doublesResults = $state<PlayerStats['doublesResults']>([]);
 
 	// Canonical route param (slug-key) for the SEO tag — one canonical URL per
 	// profile no matter which form (key, uid, slug-key) the visitor arrived with.
@@ -99,6 +103,13 @@
 
 			resolvedUserId = userId;
 			profile = userProfile;
+
+			// Load doubles palmares non-blocking (fire-and-forget, reset on each nav)
+			doublesResults = [];
+			getAllPlayerStats().then((all) => {
+				if (seq !== loadSeq) return;
+				doublesResults = all.find((p) => p.userId === userId)?.doublesResults ?? [];
+			});
 
 			// Normalize the address bar to the canonical slug-key form
 			// (e.g. /users/4A7ZV2 or /users/<uid> → /users/xavi-clotet-4A7ZV2).
@@ -205,6 +216,9 @@
 					{#if perfectRounds > 0}
 						<span class="perfect-badge" title={perfectRounds === 1 ? m.stats_perfectRound() : m.stats_perfectRounds()}>💎 {perfectRounds}</span>
 					{/if}
+					<a class="compare-link" href={`/leaderboards?compare=${urlParam}`}>
+						{m.leaderboards_compareWith?.() ?? 'Comparar con…'}
+					</a>
 				</div>
 				<div class="profile-stats-row">
 					{#if tournamentRecords.length > 0}
@@ -246,6 +260,7 @@
 			showPerfectBadge={false}
 			initialTournamentFilter={tournamentParam}
 		/>
+		<DoublesPalmaresTable results={doublesResults} />
 	{/if}
 	</PullToRefresh>
 </div>
@@ -395,6 +410,15 @@
 		padding: 0.15rem 0.5rem;
 		border-radius: 99px;
 		white-space: nowrap;
+	}
+
+	.compare-link {
+		font-size: 0.72rem;
+		color: var(--primary);
+		text-decoration: none;
+		border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+		border-radius: 8px;
+		padding: 0.25rem 0.6rem;
 	}
 
 	.profile-stats-row {
