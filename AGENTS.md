@@ -58,6 +58,7 @@ Docs are organized by language. Read on demand when working on the related area 
 - [TABLE_ASSIGNMENT.md](docs/en/TABLE_ASSIGNMENT.md) — Equitable table distribution algorithm
 - [TIEBREAKER.md](docs/en/TIEBREAKER.md) — Tiebreaker resolution algorithm
 - [RANKING_SYSTEM.md](docs/en/RANKING_SYSTEM.md) — Ranking points model
+- [LEADERBOARDS.md](docs/en/LEADERBOARDS.md) — `/leaderboards` page, `/playerStats` aggregates, and the recompute/backfill maintenance tools
 - [FIRESTORE_TRANSACTIONS.md](docs/en/FIRESTORE_TRANSACTIONS.md) — Why all tournament writes use `runTransaction()`
 - [PWA_PUSH_NOTIFICATIONS.md](docs/en/PWA_PUSH_NOTIFICATIONS.md) — FCM, VAPID, token management, wake lock
 - [MATCH-INVITES.md](docs/en/MATCH-INVITES.md) — Friendly-match invite flow
