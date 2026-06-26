@@ -216,7 +216,7 @@
 					{#if perfectRounds > 0}
 						<span class="perfect-badge" title={perfectRounds === 1 ? m.stats_perfectRound() : m.stats_perfectRounds()}>💎 {perfectRounds}</span>
 					{/if}
-					<a class="compare-link" href={`/leaderboards?compare=${urlParam}`}>
+					<a class="compare-link" href={`/leaderboards?compare=${resolvedUserId}`}>
 						{m.leaderboards_compareWith?.() ?? 'Comparar con…'}
 					</a>
 				</div>
