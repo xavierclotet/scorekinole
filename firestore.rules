@@ -214,6 +214,17 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------
+    // Player stats aggregates (public Leaderboards page)
+    // ---------------------------------------------------------------
+    // Per-player rollups kept in sync by recomputeUserStats inside the
+    // onTournamentComplete Cloud Function (admin SDK bypasses rules).
+    // Superadmin write is only for the backfillPlayerStats callable.
+    match /playerStats/{userId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+
+    // ---------------------------------------------------------------
     // Match invitations (friendly match QR-code flow)
     // ---------------------------------------------------------------
     match /matchInvites/{inviteId} {
