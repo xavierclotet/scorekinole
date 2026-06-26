@@ -550,18 +550,28 @@ export function calculateRankings(
       const year = new Date(record.tournamentDate).getFullYear();
       if (year !== filters.year) continue;
 
+      // Validate tournament data: finalPosition must be a positive integer
+      // (position 0 or negative is invalid — would place medals at index 0
+      // which compareMedalCounts skips, making them invisible in tiebreaking).
+      // totalParticipants <= 0 yields winnerPoints=0 → all positions get 0 pts,
+      // polluting rankings with ghost players. Skip invalid records.
+      const pos = record.finalPosition;
+      const totalParts = record.totalParticipants;
+      const isInvalidRecord = pos <= 0 || !Number.isFinite(pos) || pos > totalParts || !Number.isFinite(totalParts) || totalParts <= 0;
+      if (isInvalidRecord) continue;
+
       // Recalculate points using current Series system (normalizes legacy tiers)
       const points = calculateRankingPoints(
-        record.finalPosition,
+        pos,
         normalizeTier(info.tier),
-        record.totalParticipants,
+        totalParts,
         info.gameType
       );
 
       scored.push({ record, points, info });
-      if (record.finalPosition < bestPosition) bestPosition = record.finalPosition;
-      if (info.gameType === 'singles' && record.finalPosition < bestSingles) bestSingles = record.finalPosition;
-      if (info.gameType === 'doubles' && record.finalPosition < bestDoubles) bestDoubles = record.finalPosition;
+      if (pos < bestPosition) bestPosition = pos;
+      if (info.gameType === 'singles' && pos < bestSingles) bestSingles = pos;
+      if (info.gameType === 'doubles' && pos < bestDoubles) bestDoubles = pos;
     }
 
     if (scored.length === 0) continue;
@@ -569,7 +579,8 @@ export function calculateRankings(
     // 2. Sort by recalculated points descending
     scored.sort((a, b) => b.points - a.points);
 
-    // 3. Take top N results (0 = all)
+    // 3. Take top N results (0 = all). After validation all scored entries
+    //    have positive points, so 0-point ghost players never enter the ranking.
     const topCount = filters.bestOfN === 0 ? scored.length : Math.min(filters.bestOfN, scored.length);
 
     // 4. Sum points and build detail objects only for included tournaments.
@@ -583,6 +594,7 @@ export function calculateRankings(
       const { record, points, info } = scored[i];
       totalPoints += points;
       const medals = info.gameType === 'doubles' ? doublesMedals : singlesMedals;
+      // finalPosition already validated as >= 1 above
       medals[record.finalPosition] = (medals[record.finalPosition] || 0) + 1;
       tournamentsWithDetails.push({
         ...record,

@@ -1153,3 +1153,255 @@ describe('calculateRankings — Olympic medal tiebreaker', () => {
 		expect(all[0].tournamentsCount).toBe(3);
 	});
 });
+
+// ─────────────────────────────────────────────────
+// Edge cases — invalid data
+// ─────────────────────────────────────────────────
+describe('calculateRankings — invalid tournament data', () => {
+	const tournamentsMap = new Map<string, TournamentInfo>([
+		['t1', makeTournamentInfo({ id: 't1', country: 'ES', completedAt: new Date('2025-06-15').getTime() })]
+	]);
+	const baseFilters: RankingFilters = { year: 2025, filterType: 'all', bestOfN: 2 };
+
+	it('finalPosition = 0 should not produce invisible medals at index 0', () => {
+		const users = [
+			makeUser({
+				odId: 'u1', playerName: 'ZeroPos',
+				tournaments: [
+					makeRecord({ tournamentId: 't1', finalPosition: 0, tournamentDate: new Date('2025-06-15').getTime() })
+				]
+			})
+		];
+		const ranked = calculateRankings(users, tournamentsMap, baseFilters);
+		// Position 0 is invalid → record rejected → no valid tournaments → player excluded
+		expect(ranked).toHaveLength(0);
+	});
+
+	it('negative finalPosition should be rejected', () => {
+		const users = [
+			makeUser({
+				odId: 'u1', playerName: 'NegPos',
+				tournaments: [
+					makeRecord({ tournamentId: 't1', finalPosition: -1, tournamentDate: new Date('2025-06-15').getTime() })
+				]
+			})
+		];
+		const ranked = calculateRankings(users, tournamentsMap, baseFilters);
+		// Should treat negative position as invalid → no valid tournaments
+		expect(ranked).toHaveLength(0); // BUG: currently player appears with invalid data
+	});
+
+	it('totalParticipants = 0 should not flood rankings with 0-point players', () => {
+		const users = [
+			makeUser({
+				odId: 'u1', playerName: 'ZeroParticipants',
+				tournaments: [
+					makeRecord({
+						tournamentId: 't1',
+						finalPosition: 1,
+						totalParticipants: 0,
+						tournamentDate: new Date('2025-06-15').getTime()
+					})
+				]
+			})
+		];
+		const ranked = calculateRankings(users, tournamentsMap, baseFilters);
+		// With 0 participants the tournament is invalid → no points → should be excluded
+		expect(ranked).toHaveLength(0);
+	});
+
+	it('totalParticipants = NaN should be rejected (no NaN propagation into calculateRankingPoints)', () => {
+		const users = [
+			makeUser({
+				odId: 'u1', playerName: 'NaNSize',
+				tournaments: [
+					makeRecord({
+						tournamentId: 't1',
+						finalPosition: 1,
+						totalParticipants: NaN,
+						tournamentDate: new Date('2025-06-15').getTime()
+					})
+				]
+			})
+		];
+		const ranked = calculateRankings(users, tournamentsMap, baseFilters);
+		expect(ranked).toHaveLength(0);
+	});
+
+	it('player with only 0-point tournaments (finalPosition > participants) should not appear', () => {
+		const users = [
+			makeUser({
+				odId: 'u1', playerName: 'OverCount',
+				tournaments: [
+					makeRecord({
+						tournamentId: 't1',
+						finalPosition: 100,
+						totalParticipants: 10,
+						tournamentDate: new Date('2025-06-15').getTime()
+					})
+				]
+			})
+		];
+		const ranked = calculateRankings(users, tournamentsMap, baseFilters);
+		// Position 100 in a 10-player tournament is invalid data → 0 points → should be excluded
+		expect(ranked).toHaveLength(0); // BUG: currently returns 1 player with 0 points
+	});
+
+	it('finalPosition beyond participants should give 0 points (distributeRankingPoints)', () => {
+		// Mock returns: pos 6 → 0, pos 7 → 0, etc. But even in real system:
+		// distributeRankingPoints(11, winnerPoints, 10) → position > count → 0
+		const users = [
+			makeUser({
+				odId: 'u1', playerName: 'Ghost',
+				tournaments: [
+					makeRecord({
+						tournamentId: 't1',
+						finalPosition: 20,
+						totalParticipants: 10,
+						tournamentDate: new Date('2025-06-15').getTime()
+					})
+				]
+			}),
+			makeUser({
+				odId: 'u2', playerName: 'Real',
+				tournaments: [
+					makeRecord({
+						tournamentId: 't1',
+						finalPosition: 1,
+						totalParticipants: 10,
+						tournamentDate: new Date('2025-06-15').getTime()
+					})
+				]
+			})
+		];
+		const ranked = calculateRankings(users, tournamentsMap, baseFilters);
+		// Ghost has 0 points, Real has >0. Ghost should not clutter the ranking.
+		expect(ranked.length).toBe(1); // BUG: currently 2 — Ghost pollutes with 0 pts
+		expect(ranked[0].playerName).toBe('Real');
+	});
+});
+
+// ─────────────────────────────────────────────────
+// Edge cases — medal table with invalid data
+// ─────────────────────────────────────────────────
+describe('calculateRankings — medal table edge cases', () => {
+	const tournamentsMap = new Map<string, TournamentInfo>([
+		['t1', makeTournamentInfo({ id: 't1', gameType: 'singles', completedAt: new Date('2025-06-15').getTime() })]
+	]);
+
+	it('position 0 medal is invisible in tiebreaking (compareMedalCounts starts at pos=1)', () => {
+		// Position 0 is now rejected by validation → no medals placed at index 0
+		const u1 = makeUser({
+			odId: 'u1', playerName: 'Aaa',
+			tournaments: [
+				makeRecord({ tournamentId: 't1', finalPosition: 0, tournamentDate: new Date('2025-06-15').getTime() })
+			]
+		});
+		const u2 = makeUser({
+			odId: 'u2', playerName: 'Bbb',
+			tournaments: [
+				makeRecord({ tournamentId: 't1', finalPosition: 0, tournamentDate: new Date('2025-06-15').getTime() })
+			]
+		});
+		const ranked = calculateRankings([u1, u2], tournamentsMap, { year: 2025, filterType: 'all', bestOfN: 0 });
+		// Both rejected: position 0 is invalid → no players in ranking
+		expect(ranked).toHaveLength(0);
+	});
+
+	it('two players with identical resume should tie — but medal vector comparison must be stable', () => {
+		const map = new Map<string, TournamentInfo>([
+			['t1', makeTournamentInfo({ id: 't1', gameType: 'singles', completedAt: new Date('2025-01-15').getTime() })],
+			['t2', makeTournamentInfo({ id: 't2', gameType: 'singles', completedAt: new Date('2025-02-15').getTime() })]
+		]);
+		const u1 = makeUser({
+			odId: 'u1', playerName: 'Alice',
+			tournaments: [
+				makeRecord({ tournamentId: 't1', finalPosition: 1, tournamentDate: new Date('2025-01-15').getTime() }),
+				makeRecord({ tournamentId: 't2', finalPosition: 3, tournamentDate: new Date('2025-02-15').getTime() })
+			]
+		});
+		const u2 = makeUser({
+			odId: 'u2', playerName: 'Bob',
+			tournaments: [
+				makeRecord({ tournamentId: 't1', finalPosition: 1, tournamentDate: new Date('2025-01-15').getTime() }),
+				makeRecord({ tournamentId: 't2', finalPosition: 3, tournamentDate: new Date('2025-02-15').getTime() })
+			]
+		});
+		// Both: 100 + 60 = 160 points. Both have 1 gold + 1 bronze. Tie → alphabetical.
+		const ranked = calculateRankings([u2, u1], map, { year: 2025, filterType: 'all', bestOfN: 0 });
+		expect(ranked[0].totalPoints).toBe(ranked[1].totalPoints);
+		expect(ranked[0].playerName).toBe('Alice');
+		expect(ranked[1].playerName).toBe('Bob');
+		// Medal vectors should be structurally identical
+		expect(ranked[0].singlesMedals).toEqual(ranked[1].singlesMedals);
+	});
+
+	it('bestResult is computed over ALL tournaments but medals only over counted ones — consistency check', () => {
+		const map = new Map<string, TournamentInfo>([
+			['t1', makeTournamentInfo({ id: 't1', gameType: 'singles', completedAt: new Date('2025-01-15').getTime() })],
+			['t2', makeTournamentInfo({ id: 't2', gameType: 'singles', completedAt: new Date('2025-02-15').getTime() })],
+			['t3', makeTournamentInfo({ id: 't3', gameType: 'singles', completedAt: new Date('2025-03-15').getTime() })]
+		]);
+		// bestOfN=1: only top-1 tournament counts for medals and points.
+		// But bestResult is computed over ALL tournaments.
+		const u = makeUser({
+			odId: 'u', playerName: 'U',
+			tournaments: [
+				makeRecord({ tournamentId: 't1', finalPosition: 1, tournamentDate: new Date('2025-01-15').getTime() }), // 100pts (counted)
+				makeRecord({ tournamentId: 't2', finalPosition: 2, tournamentDate: new Date('2025-02-15').getTime() }), // 80pts (NOT counted)
+				makeRecord({ tournamentId: 't3', finalPosition: 3, tournamentDate: new Date('2025-03-15').getTime() })  // 60pts (NOT counted)
+			]
+		});
+		const BEST1: RankingFilters = { year: 2025, filterType: 'all', bestOfN: 1 };
+		const ranked = calculateRankings([u], map, BEST1);
+		expect(ranked[0].totalPoints).toBe(100); // only top-1 counted
+		expect(ranked[0].tournamentsCount).toBe(1);
+		expect(ranked[0].singlesMedals[1]).toBe(1); // gold from the counted tournament
+		expect(ranked[0].singlesMedals[2]).toBeUndefined(); // silver from non-counted → NOT in medals
+		// But bestResult = 1 is over ALL tournaments (which happens to be the same here).
+		expect(ranked[0].bestResult).toBe(1);
+	});
+});
+
+// ─────────────────────────────────────────────────
+// distributeRankingPoints — real algorithm edge cases
+// ─────────────────────────────────────────────────
+describe('distributeRankingPoints (real) — extreme edge cases', () => {
+	// These use the REAL un-mocked distributeRankingPoints via calculateRankingPoints
+	// by importing the actual module in a separate describe. But since the test file
+	// mocks calculateRankingPoints, we test compareMedalCounts which is NOT mocked.
+	it('compareMedalCounts with very deep position (pos 100) still works', () => {
+		const a: number[] = [];
+		a[100] = 1;
+		const b: number[] = [];
+		b[50] = 1;
+		// b has a medal at pos 50, a at pos 100. b's is better (lower pos).
+		expect(compareMedalCounts(a, b)).toBeGreaterThan(0); // a sorts after b
+		expect(compareMedalCounts(b, a)).toBeLessThan(0); // b sorts before a
+	});
+
+	it('compareMedalCounts with mismatched sparse arrays does not crash', () => {
+		const a: number[] = [];
+		a[3] = 1;
+		const b: number[] = [];
+		b[1] = 2;
+		b[1000] = 1;
+		// b has golds, a only has bronze → b wins
+		expect(compareMedalCounts(a, b)).toBeGreaterThan(0);
+	});
+
+	it('compareMedalCounts with extremely sparse arrays (hole at 1000) handles performance', () => {
+		const a: number[] = [];
+		a[1] = 1;
+		a[1000] = 1;
+		const b: number[] = [];
+		b[1] = 1;
+		// Both have 1 gold, a has an extra medal at pos 1000 → a wins
+		// But this requires iterating to pos 1000 — performance check
+		const start = performance.now();
+		const result = compareMedalCounts(a, b);
+		const elapsed = performance.now() - start;
+		expect(result).toBeLessThan(0); // a wins
+		expect(elapsed).toBeLessThan(10); // should be fast even with sparse arrays
+	});
+});

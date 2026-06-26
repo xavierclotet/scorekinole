@@ -155,7 +155,7 @@
 
 	// Reactive recalculation when filters change (year or ranking mode)
 	$effect(() => {
-		if (!isLoading && (selectedYear || bestOfN)) {
+		if (!isLoading) {
 			recalculateRankings();
 		}
 	});
