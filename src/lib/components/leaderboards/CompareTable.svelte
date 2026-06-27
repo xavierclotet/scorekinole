@@ -68,9 +68,9 @@
       <tbody>
         {#each FAMILIES as fam (fam.id)}
           <tr class="famrow"><td colspan={selected.length + 2}>{(m[fam.key as keyof typeof m] as () => string)?.() ?? fam.id}</td></tr>
-          {#each METRICS.filter((mm) => mm.family === fam.id) as metric (metric.id)}
+          {#each METRICS.filter((mm) => mm.family === fam.id) as metric, i (metric.id)}
             {@const r = row(metric.id)}
-            <tr>
+            <tr class="mrow" class:alt={i % 2 === 1}>
               <td class="mcol">{(m[metric.labelKey as keyof typeof m] as () => string)?.() ?? metric.id}<MetricInfo {metric} /></td>
               {#each r.vals as v, i (i)}
                 <td class="cell" class:lead={i === r.leader && v !== null}>
@@ -103,8 +103,11 @@
   .pn { font-size: 0.7rem; font-weight: 700; }
   .rm { background: none; border: none; color: var(--muted-foreground); cursor: pointer; }
   .famrow td { text-align: left; font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted-foreground); background: color-mix(in srgb, var(--muted) 50%, transparent); font-weight: 700; }
-  .cell { color: var(--muted-foreground); font-weight: 700; border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent); }
-  .cell.lead { color: var(--primary); background: color-mix(in srgb, var(--primary) 9%, transparent); }
+  .cell { color: var(--foreground); font-weight: 700; border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent); }
+  /* Zebra striping (alternate metric rows) for readability across columns */
+  .mrow.alt .cell:not(.lead) { background: color-mix(in srgb, var(--muted) 35%, transparent); }
+  .mrow.alt .mcol, .mrow.alt .addcol { background: color-mix(in srgb, var(--muted) 35%, var(--card)); }
+  .cell.lead { color: var(--primary); background: color-mix(in srgb, var(--primary) 14%, transparent); }
   .cell.lead::after { content: '🥇'; font-size: 0.6rem; margin-left: 0.2rem; }
   .bar { display: block; height: 4px; border-radius: 3px; background: var(--muted); margin-top: 0.3rem; }
   .bar i { display: block; height: 100%; border-radius: 3px; background: var(--muted-foreground); }

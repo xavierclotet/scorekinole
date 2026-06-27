@@ -52,8 +52,10 @@
   .fs-search { flex: 1; font-size: 0.8rem; padding: 0.4rem 0.6rem; border-radius: 8px; border: 1px solid var(--border); background: var(--background); color: var(--foreground); }
   .fs-close { background: none; border: none; color: var(--muted-foreground); cursor: pointer; }
   .fs-list { overflow-y: auto; padding: 0.5rem 1rem 1rem; }
-  .fs-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0; border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent); font-size: 0.82rem; color: var(--foreground); text-decoration: none; }
-  .rk { width: 22px; text-align: center; font-weight: 700; font-size: 0.7rem; color: var(--muted-foreground); }
+  .fs-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.55rem; border-radius: 7px; font-size: 0.84rem; color: var(--foreground); text-decoration: none; }
+  .fs-row:nth-of-type(even) { background: color-mix(in srgb, var(--muted) 60%, transparent); }
+  .fs-row:hover { background: color-mix(in srgb, var(--primary) 12%, transparent); }
+  .rk { width: 22px; text-align: center; font-weight: 800; font-size: 0.72rem; color: var(--muted-foreground); }
   .av { width: 22px; height: 22px; border-radius: 50%; }
   .av.ph { display: inline-flex; align-items: center; justify-content: center; background: var(--muted); font-size: 0.65rem; }
   .nm { flex: 1; } .val { font-weight: 800; color: var(--primary); }
