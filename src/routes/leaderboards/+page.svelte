@@ -12,26 +12,32 @@
   import { METRICS, type MetricFamily, type MetricDescriptor } from '$lib/stats/metrics';
   import { availableYears, type LeaderboardEntry } from '$lib/stats/leaderboard';
   import type { PlayerStats } from '$lib/types/playerStats';
-  import RecordsBand from '$lib/components/leaderboards/RecordsBand.svelte';
   import LeaderboardFilters from '$lib/components/leaderboards/LeaderboardFilters.svelte';
   import LeaderboardCard from '$lib/components/leaderboards/LeaderboardCard.svelte';
   import LeaderboardFullscreen from '$lib/components/leaderboards/LeaderboardFullscreen.svelte';
   import CompareTable from '$lib/components/leaderboards/CompareTable.svelte';
+
+  type Tab = MetricFamily | 'compare';
+  const FAMILY_TABS: { id: MetricFamily; key: string }[] = [
+    { id: 'twenties', key: 'leaderboards_fam_twenties' },
+    { id: 'hammer', key: 'leaderboards_fam_hammer' },
+    { id: 'clutch', key: 'leaderboards_fam_clutch' },
+    { id: 'results', key: 'leaderboards_fam_results' },
+  ];
 
   let players = $state<PlayerStats[]>($playerStatsCache?.players ?? []);
   let isLoading = $state($playerStatsCache === null);
 
   // ?compare=id1,id2 opens the compare tab pre-filled.
   const initialCompare = (page.url.searchParams.get('compare') ?? '').split(',').filter(Boolean);
-  let tab = $state<'records' | 'compare'>(initialCompare.length ? 'compare' : 'records');
+  let tab = $state<Tab>(initialCompare.length ? 'compare' : 'twenties');
 
-  let family = $state<MetricFamily | 'all'>('all');
   let year = $state('all');
   let minMatches = $state(5);
   let fullscreen = $state<{ metric: MetricDescriptor; entries: LeaderboardEntry[] } | null>(null);
 
   let years = $derived(availableYears(players));
-  let shownMetrics = $derived(METRICS.filter((mm) => family === 'all' || mm.family === family));
+  let shownMetrics = $derived(tab === 'compare' ? [] : METRICS.filter((mm) => mm.family === tab));
 
   async function refresh() {
     const loaded = await getAllPlayerStats();
@@ -74,7 +80,11 @@
     <div class="lb-content">
       <div class="tabs-row">
         <div class="tabs">
-          <button class="tab" class:on={tab === 'records'} onclick={() => (tab = 'records')}>{m.leaderboards_tabRecords?.() ?? 'Récords'}</button>
+          {#each FAMILY_TABS as ft (ft.id)}
+            <button class="tab" class:on={tab === ft.id} onclick={() => (tab = ft.id)}>
+              {(m[ft.key as keyof typeof m] as () => string)?.() ?? ft.id}
+            </button>
+          {/each}
           <button class="tab" class:on={tab === 'compare'} onclick={() => (tab = 'compare')}>{m.leaderboards_tabCompare?.() ?? 'Comparar'}</button>
         </div>
       </div>
@@ -83,16 +93,15 @@
         <p class="state">{m.common_loading?.() ?? 'Cargando…'}</p>
       {:else if players.length === 0}
         <p class="state">{m.leaderboards_empty?.() ?? 'Aún no hay estadísticas.'}</p>
-      {:else if tab === 'records'}
-        <RecordsBand {players} onexpand={openFullscreen} />
-        <div class="filters-wrap"><LeaderboardFilters bind:family bind:year bind:minMatches {years} /></div>
+      {:else if tab === 'compare'}
+        <CompareTable {players} initialIds={initialCompare} {year} />
+      {:else}
+        <div class="filters-wrap"><LeaderboardFilters bind:year bind:minMatches {years} /></div>
         <div class="grid">
           {#each shownMetrics as metric (metric.id)}
             <LeaderboardCard {metric} {players} {year} {minMatches} onexpand={openFullscreen} />
           {/each}
         </div>
-      {:else}
-        <CompareTable {players} initialIds={initialCompare} {year} />
       {/if}
     </div>
   </PullToRefresh>
@@ -131,12 +140,13 @@
 
   .lb-content { max-width: 900px; margin: 0 auto; padding: 1rem 1rem 3rem; }
 
-  .tabs-row { display: flex; justify-content: center; margin-bottom: 1rem; }
-  .tabs { display: flex; gap: 0.3rem; background: var(--muted); border-radius: 10px; padding: 0.2rem; }
-  .tab { font-size: 0.82rem; padding: 0.4rem 1.1rem; border-radius: 8px; border: none; background: none; color: var(--muted-foreground); cursor: pointer; transition: background 0.15s, color 0.15s; }
+  /* Tabs scroll horizontally on narrow screens (5 tabs) */
+  .tabs-row { display: flex; justify-content: center; margin-bottom: 1rem; overflow-x: auto; }
+  .tabs { display: inline-flex; gap: 0.3rem; background: var(--muted); border-radius: 10px; padding: 0.2rem; }
+  .tab { white-space: nowrap; font-size: 0.82rem; padding: 0.4rem 0.95rem; border-radius: 8px; border: none; background: none; color: var(--muted-foreground); cursor: pointer; transition: background 0.15s, color 0.15s; }
   .tab.on { background: var(--card); color: var(--foreground); font-weight: 700; }
 
-  .filters-wrap { margin: 1rem 0; }
+  .filters-wrap { margin: 0 0 1rem; }
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
   .state { text-align: center; color: var(--muted-foreground); padding: 3rem 0; }
   @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
