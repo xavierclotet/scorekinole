@@ -82,10 +82,15 @@ export interface RawTournament {
   completedAt?: unknown;
   rankingConfig?: { tier?: string };
   participants: RawParticipant[];
-  groupStage?: { groups?: Array<{
-    schedule?: Array<{ matches?: RawMatch[] }>;
-    pairings?: Array<{ matches?: RawMatch[] }>;
-  }> };
+  groupStage?: {
+    gameMode?: string;
+    roundsToPlay?: number;
+    pointsToWin?: number;
+    groups?: Array<{
+      schedule?: Array<{ matches?: RawMatch[] }>;
+      pairings?: Array<{ matches?: RawMatch[] }>;
+    }>;
+  };
   finalStage?: {
     goldBracket?: RawBracket;
     silverBracket?: RawBracket;
@@ -93,10 +98,25 @@ export interface RawTournament {
   };
 }
 
+interface PhaseCfg { gameMode?: string; roundsToPlay?: number; pointsToWin?: number; }
+
 interface RawBracket {
   rounds?: Array<{ name?: string; matches?: RawMatch[] }>;
   thirdPlaceMatch?: RawMatch;
   consolationBrackets?: Array<{ rounds?: Array<{ matches?: RawMatch[] }> }>;
+  config?: { earlyRounds?: PhaseCfg; semifinal?: PhaseCfg; final?: PhaseCfg };
+}
+
+/** The 3 tracked game formats. Games of any other format are ignored. */
+export const GAME_FORMATS = ['4r', '7p', '9p'] as const;
+export type GameFormat = (typeof GAME_FORMATS)[number];
+
+/** Map a phase/stage config to one of the 3 tracked formats, or null to ignore. */
+export function formatKey(cfg?: PhaseCfg): GameFormat | null {
+  if (!cfg) return null;
+  if (cfg.gameMode === 'rounds') return cfg.roundsToPlay === 4 ? '4r' : null;
+  if (cfg.gameMode === 'points') return cfg.pointsToWin === 7 ? '7p' : cfg.pointsToWin === 9 ? '9p' : null;
+  return null;
 }
 
 export interface RecordRef {
@@ -111,6 +131,8 @@ export interface PlayerStats {
   displayName: string;
   byYear: Record<string, CounterBlock>;
   records: { maxTwentiesInRound: RecordRef | null; maxTwentiesInGame: RecordRef | null; bestWinStreak: number };
+  /** Best 20s in a single game, split by game format ('4r' | '7p' | '9p'). */
+  maxTwentiesByFormat: Partial<Record<GameFormat, RecordRef | null>>;
   singlesTitles: number; singlesPodiums: number;
   doublesTitles: number; doublesPodiums: number;
   doublesResults: DoublesResult[];
@@ -121,6 +143,7 @@ export function emptyPlayerStats(userId: string): PlayerStats {
     userId, displayName: '',
     byYear: {},
     records: { maxTwentiesInRound: null, maxTwentiesInGame: null, bestWinStreak: 0 },
+    maxTwentiesByFormat: {},
     singlesTitles: 0, singlesPodiums: 0, doublesTitles: 0, doublesPodiums: 0, doublesResults: [],
   };
 }
@@ -143,8 +166,8 @@ function maybeRecord(
   return candidate > (current?.value ?? -1) ? { value: candidate, ...ctx } : current;
 }
 
-/** All bracket matches with their phase ('final' for the championship final, else 'ko'). */
-function* bracketMatches(t: RawTournament): Generator<{ match: RawMatch; phase: MatchPhase }> {
+/** All bracket matches with their phase ('final' for the championship final, else 'ko') and game format. */
+function* bracketMatches(t: RawTournament): Generator<{ match: RawMatch; phase: MatchPhase; format: GameFormat | null }> {
   const fs = t.finalStage;
   if (!fs) return;
   const brackets: (RawBracket | undefined)[] = [
@@ -158,13 +181,16 @@ function* bracketMatches(t: RawTournament): Generator<{ match: RawMatch; phase: 
       // also contain "final", so exclude them. Mirrors src/lib/firebase/tournamentMatches.ts:910.
       const n = (round.name ?? '').toLowerCase();
       const isFinal = n === 'finals' || (n.includes('final') && !n.includes('semi') && !n.includes('quarter'));
+      const isSemi = n.includes('semi');
       const phase: MatchPhase = isFinal ? 'final' : 'ko';
-      for (const m of round.matches ?? []) yield { match: m, phase };
+      const cfg = isFinal ? br.config?.final : isSemi ? br.config?.semifinal : br.config?.earlyRounds;
+      const format = formatKey(cfg);
+      for (const m of round.matches ?? []) yield { match: m, phase, format };
     }
-    if (br.thirdPlaceMatch) yield { match: br.thirdPlaceMatch, phase: 'ko' };
+    if (br.thirdPlaceMatch) yield { match: br.thirdPlaceMatch, phase: 'ko', format: formatKey(br.config?.final) };
     for (const cb of br.consolationBrackets ?? [])
       for (const round of cb.rounds ?? [])
-        for (const m of round.matches ?? []) yield { match: m, phase: 'ko' };
+        for (const m of round.matches ?? []) yield { match: m, phase: 'ko', format: formatKey(br.config?.earlyRounds) };
   }
 }
 
@@ -219,12 +245,13 @@ export function computeUserStats(userId: string, tournaments: RawTournament[]): 
     const block = stats.byYear[year] ?? (stats.byYear[year] = emptyBlock());
     const nameById = new Map(t.participants.map((p) => [p.id, p.name]));
 
-    const all: Array<{ match: RawMatch; phase: MatchPhase }> = [
-      ...[...groupMatchesIter(t)].map((match) => ({ match, phase: 'group' as MatchPhase })),
+    const groupFmt = formatKey(t.groupStage);
+    const all: Array<{ match: RawMatch; phase: MatchPhase; format: GameFormat | null }> = [
+      ...[...groupMatchesIter(t)].map((match) => ({ match, phase: 'group' as MatchPhase, format: groupFmt })),
       ...bracketMatches(t),
     ];
 
-    for (const { match, phase } of all) {
+    for (const { match, phase, format } of all) {
       if (match.participantA !== part.id && match.participantB !== part.id) continue;
       if (!match.winner && !match.rounds) continue; // unplayed / TBD
       const ctx = accumulateMatch(block, match, part.id, phase);
@@ -236,6 +263,10 @@ export function computeUserStats(userId: string, tournaments: RawTournament[]): 
       const refCtx = { tournamentId: t.id, tournamentName: t.name, date: ms, opponentName };
       stats.records.maxTwentiesInRound = maybeRecord(stats.records.maxTwentiesInRound, ctx.maxTwentiesInRound, refCtx);
       stats.records.maxTwentiesInGame = maybeRecord(stats.records.maxTwentiesInGame, ctx.maxTwentiesInGame, refCtx);
+      // Per-format "best 20s in a game" record (only the 3 tracked formats).
+      if (format && ctx.maxTwentiesInGame > 0) {
+        stats.maxTwentiesByFormat[format] = maybeRecord(stats.maxTwentiesByFormat[format] ?? null, ctx.maxTwentiesInGame, refCtx);
+      }
     }
   }
 

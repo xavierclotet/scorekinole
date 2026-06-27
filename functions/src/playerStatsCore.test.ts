@@ -198,4 +198,30 @@ describe('computeUserStats', () => {
     expect(stats.doublesResults[0].partnerName).toBe('Sam');
     expect(stats.doublesResults[0].partnerId).toBe('u9');
   });
+
+  it('records best 20s in a game per format (4r from groupStage, 9p from finalStage)', () => {
+    const t: RawTournament = {
+      id: 'tf', name: 'Formats Cup', status: 'COMPLETED', gameType: 'singles',
+      tournamentDate: Date.UTC(2025, 0, 1),
+      participants: [
+        { id: 'pA', userId: 'u1', name: 'Juan', status: 'ACTIVE', finalPosition: 1 },
+        { id: 'pB', userId: 'u2', name: 'Ana', status: 'ACTIVE', finalPosition: 2 },
+      ],
+      groupStage: { gameMode: 'rounds', roundsToPlay: 4, groups: [{ schedule: [{ matches: [{
+        participantA: 'pA', participantB: 'pB', winner: 'pA',
+        rounds: [
+          { gameNumber: 1, roundInGame: 1, pointsA: 2, pointsB: 0, twentiesA: 5, twentiesB: 0, hammer: 'pA' },
+          { gameNumber: 1, roundInGame: 2, pointsA: 2, pointsB: 0, twentiesA: 3, twentiesB: 0, hammer: 'pA' },
+        ],
+      }] }] }] },
+      finalStage: { goldBracket: { config: { final: { gameMode: 'points', pointsToWin: 9 } }, rounds: [{ name: 'finals', matches: [{
+        participantA: 'pA', participantB: 'pB', winner: 'pA',
+        rounds: [{ gameNumber: 1, roundInGame: 1, pointsA: 2, pointsB: 0, twentiesA: 7, twentiesB: 0, hammer: 'pA' }],
+      }] }] } },
+    };
+    const stats = computeUserStats('u1', [t]);
+    expect(stats.maxTwentiesByFormat['4r']?.value).toBe(8); // group game: 5 + 3
+    expect(stats.maxTwentiesByFormat['9p']?.value).toBe(7); // final game: 7
+    expect(stats.maxTwentiesByFormat['7p']).toBeUndefined();
+  });
 });
