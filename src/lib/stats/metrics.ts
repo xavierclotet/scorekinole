@@ -18,11 +18,12 @@ const div = (a: number, b: number): number | null => (b > 0 ? a / b : null);
 
 export const METRICS: MetricDescriptor[] = [
   { id: 'twentiesPerRound', family: 'twenties', kind: 'avg', format: 'decimal', labelKey: 'leaderboards_m_twentiesPerRound', descKey: 'leaderboards_d_twentiesPerRound', compute: (b) => div(b.twenties, b.rounds) },
-  { id: 'twentiesPerGame', family: 'twenties', kind: 'avg', format: 'decimal', labelKey: 'leaderboards_m_twentiesPerGame', descKey: 'leaderboards_d_twentiesPerGame', compute: (b) => div(b.twenties, b.games) },
   { id: 'roundsWithTwentyPct', family: 'twenties', kind: 'avg', format: 'percent', labelKey: 'leaderboards_m_roundsWithTwentyPct', descKey: 'leaderboards_d_roundsWithTwentyPct', compute: (b) => div(b.roundsWithTwenty, b.rounds) },
   { id: 'perfectRoundsPct', family: 'twenties', kind: 'avg', format: 'percent', labelKey: 'leaderboards_m_perfectRoundsPct', descKey: 'leaderboards_d_perfectRoundsPct', compute: (b) => div(b.perfectRounds, b.rounds) },
   { id: 'maxTwentiesInRound', family: 'twenties', kind: 'record', format: 'int', labelKey: 'leaderboards_m_maxTwentiesInRound', descKey: 'leaderboards_d_maxTwentiesInRound', compute: (_b, s) => s.records.maxTwentiesInRound?.value ?? null },
-  { id: 'maxTwentiesInGame', family: 'twenties', kind: 'record', format: 'int', labelKey: 'leaderboards_m_maxTwentiesInGame', descKey: 'leaderboards_d_maxTwentiesInGame', compute: (_b, s) => s.records.maxTwentiesInGame?.value ?? null },
+  { id: 'maxTwentiesInGame4r', family: 'twenties', kind: 'record', format: 'int', labelKey: 'leaderboards_m_maxTwentiesInGame4r', descKey: 'leaderboards_d_maxTwentiesInGame4r', compute: (_b, s) => s.maxTwentiesByFormat?.['4r']?.value ?? null },
+  { id: 'maxTwentiesInGame7p', family: 'twenties', kind: 'record', format: 'int', labelKey: 'leaderboards_m_maxTwentiesInGame7p', descKey: 'leaderboards_d_maxTwentiesInGame7p', compute: (_b, s) => s.maxTwentiesByFormat?.['7p']?.value ?? null },
+  { id: 'maxTwentiesInGame9p', family: 'twenties', kind: 'record', format: 'int', labelKey: 'leaderboards_m_maxTwentiesInGame9p', descKey: 'leaderboards_d_maxTwentiesInGame9p', compute: (_b, s) => s.maxTwentiesByFormat?.['9p']?.value ?? null },
 
   { id: 'pctTwentiesWithHammer', family: 'hammer', kind: 'avg', format: 'percent', labelKey: 'leaderboards_m_pctTwentiesWithHammer', descKey: 'leaderboards_d_pctTwentiesWithHammer', compute: (b) => div(b.hammerTwenties, b.twenties) },
   { id: 'twentiesPerHammerRound', family: 'hammer', kind: 'avg', format: 'decimal', labelKey: 'leaderboards_m_twentiesPerHammerRound', descKey: 'leaderboards_d_twentiesPerHammerRound', compute: (b) => div(b.hammerTwenties, b.hammerRounds) },

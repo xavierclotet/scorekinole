@@ -25,6 +25,8 @@ export interface PlayerStats {
   country?: string;
   byYear: Record<string, CounterBlock>;
   records: { maxTwentiesInRound: RecordRef | null; maxTwentiesInGame: RecordRef | null; bestWinStreak: number };
+  /** Best 20s in a single game, split by game format ('4r' | '7p' | '9p'). */
+  maxTwentiesByFormat?: Record<string, RecordRef | null>;
   singlesTitles: number; singlesPodiums: number;
   doublesTitles: number; doublesPodiums: number;
   doublesResults: DoublesResult[];
