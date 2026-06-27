@@ -29,7 +29,8 @@ export function buildLeaderboard(
     const block = metric.kind === 'avg' ? scopeBlock(p, opts.year) : allTimeBlock(p);
     if (metric.kind === 'avg' && block.matches < opts.minMatches) continue;
     const value = metric.compute(block, p);
-    if (value === null || Number.isNaN(value)) continue;
+    // Hide players with no meaningful value (null, NaN, or exactly 0) from every leaderboard.
+    if (value === null || Number.isNaN(value) || value === 0) continue;
     entries.push({ stats: p, value });
   }
   entries.sort((x, y) => y.value - x.value); // all current metrics: higher is better

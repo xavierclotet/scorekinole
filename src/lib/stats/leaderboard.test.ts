@@ -46,6 +46,12 @@ describe('buildLeaderboard', () => {
     expect(lb[0].value).toBe(5);
   });
 
+  it('excludes players whose value is exactly 0', () => {
+    const zero = player('z0', { '2025': { matches: 10, rounds: 20, twenties: 0 } }); // 0 per round
+    const lb = buildLeaderboard([a, zero], getMetric('twentiesPerRound'), { year: 'all', minMatches: 5 });
+    expect(lb.map((e) => e.stats.userId)).toEqual(['a']); // zero excluded
+  });
+
   it('availableYears returns sorted desc years present in data', () => {
     expect(availableYears([a, player('z', { '2023': {}, '2025': {} })])).toEqual(['2025', '2023']);
   });
