@@ -2,6 +2,13 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.59] - 2026-06-27
+- Leaderboards: reorganized into tabs by type (20s · Hammer · Fases decisivas · Resultados · Comparar) and removed the redundant records band
+- Leaderboards: "Most 20s in a game" is now split by game format (to 4 rounds / 7 points / 9 points)
+- Leaderboards: player avatars (with initials fallback), zebra-striped higher-contrast tables, and per-metric info popovers explaining each stat
+- Leaderboards: players with a 0 value are hidden from each ranking
+- i18n: "hammer" kept untranslated (es/ca); shorter, clearer metric descriptions
+
 ## [2.5.58] - 2026-06-26
 - New Leaderboards page (Records + Compare) with curious crokinole stats — 20s per round, % of 20s with the hammer, win streaks, titles and more — reachable from the landing, the app menu (Ctrl+L) and player profiles
 - Compare players head-to-head in a multi-player table, deep-linkable from any profile ("Compare with…")
