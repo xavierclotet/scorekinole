@@ -56,7 +56,7 @@
           {#each selected as p (p.userId)}
             <th>
               <a class="phead" href={`/users/${p.userId}`}>
-                {#if p.photoURL}<img class="av" src={p.photoURL} alt="" />{:else}<span class="av ph">{p.displayName.charAt(0)}</span>{/if}
+                {#if p.photoURL}<img class="av" src={p.photoURL} alt="" referrerpolicy="no-referrer" />{:else}<span class="av ph">{p.displayName.charAt(0)}</span>{/if}
                 <span class="pn">{p.displayName}</span>
               </a>
               <button class="rm" onclick={() => remove(p.userId)} aria-label="Remove"><X size={12} /></button>

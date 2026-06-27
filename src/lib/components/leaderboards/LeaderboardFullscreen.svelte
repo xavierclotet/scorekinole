@@ -33,7 +33,7 @@
       {#each filtered as e (e.stats.userId)}
         <a class="fs-row" href={`/users/${e.stats.userId}`}>
           <span class="rk">{e.rank}</span>
-          {#if e.stats.photoURL}<img class="av" src={e.stats.photoURL} alt="" />{:else}<span class="av ph">{e.stats.displayName.charAt(0)}</span>{/if}
+          {#if e.stats.photoURL}<img class="av" src={e.stats.photoURL} alt="" referrerpolicy="no-referrer" />{:else}<span class="av ph">{e.stats.displayName.charAt(0)}</span>{/if}
           <span class="nm">{e.stats.displayName}</span>
           <span class="val">{formatMetric(metric, e.value)}</span>
         </a>
