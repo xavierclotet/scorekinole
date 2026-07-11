@@ -4,7 +4,7 @@
 
 Beautiful and easy-to-use mobile app to track scores in your Crokinole matches. Perfect for casual games and professional tournaments.
 
-![Version](https://img.shields.io/badge/version-2.5.59-blue.svg)
+![Version](https://img.shields.io/badge/version-2.5.60-blue.svg)
 ![License](https://img.shields.io/badge/license-Proprietary-red.svg)
 ![Platform](https://img.shields.io/badge/platform-Web%20(PWA)-brightgreen.svg)
 
@@ -13,11 +13,11 @@ Beautiful and easy-to-use mobile app to track scores in your Crokinole matches. 
 ## 📥 **HOW TO USE**
 
 ### 🌐 **WEB APP**
-### 👉 [**https://scorekinole.web.app**](https://scorekinole.web.app/) 👈
+### 👉 [**https://scorekinole.es**](https://scorekinole.es/) 👈
 
 Works on any device with a browser. You can also **install it as an app** on your phone:
 
-1. Open [scorekinole.web.app](https://scorekinole.web.app/) in Chrome on Android
+1. Open [scorekinole.es](https://scorekinole.es/) in Chrome on Android
 2. Tap the **"Install app"** button on the landing page (or use Chrome menu > "Add to Home Screen")
 3. The app appears on your home screen like a native app, without the browser bar
 4. Updates are automatic — you always have the latest version
@@ -180,7 +180,7 @@ Complete tournament administration system for professional Crokinole events.
 ## 📖 How to Use
 
 ### Quick Start
-1. **Open the app** - Visit [scorekinole.web.app](https://scorekinole.web.app/) or open the installed PWA
+1. **Open the app** - Visit [scorekinole.es](https://scorekinole.es/) or open the installed PWA
 2. **Configure settings** - Tap ⚙️ to set your game mode and preferences
 3. **Start scoring** - Swipe up/down on the screen to add/remove points
 4. **View history** - Tap the **Match History** icon to see all your past matches
@@ -232,12 +232,12 @@ Quickly join tournaments or friendly matches by scanning QR codes instead of typ
 #### **For Tournament Admins**
 - In the tournament admin view, click the **QR button** next to the tournament key badge
 - A modal displays a large QR code that players can scan
-- The QR encodes: `https://scorekinole.web.app/game?key=ABC123`
+- The QR encodes: `https://scorekinole.es/game?key=ABC123`
 - Print or display on screen for easy player access
 
 #### **Supported QR Formats**
-- Tournament key URL: `scorekinole.web.app/game?key=ABC123`
-- Friendly invite URL: `scorekinole.web.app/join?invite=XYZ789`
+- Tournament key URL: `scorekinole.es/game?key=ABC123`
+- Friendly invite URL: `scorekinole.es/join?invite=XYZ789`
 - Direct 6-character codes: `ABC123`
 
 #### **Camera Permissions**

@@ -2,6 +2,11 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.60] - 2026-07-11
+- Domain: migrated to official domain scorekinole.es
+- SEO: optimized metadata, titles, and structured JSON-LD schemas to target "live scoring crokinole" search results
+- Hosting: configured Cloudflare CDN with free DNS Anycast for global speed, security, and caching
+
 ## [2.5.59] - 2026-06-27
 - Leaderboards: reorganized into tabs by type (20s · Hammer · Fases decisivas · Resultados · Comparar) and removed the redundant records band
 - Leaderboards: "Most 20s in a game" is now split by game format (to 4 rounds / 7 points / 9 points)
