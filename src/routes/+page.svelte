@@ -42,18 +42,18 @@
 			"@context": "https://schema.org",
 			"@type": "Organization",
 			"name": "Scorekinole",
-			"url": "https://scorekinole.web.app",
-			"logo": "https://scorekinole.web.app/icon-512.png",
-			"description": "Professional crokinole scoring application for tournaments and casual games"
+			"url": "https://scorekinole.es",
+			"logo": "https://scorekinole.es/icon-512.png",
+			"description": "Professional crokinole live scoring application for tournaments, clubs, and casual games"
 		},
 		{
 			"@context": "https://schema.org",
 			"@type": "WebApplication",
 			"name": "Scorekinole",
-			"url": "https://scorekinole.web.app",
+			"url": "https://scorekinole.es",
 			"applicationCategory": "SportsApplication",
 			"operatingSystem": "Web",
-			"description": "Track crokinole scores, manage live tournaments, and view player rankings",
+			"description": "The ultimate crokinole live scoring app. Track match scores, manage live tournaments, view brackets, and follow player rankings in real-time.",
 			"offers": {
 				"@type": "Offer",
 				"price": "0",
@@ -162,10 +162,10 @@
 </script>
 
 <SEO
-	title="Scorekinole - Professional Crokinole Scoring App"
-	description="Track crokinole scores, manage live tournaments, and view player rankings. The ultimate free scoring app for crokinole players and tournament organizers worldwide."
-	keywords="crokinole, crokinole scoring, crokinole app, crokinole tournament, live scoring, scorekinole, crokinole tracker, crokinole points"
-	canonical="https://scorekinole.web.app/"
+	title="Scorekinole - Crokinole Live Scoring & Tournament App"
+	description="Scorekinole is the ultimate free crokinole live scoring app. Track scores, manage live tournaments, view player rankings, and run round robins, Swiss, or brackets in real-time."
+	keywords="live scoring crokinole, crokinole, crokinole scoring, crokinole app, crokinole tournament, live scoring, scorekinole, crokinole tracker, crokinole live scoring, crokinole points"
+	canonical="https://scorekinole.es/"
 	{jsonLd}
 />
 

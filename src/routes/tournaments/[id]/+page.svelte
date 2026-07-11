@@ -3344,7 +3344,7 @@
 	{#if tournament && !tournament.isImported}
 		<!-- Footer -->
 		<footer class="tournament-footer">
-			<PoweredByBadge size="sm" href="https://scorekinole.web.app" />
+			<PoweredByBadge size="sm" href="https://scorekinole.es" />
 		</footer>
 	{/if}
 </div>

@@ -174,7 +174,7 @@
 <SEO
 	title={profile ? `${profile.playerName} - Crokinole Stats | Scorekinole` : 'Player Profile - Scorekinole'}
 	description={profile ? `Crokinole tournament statistics for ${profile.playerName}. View match history, win rate, and 20s accuracy.` : 'Player profile and statistics.'}
-	canonical="https://scorekinole.web.app/users/{canonicalParam}"
+	canonical="https://scorekinole.es/users/{canonicalParam}"
 />
 
 <div class="profile-container" data-theme={$theme}>

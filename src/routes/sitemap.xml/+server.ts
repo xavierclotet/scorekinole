@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
 
-const BASE_URL = 'https://scorekinole.web.app';
+const BASE_URL = 'https://scorekinole.es';
 
 export const GET: RequestHandler = async () => {
 	const pages = [

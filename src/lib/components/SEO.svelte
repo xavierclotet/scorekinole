@@ -12,7 +12,7 @@
 		jsonLd?: object | object[];
 	}
 
-	const BASE_URL = 'https://scorekinole.web.app';
+	const BASE_URL = 'https://scorekinole.es';
 	const DEFAULT_OG_IMAGE = `${BASE_URL}/og-image.jpg`;
 
 	let {

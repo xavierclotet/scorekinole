@@ -7,4 +7,4 @@ Disallow: /admin
 Disallow: /api
 
 # Sitemap
-Sitemap: https://scorekinole.web.app/sitemap.xml
+Sitemap: https://scorekinole.es/sitemap.xml

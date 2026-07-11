@@ -166,7 +166,7 @@ vi.mock('firebase/firestore', () => {
 	};
 });
 vi.mock('$lib/constants', () => ({
-	PRODUCTION_URL: 'https://scorekinole.web.app'
+	PRODUCTION_URL: 'https://scorekinole.es'
 }));
 
 import {
@@ -340,15 +340,15 @@ describe('getInviteTimeRemaining', () => {
 
 describe('getInviteUrl', () => {
 	it('returns the production URL with the invite code as a query parameter', () => {
-		expect(getInviteUrl('ABC123')).toBe('https://scorekinole.web.app/join?invite=ABC123');
+		expect(getInviteUrl('ABC123')).toBe('https://scorekinole.es/join?invite=ABC123');
 	});
 
 	it('preserves the exact case of the provided invite code', () => {
-		expect(getInviteUrl('xYz789')).toBe('https://scorekinole.web.app/join?invite=xYz789');
+		expect(getInviteUrl('xYz789')).toBe('https://scorekinole.es/join?invite=xYz789');
 	});
 
 	it('works with an empty string (edge case)', () => {
-		expect(getInviteUrl('')).toBe('https://scorekinole.web.app/join?invite=');
+		expect(getInviteUrl('')).toBe('https://scorekinole.es/join?invite=');
 	});
 });
 

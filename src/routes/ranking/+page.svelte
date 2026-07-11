@@ -247,7 +247,7 @@
 	title="Crokinole Player Rankings"
 	description="Official crokinole player rankings based on tournament results. Track the best crokinole players, their performance history, and tournament achievements worldwide."
 	keywords="crokinole rankings, crokinole players, crokinole leaderboard, best crokinole players, tournament rankings, scorekinole rankings"
-	canonical="https://scorekinole.web.app/ranking"
+	canonical="https://scorekinole.es/ranking"
 />
 
 <div class="rankings-container" data-theme={$theme}>

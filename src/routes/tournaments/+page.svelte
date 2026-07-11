@@ -238,7 +238,7 @@
 	title="Live Crokinole Tournaments"
 	description="Browse and follow live crokinole tournaments worldwide. Real-time scores, brackets, group standings, and results from crokinole competitions."
 	keywords="crokinole tournaments, live crokinole, crokinole competition, crokinole brackets, crokinole results, scorekinole tournaments"
-	canonical="https://scorekinole.web.app/tournaments"
+	canonical="https://scorekinole.es/tournaments"
 />
 
 <div class="tournaments-container" data-theme={$theme}>

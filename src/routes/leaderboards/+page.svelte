@@ -56,7 +56,7 @@
   function openFullscreen(metric: MetricDescriptor, entries: LeaderboardEntry[]) { fullscreen = { metric, entries }; }
 </script>
 
-<SEO title="Leaderboards · Scorekinole" description="Records and player comparison for crokinole" canonical="https://scorekinole.web.app/leaderboards" />
+<SEO title="Leaderboards · Scorekinole" description="Records and player comparison for crokinole" canonical="https://scorekinole.es/leaderboards" />
 
 <div class="lb-container" data-theme={$theme}>
   <header class="page-header">
