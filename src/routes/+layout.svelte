@@ -64,6 +64,12 @@
 
 
 	onMount(() => {
+		// Auto-redirect old domains to the new official domain scorekinole.es
+		if (browser && (window.location.hostname === 'scorekinole.web.app' || window.location.hostname === 'scorekinole.dpdns.org' || window.location.hostname === 'scorekinole.firebaseapp.com')) {
+			window.location.replace('https://scorekinole.es' + window.location.pathname + window.location.search + window.location.hash);
+			return;
+		}
+
 		// Load all persisted data
 		gameSettings.load();
 		loadTeams();
