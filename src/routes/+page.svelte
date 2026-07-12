@@ -46,6 +46,22 @@
 		},
 		{
 			"@context": "https://schema.org",
+			"@type": "WebSite",
+			"name": "Scorekinole",
+			"url": "https://scorekinole.es",
+			"potentialAction": {
+				"@type": "SearchAction",
+				"target": {
+					"@type": "EntryPoint",
+					"urlTemplate": "https://scorekinole.es/tournaments?q={search_term_string}"
+				},
+				"query-input": "required name=search_term_string"
+			},
+			"inLanguage": ["en", "es", "ca"],
+			"description": "Crokinole live scoring, tournaments, and player rankings"
+		},
+		{
+			"@context": "https://schema.org",
 			"@type": "WebApplication",
 			"name": "Scorekinole",
 			"url": "https://scorekinole.es",

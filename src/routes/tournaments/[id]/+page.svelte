@@ -23,6 +23,7 @@
 	import { getUserProfileUrl } from '$lib/utils/userProfileUrl';
 	import { translateText } from '$lib/utils/translate';
 	import { getLocale } from '$lib/paraglide/runtime.js';
+	import SEO from '$lib/components/SEO.svelte';
 	import { calculateRankingPoints } from '$lib/algorithms/ranking';
 	import * as Command from '$lib/components/ui/command';
 	import * as Popover from '$lib/components/ui/popover';
@@ -41,6 +42,78 @@
 	let loading = $state(true);
 	let error = $state(false);
 	let unsubscribe: (() => void) | null = null;
+
+	let locale = $derived(getLocale());
+
+	let seoTitle = $derived(tournament ? `${tournament.name} - Scorekinole` : 'Crokinole Tournament - Scorekinole');
+
+	let seoDesc = $derived(tournament
+		? locale === 'es'
+			? `Sigue el torneo de crokinole ${tournament.name} en vivo. ${tournament.city ? tournament.city + ', ' : ''}${tournament.country ? tournament.country + '. ' : ''}Puntuaciones, clasificaciones y resultados en tiempo real.`
+			: locale === 'ca'
+				? `Segueix el torneig de crokinole ${tournament.name} en directe. ${tournament.city ? tournament.city + ', ' : ''}${tournament.country ? tournament.country + '. ' : ''}Puntuacions, classificacions i resultats en temps real.`
+				: `Follow the ${tournament.name} crokinole tournament live. ${tournament.city ? tournament.city + ', ' : ''}${tournament.country ? tournament.country + '. ' : ''}Scores, standings, and results in real-time.`
+		: 'Live crokinole tournament scores, standings, and results.');
+
+	let seoKeywords = $derived(tournament
+		? `crokinole ${tournament.name}, torneo crokinole ${tournament.city || ''}, crokinole tournament ${tournament.country || ''}, live scoring crokinole, ${tournament.gameType === 'doubles' ? 'doubles crokinole' : 'singles crokinole'}`
+		: 'crokinole tournament, live scoring crokinole, torneo crokinole, crokinole resultados'
+	);
+
+	let sportsEventJsonLd = $derived(tournament?.status !== 'DRAFT' && tournament?.tournamentDate ? {
+		"@context": "https://schema.org",
+		"@type": "SportsEvent",
+		"name": tournament.name,
+		"startDate": new Date(tournament.tournamentDate).toISOString(),
+		"location": tournament.city || tournament.country ? {
+			"@type": "Place",
+			"address": {
+				"@type": "PostalAddress",
+				"addressLocality": tournament.city || undefined,
+				"addressCountry": tournament.country || undefined
+			}
+		} : undefined,
+		"sport": "Crokinole",
+		"eventStatus": tournament.status === 'COMPLETED'
+			? "https://schema.org/EventCompleted"
+			: tournament.status === 'LIVE'
+				? "https://schema.org/EventActive"
+				: "https://schema.org/EventScheduled",
+		"organizer": {
+			"@type": "Organization",
+			"name": "Scorekinole",
+			"url": "https://scorekinole.es"
+		}
+	} : null);
+
+	let breadcrumbJsonLd = $derived(tournament ? {
+		"@context": "https://schema.org",
+		"@type": "BreadcrumbList",
+		"itemListElement": [
+			{
+				"@type": "ListItem",
+				"position": 1,
+				"name": "Scorekinole",
+				"item": "https://scorekinole.es"
+			},
+			{
+				"@type": "ListItem",
+				"position": 2,
+				"name": "Tournaments",
+				"item": "https://scorekinole.es/tournaments"
+			},
+			{
+				"@type": "ListItem",
+				"position": 3,
+				"name": tournament.name,
+				"item": `https://scorekinole.es/tournaments/${tournament.key}`
+			}
+		]
+	} : null);
+
+	let pageJsonLd = $derived(
+		[sportsEventJsonLd, breadcrumbJsonLd].filter(Boolean)
+	);
 
 	// Video modal state
 	let showVideoModal = $state(false);
@@ -1081,9 +1154,14 @@
 	{/if}
 {/snippet}
 
-<svelte:head>
-	<title>{tournament?.name || 'Torneo'} - Scorekinole</title>
-</svelte:head>
+<SEO
+	title={seoTitle}
+	description={seoDesc}
+	keywords={seoKeywords}
+	canonical={`https://scorekinole.es/tournaments/${tournament?.key || ''}`}
+	locale={locale}
+	jsonLd={pageJsonLd.length > 0 ? pageJsonLd : undefined}
+/>
 
 <div class="detail-container" data-theme={$theme}>
 	<header class="page-header">

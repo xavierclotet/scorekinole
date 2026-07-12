@@ -11,6 +11,8 @@
 	import * as m from '$lib/paraglide/messages.js';
 	import { currentUser, signInWithGoogle, authInitialized } from '$lib/firebase/auth';
 	import { getPlayerName } from '$lib/firebase/userProfile';
+	import { getLocale } from '$lib/paraglide/runtime.js';
+	import SEO from '$lib/components/SEO.svelte';
 	import {
 		getInviteByCode,
 		acceptInvite,
@@ -193,11 +195,31 @@
 				return m.join_roleOpponent({ name: hostName });
 		}
 	})());
+
+	let locale = $derived(getLocale());
+
+	let seoTitle = $derived(invite
+		? `${invite.hostName} te invita a jugar al crokinole - Scorekinole`
+		: m.join_pageTitle()
+	);
+
+	let seoDesc = $derived(invite
+		? locale === 'es'
+			? `Acepta la invitación de ${invite.hostName} para una partida de crokinole. Puntuación en vivo con Scorekinole.`
+			: `Accept ${invite.hostName}'s crokinole match invitation. Live scoring with Scorekinole.`
+		: locale === 'es'
+			? 'Únete a una partida de crokinole con Scorekinole. Puntuación en vivo gratuita.'
+			: 'Join a crokinole match with Scorekinole. Free live scoring.'
+	);
 </script>
 
-<svelte:head>
-	<title>{m.join_pageTitle()}</title>
-</svelte:head>
+<SEO
+	title={seoTitle}
+	description={seoDesc}
+	canonical="https://scorekinole.es/join"
+	locale={locale}
+	noindex={true}
+/>
 
 <div class="join-page">
 	<div class="join-container">
