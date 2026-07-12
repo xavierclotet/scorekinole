@@ -1,5 +1,7 @@
 import type { RequestHandler } from './$types';
 
+export const prerender = true;
+
 const BASE_URL = 'https://scorekinole.es';
 
 export const GET: RequestHandler = async () => {
