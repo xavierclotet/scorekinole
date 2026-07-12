@@ -545,6 +545,8 @@
 	<footer class="footer">
 		<span class="footer-copy">© 2026 Scorekinole by XaviC</span>
 		<span class="footer-dot">·</span>
+		<a href="/blog" class="footer-link">Blog</a>
+		<span class="footer-dot">·</span>
 		<PoweredByBadge size="sm" />
 	</footer>
 </main>
@@ -1324,6 +1326,18 @@
 		color: rgba(255, 255, 255, 0.2);
 	}
 
+	.footer-link {
+		font-size: 0.8rem;
+		color: #60a5fa;
+		text-decoration: none;
+		transition: color 0.15s;
+	}
+
+	.footer-link:hover {
+		color: #93c5fd;
+		text-decoration: underline;
+	}
+
 	:global([data-theme='light']) .landing .footer-copy,
 	:global([data-theme='violet-light']) .landing .footer-copy {
 		color: rgba(0, 0, 0, 0.3);
@@ -1332,6 +1346,16 @@
 	:global([data-theme='light']) .landing .footer-dot,
 	:global([data-theme='violet-light']) .landing .footer-dot {
 		color: rgba(0, 0, 0, 0.2);
+	}
+
+	:global([data-theme='light']) .landing .footer-link,
+	:global([data-theme='violet-light']) .landing .footer-link {
+		color: #2563eb;
+	}
+
+	:global([data-theme='light']) .landing .footer-link:hover,
+	:global([data-theme='violet-light']) .landing .footer-link:hover {
+		color: #1d4ed8;
 	}
 
 	/* Mobile */

@@ -1,0 +1,113 @@
+export interface BlogPost {
+	slug: string;
+	title: string;
+	description: string;
+	date: string;
+	author: string;
+	image?: string;
+	content: string;
+	tags: string[];
+}
+
+export const blogPosts: BlogPost[] = [
+	{
+		slug: 'que-es-crokinole-reglas-basicas',
+		title: '¿Qué es el Crokinole? Reglas básicas para empezar',
+		description: 'Descubre el crokinole, un emocionante juego de habilidad. Aprende las reglas básicas, cómo se puntúa y por qué está ganando popularidad en todo el mundo.',
+		date: '2026-07-10',
+		author: 'Scorekinole Team',
+		image: '/og-image.png',
+		content: `El crokinole es un juego de habilidad que combina precisión, estrategia y diversión. Originario de Canadá, se ha expandido por todo el mundo y cada vez tiene más seguidores.
+
+## ¿Cómo se juega?
+
+El objetivo del crokinole es lanzar discos desde el borde del tablero hacia el centro, intentando sumar la mayor cantidad de puntos posible. Los jugadores se turnan para lanzar sus discos, y la estrategia consiste tanto en sumar puntos como en desplazar los discos del oponente.
+
+## El tablero
+
+El tablero de crokinole es circular, con varios anillos concéntricos que determinan la puntuación:
+- Anillo exterior: 5 puntos
+- Anillo medio: 10 puntos  
+- Anillo interior: 15 puntos
+- Agujero central: 20 puntos (el famoso "20")
+
+## Reglas básicas
+
+1. Cada jugador tiene 12 discos por ronda
+2. Los discos deben lanzarse desde el borde del tablero
+3. Si un disco del oponente está en juego, debes golpearlo
+4. Si no golpeas ningún disco del oponente, tu disco es eliminado
+5. El jugador con más puntos al final de la partida gana
+
+## Puntuación en vivo con Scorekinole
+
+Con Scorekinole puedes llevar la puntuación de tus partidas de crokinole en tiempo real desde tu móvil. Olvídate de las hojas de papel: nuestra app te permite gestionar torneos, seguir estadísticas y competir con amigos de forma sencilla y gratuita.`,
+		tags: ['crokinole', 'reglas', 'principiantes', 'tutorial']
+	},
+	{
+		slug: 'como-organizar-torneo-crokinole',
+		title: 'Cómo organizar un torneo de crokinole paso a paso',
+		description: 'Guía completa para organizar tu primer torneo de crokinole. Desde la elección del formato hasta la gestión de puntuaciones en vivo con Scorekinole.',
+		date: '2026-07-08',
+		author: 'Scorekinole Team',
+		image: '/og-image.png',
+		content: `Organizar un torneo de crokinole puede parecer complejo, pero con las herramientas adecuadas es más sencillo de lo que imaginas.
+
+## 1. Elige el formato
+
+Los formatos más populares son:
+- **Round Robin**: Todos contra todos en grupos
+- **Suizo**: Emparejamientos según resultados
+- **Eliminatorias (Bracket)**: Torneo por fases
+
+## 2. Define las categorías
+
+Puedes organizar torneos individuales, de dobles, o ambas categorías. Los torneos de dobles tienen su propia dinámica y son muy populares en la comunidad crokinole.
+
+## 3. Gestiona las inscripciones
+
+Con Scorekinole puedes activar la autoinscripción para que los jugadores se registren ellos mismos, con lista de espera incluida.
+
+## 4. Durante el torneo
+
+La clave del éxito es tener las puntuaciones actualizadas en tiempo real. Con nuestra app puedes:
+- Asignar mesas de forma equitativa
+- Registrar resultados al instante
+- Visualizar clasificaciones en vivo
+- Gestionar walkovers y descalificaciones
+
+## 5. Al finalizar
+
+Scorekinole calcula automáticamente los puntos de ranking, genera los resultados finales y los publica para que todos los participantes puedan consultarlos.
+
+¿Quieres probarlo? Crea tu torneo gratis en Scorekinole y descubre lo fácil que es gestionar competiciones de crokinole.`,
+		tags: ['torneo', 'organización', 'crokinole', 'guía']
+	},
+	{
+		slug: 'mejores-jugadores-crokinole-ranking',
+		title: 'Los mejores jugadores de crokinole del mundo',
+		description: 'Conoce el ranking mundial de crokinole. Descubre quiénes son los mejores jugadores, sus estadísticas y cómo se calcula la puntuación en los torneos.',
+		date: '2026-07-05',
+		author: 'Scorekinole Team',
+		image: '/og-image.png',
+		content: `El crokinole tiene una comunidad global de jugadores apasionados. Cada año se celebran torneos por todo el mundo y los mejores jugadores compiten por estar en lo más alto del ranking.
+
+## ¿Cómo funciona el ranking?
+
+El sistema de ranking de Scorekinole se basa en los resultados de los torneos. Cuantos más torneos juegues y mejor quedes clasificado, más puntos acumularás.
+
+## Factores que influyen en la puntuación
+
+- Posición final en el torneo
+- Número de participantes
+- Nivel del torneo (regional, nacional, internacional)
+- Categoría (individual o dobles)
+
+## Sigue el ranking en Scorekinole
+
+En Scorekinole puedes consultar el ranking actualizado de jugadores de crokinole, filtrar por año, país y categoría. Cada jugador tiene su perfil con estadísticas detalladas: partidas ganadas, veintes (20s), historial de torneos y mucho más.
+
+¿Quieres aparecer en el ranking? Participa en torneos gestionados con Scorekinole y construye tu historial competitivo.`,
+		tags: ['ranking', 'jugadores', 'crokinole', 'estadísticas']
+	}
+];
