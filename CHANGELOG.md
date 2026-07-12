@@ -2,6 +2,13 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.61] - 2026-07-12
+- SEO: localized meta tags (es/ca/en) switch with user language; dynamic og:locale and html lang
+- Sitemap: expanded to 11 URLs including /blog, /leaderboards, /my-stats, /join, /game; added lastmod dates
+- SEO: SportsEvent + BreadcrumbList JSON-LD on tournament pages; Article schema on blog posts
+- Blog: new `/blog` section with 3 initial articles, translation button, and footer link on landing page
+- Fix: sitemap.xml now served as static file (was broken with SPA fallback)
+
 ## [2.5.60] - 2026-07-11
 - Domain: migrated to official domain scorekinole.es
 - SEO: optimized metadata, titles, and structured JSON-LD schemas to target "live scoring crokinole" search results
