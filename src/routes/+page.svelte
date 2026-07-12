@@ -249,6 +249,14 @@
 	<!-- Navigation bar -->
 	<nav class="navbar">
 		<div class="nav-left">
+			<Button
+				variant="outline"
+				size="sm"
+				onclick={() => goto('/blog')}
+				class="bg-primary/10 border-primary/30 text-primary hover:bg-primary/20 hover:text-primary font-semibold px-6 min-w-20"
+			>
+				Blog
+			</Button>
 			{#if $canAccessAdmin}
 				<Button
 					variant="outline"
@@ -339,6 +347,18 @@
 			>
 				<Trophy class="quick-link-icon" />
 				<span class="quick-link-label">{m.leaderboards_title?.() ?? 'Leaderboards'}</span>
+			</Button>
+
+			<Button
+				variant="ghost"
+				href="/blog"
+				data-webmcp="link-blog"
+				class="quick-link"
+			>
+				<svg class="quick-link-icon" viewBox="0 0 24 24" fill="currentColor">
+					<path d="M19 14v4h-2v-4h-4v-2h4V8h2v4h4v2h-4zm-9 5H4V5h6v14zm-2-8v-2H6v2h2zm0 4v-2H6v2h2zm0 4v-2H6v2h2zm12-10h-2V5h-6v2H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-6h2v6c0 2.2-1.8 4-4 4H5c-2.2 0-4-1.8-4-4V9c0-2.2 1.8-4 4-4h4V3h6v2h4v4z"/>
+				</svg>
+				<span class="quick-link-label">Blog</span>
 			</Button>
 		</div>
 
@@ -810,10 +830,10 @@
 	/* Quick Links — these are shadcn <Button> instances, so styles must be :global */
 	.quick-links {
 		display: grid;
-		grid-template-columns: repeat(2, 1fr);
-		gap: 0.5rem;
+		grid-template-columns: repeat(5, 1fr);
+		gap: 0.4rem;
 		width: 100%;
-		max-width: 420px;
+		max-width: 500px;
 	}
 
 	.quick-links :global(.quick-link) {
@@ -845,11 +865,7 @@
 		font-weight: 500;
 	}
 
-	@media (min-width: 640px) {
-		.quick-links {
-			grid-template-columns: repeat(4, 1fr);
-		}
-	}
+
 
 	/* Support section */
 	.support-section {

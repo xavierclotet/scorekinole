@@ -11,6 +11,44 @@ export interface BlogPost {
 
 export const blogPosts: BlogPost[] = [
 	{
+		slug: 'nuevo-dominio-scorekinole-es',
+		title: 'Scorekinole ahora en scorekinole.es — actualiza tus marcadores',
+		description: '¡Scorekinole se muda a scorekinole.es! Descubre por qué cambiamos de dominio, cómo afecta a los usuarios registrados y cómo actualizar tus marcadores.',
+		date: '2026-07-12',
+		author: 'Scorekinole Team',
+		image: '/og-image.png',
+		content: `Scorekinole ha cambiado su dominio de scorekinole.web.app a scorekinole.es. Este cambio nos permite tener una presencia más profesional y ofrecer una mejor experiencia a todos los jugadores de crokinole.
+
+## ¿Por qué el cambio?
+
+Hasta ahora funcionábamos en un subdominio de Firebase (scorekinole.web.app), que era perfecto para empezar pero tiene limitaciones de cara al futuro. El nuevo dominio .es nos da:
+- Una dirección más corta y fácil de recordar
+- Mejor posicionamiento en buscadores
+- Aspecto más profesional para torneos y competiciones
+- Posibilidad de añadir un blog y más contenido
+
+## ¿Tengo que hacer algo?
+
+Si ya tienes cuenta en Scorekinole, **no necesitas hacer nada**. Todos tus datos, partidas y torneos se han migrado automáticamente. El inicio de sesión con Google y email sigue funcionando exactamente igual.
+
+## Actualiza tus marcadores
+
+Si tienes Scorekinole guardado en favoritos, actualiza el enlace a:
+**https://scorekinole.es**
+
+La antigua dirección (scorekinole.web.app) sigue redirigiendo aquí, así que no perderás el acceso, pero te recomendamos actualizar el marcador para ir directamente al nuevo dominio.
+
+## ¿Y el futuro?
+
+Este cambio es el primero de muchos. Con el nuevo dominio vamos a poder:
+- Publicar artículos y guías en el blog
+- Mejorar el SEO para que más jugadores descubran la app
+- Añadir nuevas funcionalidades sin las limitaciones del dominio anterior
+
+¡Gracias por formar parte de la comunidad Scorekinole! Seguimos trabajando para hacer de Scorekinole la mejor herramienta de puntuación en vivo para crokinole.`,
+		tags: ['scorekinole', 'dominio', 'actualización', 'noticias']
+	},
+	{
 		slug: 'que-es-crokinole-reglas-basicas',
 		title: '¿Qué es el Crokinole? Reglas básicas para empezar',
 		description: 'Descubre el crokinole, un emocionante juego de habilidad. Aprende las reglas básicas, cómo se puntúa y por qué está ganando popularidad en todo el mundo.',

@@ -123,6 +123,7 @@ export async function translateText(
 		const url = new URL('https://api.mymemory.translated.net/get');
 		url.searchParams.set('q', text);
 		url.searchParams.set('langpair', `${from}|${to}`);
+		url.searchParams.set('de', 'xavi@scorekinole.es');
 
 		const response = await fetch(url.toString());
 

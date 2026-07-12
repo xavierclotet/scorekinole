@@ -2,6 +2,13 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.62] - 2026-07-12
+- Blog: added domain migration announcement post
+- Blog: blog link now visible in homepage hero quick-links section
+- Blog: markdown rendering for headings, lists, bold text
+- Blog: localized date format (dd/mm/yyyy for es/ca, "Mon DD, YYYY" for en)
+- Fix: MyMemory API 403 error — added `de` parameter for higher quota
+
 ## [2.5.61] - 2026-07-12
 - SEO: localized meta tags (es/ca/en) switch with user language; dynamic og:locale and html lang
 - Sitemap: expanded to 11 URLs including /blog, /leaderboards, /my-stats, /join, /game; added lastmod dates

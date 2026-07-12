@@ -82,6 +82,34 @@
 	let prevPost = $derived(currentIdx > 0 ? sortedPosts[currentIdx - 1] : null);
 	let nextPost = $derived(currentIdx >= 0 && currentIdx < sortedPosts.length - 1 ? sortedPosts[currentIdx + 1] : null);
 
+	function renderMarkdown(text: string): string {
+		let html = text
+			.replace(/^### (.+)$/gm, '<h3>$1</h3>')
+			.replace(/^## (.+)$/gm, '<h2>$1</h2>')
+			.replace(/^\* (.+)$/gm, '<li>$1</li>')
+			.replace(/^- (.+)$/gm, '<li>$1</li>')
+			.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+			.replace(/\n\n/g, '</p><p>');
+		html = '<p>' + html + '</p>';
+		html = html.replace(/<\/p>\s*<li>/g, '<li>');
+		html = html.replace(/<\/li>\s*<p>/g, '</li>');
+		html = html.replace(/(<li>.*?<\/li>)/gs, (m) => `<ul>${m}</ul>`);
+		html = html.replace(/<\/ul>\s*<ul>/g, '');
+		return html;
+	}
+
+	function formatDate(dateStr: string): string {
+		const [y, m, d] = dateStr.split('-');
+		if (locale === 'en') {
+			const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+			return `${months[parseInt(m) - 1]} ${parseInt(d)}, ${y}`;
+		}
+		return `${parseInt(d)}/${parseInt(m)}/${y}`;
+	}
+
+	let renderedContent = $derived(post ? renderMarkdown(post.content) : '');
+	let renderedTranslated = $derived(translatedContent ? renderMarkdown(translatedContent) : '');
+
 	async function handleTranslate() {
 		if (!post) return;
 		translating = true;
@@ -140,7 +168,7 @@
 				<div class="post-meta">
 					<span class="meta-item">
 						<Calendar size={14} />
-						{post.date}
+						{formatDate(post.date)}
 					</span>
 					<span class="meta-item">
 						<User size={14} />
@@ -173,7 +201,7 @@
 				</div>
 
 				<div class="post-body" class:translated={showTranslation && translatedContent}>
-					{@html showTranslation && translatedContent ? translatedContent : post.content}
+					{@html showTranslation && translatedContent ? renderedTranslated : renderedContent}
 				</div>
 
 				{#if translationError}

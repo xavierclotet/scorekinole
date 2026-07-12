@@ -28,6 +28,15 @@
 			: 'Crokinole tutorials, tournament guides, rules, and Scorekinole updates. Learn and improve your game.'
 	);
 
+	function formatDate(dateStr: string): string {
+		const [y, m, d] = dateStr.split('-');
+		if (locale === 'en') {
+			const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+			return `${months[parseInt(m) - 1]} ${parseInt(d)}, ${y}`;
+		}
+		return `${parseInt(d)}/${parseInt(m)}/${y}`;
+	}
+
 	let sortedPosts = $derived([...blogPosts].sort((a, b) => b.date.localeCompare(a.date)));
 </script>
 
@@ -66,7 +75,7 @@
 						<div class="post-meta">
 							<span class="post-date">
 								<Calendar size={14} />
-								{post.date}
+								{formatDate(post.date)}
 							</span>
 						</div>
 						<h2 class="post-title">{post.title}</h2>
