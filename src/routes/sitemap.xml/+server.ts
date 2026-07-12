@@ -6,7 +6,11 @@ export const GET: RequestHandler = async () => {
 	const pages = [
 		{ url: '/', priority: '1.0', changefreq: 'weekly' },
 		{ url: '/tournaments', priority: '0.9', changefreq: 'daily' },
-		{ url: '/ranking', priority: '0.8', changefreq: 'daily' }
+		{ url: '/ranking', priority: '0.8', changefreq: 'daily' },
+		{ url: '/leaderboards', priority: '0.7', changefreq: 'weekly' },
+		{ url: '/my-stats', priority: '0.6', changefreq: 'weekly' },
+		{ url: '/join', priority: '0.5', changefreq: 'monthly' },
+		{ url: '/game', priority: '0.5', changefreq: 'monthly' }
 	];
 
 	const sitemap = `<?xml version="1.0" encoding="UTF-8"?>

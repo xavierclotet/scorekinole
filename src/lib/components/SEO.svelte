@@ -9,11 +9,18 @@
 		ogImage?: string;
 		ogType?: 'website' | 'article';
 		noindex?: boolean;
+		locale?: string;
 		jsonLd?: object | object[];
 	}
 
 	const BASE_URL = 'https://scorekinole.es';
-	const DEFAULT_OG_IMAGE = `${BASE_URL}/og-image.jpg`;
+	const DEFAULT_OG_IMAGE = `${BASE_URL}/og-image.png`;
+
+	const LOCALE_MAP: Record<string, string> = {
+		es: 'es_ES',
+		ca: 'ca_ES',
+		en: 'en_US'
+	};
 
 	let {
 		title,
@@ -23,11 +30,17 @@
 		ogImage = DEFAULT_OG_IMAGE,
 		ogType = 'website',
 		noindex = false,
+		locale = 'en',
 		jsonLd
 	}: Props = $props();
 
 	let fullTitle = $derived(title.includes('Scorekinole') ? title : `${title} | Scorekinole`);
 	let canonicalUrl = $derived(canonical || BASE_URL);
+	let ogLocale = $derived(LOCALE_MAP[locale] || 'en_US');
+
+	$effect(() => {
+		document.documentElement.lang = locale;
+	});
 	// Escape <, >, & and the JS line separators so user-controlled JSON-LD values
 	// cannot break out of the <script> tag (XSS). See serializeJsonLd.
 	let jsonLdScript = $derived(jsonLd ? serializeJsonLd(jsonLd) : null);
@@ -55,7 +68,7 @@
 	<meta property="og:type" content={ogType} />
 	<meta property="og:image" content={ogImage} />
 	<meta property="og:site_name" content="Scorekinole" />
-	<meta property="og:locale" content="en_US" />
+	<meta property="og:locale" content={ogLocale} />
 	<meta property="og:locale:alternate" content="es_ES" />
 	<meta property="og:locale:alternate" content="ca_ES" />
 

@@ -4,6 +4,7 @@
 	import * as m from '$lib/paraglide/messages.js';
 	import { canAccessAdmin } from '$lib/stores/admin';
 	import { APP_VERSION } from '$lib/constants';
+	import { getLocale } from '$lib/paraglide/runtime.js';
 
 	import ProfileDropdown from '$lib/components/ProfileDropdown.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
@@ -40,7 +41,8 @@
 			"name": "Scorekinole",
 			"url": "https://scorekinole.es",
 			"logo": "https://scorekinole.es/icon-512.png",
-			"description": "Professional crokinole live scoring application for tournaments, clubs, and casual games"
+			"description": "Professional crokinole live scoring application for tournaments, clubs, and casual games",
+			"descriptionES": "Aplicación profesional de puntuación en vivo de crokinole para torneos, clubes y partidas informales"
 		},
 		{
 			"@context": "https://schema.org",
@@ -50,6 +52,7 @@
 			"applicationCategory": "SportsApplication",
 			"operatingSystem": "Web",
 			"description": "The ultimate crokinole live scoring app. Track match scores, manage live tournaments, view brackets, and follow player rankings in real-time.",
+			"descriptionES": "La app definitiva de puntuación en vivo de crokinole. Sigue partidas, gestiona torneos, visualiza brackets y consulta rankings en tiempo real.",
 			"offers": {
 				"@type": "Offer",
 				"price": "0",
@@ -57,6 +60,32 @@
 			}
 		}
 	];
+
+	let locale = $derived(getLocale());
+
+	let seoTitle = $derived(
+		locale === 'es'
+			? 'Scorekinole - Puntuación en vivo de Crokinole y Gestión de Torneos'
+			: locale === 'ca'
+				? 'Scorekinole - Puntuació en viu de Crokinole i Gestió de Tornejos'
+				: 'Scorekinole - Crokinole Live Scoring & Tournament App'
+	);
+
+	let seoDescription = $derived(
+		locale === 'es'
+			? 'Scorekinole es la app gratuita definitiva para puntuación en vivo de crokinole. Sigue partidas, gestiona torneos, consulta rankings de jugadores y estadísticas en tiempo real.'
+			: locale === 'ca'
+				? 'Scorekinole és l\'app gratuïta definitiva per a puntuació en viu de crokinole. Segueix partides, gestiona tornejos, consulta rànquings de jugadors i estadístiques en temps real.'
+				: 'Scorekinole is the ultimate free crokinole live scoring app. Track scores, manage live tournaments, view player rankings, and run round robins, Swiss, or brackets in real-time.'
+	);
+
+	let seoKeywords = $derived(
+		locale === 'es'
+			? 'puntuación en vivo crokinole, crokinole, puntuación crokinole, app crokinole, torneo crokinole, live scoring, scorekinole, seguimiento crokinole, crokinole en vivo, puntos crokinole'
+			: locale === 'ca'
+				? 'puntuació en viu crokinole, crokinole, puntuació crokinole, app crokinole, torneig crokinole, live scoring, scorekinole, seguiment crokinole, crokinole en viu, punts crokinole'
+				: 'live scoring crokinole, crokinole, crokinole scoring, crokinole app, crokinole tournament, live scoring, scorekinole, crokinole tracker, crokinole live scoring, crokinole points'
+	);
 
 	let showProfile = $state(false);
 	let showLogin = $state(false);
@@ -192,10 +221,11 @@
 </script>
 
 <SEO
-	title="Scorekinole - Crokinole Live Scoring & Tournament App"
-	description="Scorekinole is the ultimate free crokinole live scoring app. Track scores, manage live tournaments, view player rankings, and run round robins, Swiss, or brackets in real-time."
-	keywords="live scoring crokinole, crokinole, crokinole scoring, crokinole app, crokinole tournament, live scoring, scorekinole, crokinole tracker, crokinole live scoring, crokinole points"
+	title={seoTitle}
+	description={seoDescription}
+	keywords={seoKeywords}
 	canonical="https://scorekinole.es/"
+	locale={locale}
 	{jsonLd}
 />
 
@@ -626,9 +656,12 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
+		justify-content: center;
+		flex: 1;
+		min-height: calc(100dvh - 72px);
 		gap: 1.25rem;
 		text-align: center;
-		padding: 1.5rem 1rem 2rem;
+		padding: 2rem 1rem 5.5rem;
 		position: relative;
 		z-index: 0;
 	}
@@ -734,6 +767,9 @@
 		border-radius: 0.75rem;
 		font-size: 1.25rem;
 		font-weight: 700;
+		background: var(--primary);
+		color: var(--primary-foreground);
+		border: none;
 		box-shadow: 0 4px 20px color-mix(in srgb, var(--primary) 25%, transparent);
 		transition: all 0.2s;
 	}
@@ -769,15 +805,15 @@
 		gap: 0.25rem;
 		min-height: 60px;
 		padding: 0.75rem 0.5rem;
-		background: color-mix(in srgb, var(--primary) 5%, transparent) !important;
-		border: 1px solid color-mix(in srgb, var(--primary) 15%, transparent) !important;
+		background: color-mix(in srgb, var(--primary) 12%, transparent) !important;
+		border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent) !important;
 		color: var(--foreground) !important;
 		transition: all 0.2s;
 	}
 
 	.quick-links :global(.quick-link:hover) {
-		background: color-mix(in srgb, var(--primary) 12%, transparent) !important;
-		border-color: color-mix(in srgb, var(--primary) 30%, transparent) !important;
+		background: color-mix(in srgb, var(--primary) 25%, transparent) !important;
+		border-color: var(--primary) !important;
 		color: var(--primary) !important;
 	}
 
@@ -944,11 +980,14 @@
 
 	/* Scroll indicator */
 	.scroll-indicator {
+		position: absolute;
+		bottom: 1.25rem;
+		left: 50%;
+		transform: translateX(-50%);
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		gap: 0.25rem;
-		margin-top: 0.75rem;
 		background: none;
 		border: none;
 		cursor: pointer;
@@ -957,6 +996,7 @@
 		font-size: 0.75rem;
 		font-weight: 500;
 		transition: color 0.2s;
+		z-index: 10;
 	}
 
 	.scroll-indicator:hover {
@@ -1084,8 +1124,18 @@
 		margin-top: 0.75rem;
 		padding: 0.6rem 1.25rem;
 		font-size: 0.9rem;
+		font-weight: 600;
 		border-radius: 0.5rem;
 		gap: 0.5rem;
+		background: color-mix(in srgb, var(--primary) 12%, transparent);
+		color: var(--primary);
+		border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+		transition: all 0.2s;
+	}
+
+	.feature-text :global(.feature-cta:hover) {
+		background: color-mix(in srgb, var(--primary) 22%, transparent);
+		border-color: color-mix(in srgb, var(--primary) 50%, transparent);
 	}
 
 	.feature-text :global(.feature-cta > svg) {
@@ -1148,6 +1198,9 @@
 		border-radius: 0.75rem;
 		font-size: 1.25rem;
 		font-weight: 700;
+		background: var(--primary);
+		color: var(--primary-foreground);
+		border: none;
 		box-shadow: 0 4px 20px color-mix(in srgb, var(--primary) 25%, transparent);
 		transition: all 0.2s;
 	}
@@ -1322,6 +1375,7 @@
 		}
 
 		.hero {
+			min-height: auto;
 			padding: 0.5rem 1rem 1rem;
 			gap: 0.75rem;
 		}
