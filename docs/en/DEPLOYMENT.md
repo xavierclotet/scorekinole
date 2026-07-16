@@ -76,8 +76,9 @@ npm run deploy:functions  # deploy Cloud Functions only
 - [ ] Update the version in `package.json`, `README.md` (badge), `src/lib/constants.ts`, and `CHANGELOG.md` (new entry at the top)
 - [ ] `npm run build`
 - [ ] `npm run preview` — verify it works
+- [ ] If domain changed: update Authorized JavaScript origins and redirect URIs in Google Cloud Console OAuth client (see Firebase Configuration below)
 - [ ] `npm run deploy:hosting`
-- [ ] Verify at https://scorekinole.web.app
+- [ ] Verify at https://scorekinole.es
 
 ---
 
@@ -124,7 +125,15 @@ VITE_FIREBASE_MEASUREMENT_ID=...
    - Firestore Database → Create database
    - Hosting → Configure domain
 
-3. Deploy security rules:
+3. **If using a custom domain (e.g. `scorekinole.es`)**, add it to the Google OAuth client:
+   - Go to [Google Cloud Console → APIs & Services → Credentials](https://console.cloud.google.com/apis/credentials)
+   - Find the OAuth 2.0 Web Client ID (auto-created by Firebase)
+   - Add the domain to **Authorized JavaScript origins**: `https://scorekinole.es`
+   - Add the redirect handler to **Authorized redirect URIs**: `https://scorekinole.es/__/auth/handler`
+   - Also add it to **Firebase Console → Authentication → Settings → Authorized domains**
+   - Repeat for any additional domains (localhost, preview channels, etc.)
+
+4. Deploy security rules:
 ```bash
 npm run deploy:rules
 ```
