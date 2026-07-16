@@ -1884,5 +1884,12 @@
   "contact_website": "Website",
   "contact_message": "Message",
   "contact_messagePlaceholder": "Tell us what's on your mind...",
-  "contact_send": "Send message"
+  "contact_send": "Send message",
+  "blog_all": "All",
+  "blog_noArticlesWithTag": "No articles with that tag.",
+  "blog_clearFilter": "Clear filter",
+  "blog_articleWithTag": "article with tag",
+  "blog_articlesWithTag": "articles with tag",
+  "blog_more": "more",
+  "blog_showLess": "Show less"
 }

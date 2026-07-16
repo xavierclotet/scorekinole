@@ -44,6 +44,10 @@
 		[...new Set(blogPosts.flatMap((p) => p.tags))].sort((a, b) => a.localeCompare(b))
 	);
 
+	let showAllTags = $state(false);
+	let visibleTags = $derived(showAllTags ? allTags : allTags.slice(0, 10));
+	let hiddenCount = $derived(allTags.length - visibleTags.length);
+
 	let activeTag = $derived(page.url.searchParams.get('tag') || '');
 
 	let filteredPosts = $derived(
@@ -85,24 +89,24 @@
 	</header>
 
 	<main class="blog-content">
-		{#if filteredPosts.length === 0}
+			{#if filteredPosts.length === 0}
 			<div class="empty-state">
-				<p>{locale === 'es' ? 'No hay artículos con esa etiqueta.' : locale === 'ca' ? 'No hi ha articles amb aquesta etiqueta.' : 'No articles with that tag.'}</p>
+				<p>{m.blog_noArticlesWithTag()}</p>
 				<button class="clear-filter-btn" onclick={() => goto('/blog', { replaceState: true })}>
 					<X size={14} />
-					{locale === 'es' ? 'Limpiar filtro' : locale === 'ca' ? 'Netejar filtre' : 'Clear filter'}
+					{m.blog_clearFilter()}
 				</button>
 			</div>
 		{:else}
 			<div class="tag-filters">
 				<button
-					class="filter-chip"
+					class="filter-chip special"
 					class:active={activeTag === ''}
 					onclick={() => goto('/blog', { replaceState: true })}
 				>
-					{locale === 'es' ? 'Todas' : locale === 'ca' ? 'Totes' : 'All'}
+					{m.blog_all()}
 				</button>
-				{#each allTags as tag}
+				{#each visibleTags as tag}
 					<button
 						class="filter-chip"
 						class:active={tag === activeTag}
@@ -111,6 +115,17 @@
 						{tag}
 					</button>
 				{/each}
+				{#if hiddenCount > 0}
+					<button class="filter-chip special" onclick={() => showAllTags = true}>
+						+{hiddenCount}
+						{locale === 'es' ? 'más' : locale === 'ca' ? 'més' : 'more'}
+					</button>
+				{/if}
+				{#if showAllTags && allTags.length > 10}
+					<button class="filter-chip special" onclick={() => showAllTags = false}>
+						{locale === 'es' ? 'Mostrar menos' : locale === 'ca' ? 'Mostrar menys' : 'Show less'}
+					</button>
+				{/if}
 			</div>
 
 			{#if activeTag}
@@ -207,16 +222,9 @@
 
 	.tag-filters {
 		display: flex;
+		flex-wrap: wrap;
 		gap: 0.5rem;
 		margin-bottom: 1.5rem;
-		overflow-x: auto;
-		-webkit-overflow-scrolling: touch;
-		scrollbar-width: none;
-		padding-bottom: 0.25rem;
-	}
-
-	.tag-filters::-webkit-scrollbar {
-		display: none;
 	}
 
 	.filter-chip {
@@ -237,6 +245,23 @@
 		border-color: var(--primary);
 		color: var(--primary);
 		background: color-mix(in srgb, var(--primary) 12%, transparent);
+	}
+
+	.filter-chip.special {
+		border-color: color-mix(in srgb, #f97316 30%, transparent);
+		color: #f97316;
+		background: color-mix(in srgb, #f97316 10%, transparent);
+	}
+
+	.filter-chip.special:hover {
+		border-color: #f97316;
+		background: color-mix(in srgb, #f97316 20%, transparent);
+	}
+
+	.filter-chip.special.active {
+		background: #f97316;
+		color: #fff;
+		border-color: #f97316;
 	}
 
 	.filter-chip.active {

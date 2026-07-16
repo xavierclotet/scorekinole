@@ -1884,5 +1884,12 @@
   "contact_website": "Lloc web",
   "contact_message": "Missatge",
   "contact_messagePlaceholder": "Explica'ns què tens al cap...",
-  "contact_send": "Enviar missatge"
+  "contact_send": "Enviar missatge",
+  "blog_all": "Totes",
+  "blog_noArticlesWithTag": "No hi ha articles amb aquesta etiqueta.",
+  "blog_clearFilter": "Netejar filtre",
+  "blog_articleWithTag": "article amb etiqueta",
+  "blog_articlesWithTag": "articles amb etiqueta",
+  "blog_more": "més",
+  "blog_showLess": "Mostrar menys"
 }

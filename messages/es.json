@@ -1885,5 +1885,12 @@
   "contact_website": "Sitio web",
   "contact_message": "Mensaje",
   "contact_messagePlaceholder": "Cuéntanos qué tienes en mente...",
-  "contact_send": "Enviar mensaje"
+  "contact_send": "Enviar mensaje",
+  "blog_all": "Todas",
+  "blog_noArticlesWithTag": "No hay artículos con esa etiqueta.",
+  "blog_clearFilter": "Limpiar filtro",
+  "blog_articleWithTag": "artículo con etiqueta",
+  "blog_articlesWithTag": "artículos con etiqueta",
+  "blog_more": "más",
+  "blog_showLess": "Mostrar menos"
 }
