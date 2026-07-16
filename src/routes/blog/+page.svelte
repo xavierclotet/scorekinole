@@ -207,9 +207,16 @@
 
 	.tag-filters {
 		display: flex;
-		flex-wrap: wrap;
 		gap: 0.5rem;
 		margin-bottom: 1.5rem;
+		overflow-x: auto;
+		-webkit-overflow-scrolling: touch;
+		scrollbar-width: none;
+		padding-bottom: 0.25rem;
+	}
+
+	.tag-filters::-webkit-scrollbar {
+		display: none;
 	}
 
 	.filter-chip {

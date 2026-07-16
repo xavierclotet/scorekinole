@@ -1,6 +1,6 @@
 <script lang="ts">
   import AdminGuard from '$lib/components/AdminGuard.svelte';
-  import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
   import * as m from '$lib/paraglide/messages.js';
   import { currentUser } from '$lib/firebase/auth';
   import { adminTheme } from '$lib/stores/theme';
@@ -14,6 +14,20 @@
   import BarChart3 from '@lucide/svelte/icons/bar-chart-3';
   import HardDrive from '@lucide/svelte/icons/hard-drive';
   import MapPin from '@lucide/svelte/icons/map-pin';
+  import { onMount } from 'svelte';
+  import { db, isFirebaseEnabled } from '$lib/firebase/config';
+  import { collection, getCountFromServer, query, where } from 'firebase/firestore';
+
+  let unreadCount = $state(0);
+
+  onMount(async () => {
+    if (!db || !isFirebaseEnabled()) return;
+    try {
+      const q = query(collection(db, 'contactMessages'), where('read', '==', false));
+      const snap = await getCountFromServer(q);
+      unreadCount = snap.data().count;
+    } catch {}
+  });
 
   const allAdminSections = [
     {
@@ -84,6 +98,21 @@
 
         <div class="admin-navbar-actions">
           <ThemeToggle />
+          {#if $isSuperAdminUser}
+            <button
+              class="admin-inbox-btn"
+              onclick={() => goto('/admin/contact-messages')}
+              title="Contact Messages"
+            >
+              <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="4" width="20" height="16" rx="2" />
+                <polyline points="22,7 12,13 2,7" />
+              </svg>
+              {#if unreadCount > 0}
+                <span class="inbox-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+              {/if}
+            </button>
+          {/if}
         </div>
       </nav>
     </header>
@@ -195,6 +224,44 @@
     display: flex;
     align-items: center;
     gap: 8px;
+  }
+
+  .admin-inbox-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .admin-inbox-btn:hover {
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+    color: var(--primary);
+  }
+
+  .inbox-badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    min-width: 1rem;
+    height: 1rem;
+    padding: 0 0.25rem;
+    border-radius: 999px;
+    background: #ef4444;
+    color: white;
+    font-size: 0.6rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
   }
 
   /* ── Content ── */
