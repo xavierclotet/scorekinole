@@ -156,8 +156,12 @@
                 <td class="date-col hide-small">{formatDate(msg.createdAt)}</td>
                 <td class="actions-col">
                   <button class="icon-btn" onclick={() => expandedId = expandedId === msg.id ? null : msg.id} title="Expand">
-                    {expandedId === msg.id ? <ChevronUp class="size-4" /> : <ChevronDown class="size-4" />}
-                  </button>
+                      {#if expandedId === msg.id}
+                        <ChevronUp class="size-4" />
+                      {:else}
+                        <ChevronDown class="size-4" />
+                      {/if}
+                    </button>
                   <button class="icon-btn danger" onclick={() => handleDelete(msg)} title="Delete">
                     <Trash2 class="size-4" />
                   </button>

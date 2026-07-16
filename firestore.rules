@@ -318,6 +318,15 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------
+    // Contact messages
+    // ---------------------------------------------------------------
+    match /contactMessages/{messageId} {
+      allow read: if isAdmin();
+      allow write: if isSuperAdmin();
+      allow create: if true; // public form submission
+    }
+
+    // ---------------------------------------------------------------
     // Default deny
     // ---------------------------------------------------------------
     match /{document=**} {
