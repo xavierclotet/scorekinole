@@ -1053,3 +1053,81 @@ export async function removeUserFromTournamentCollaborators(
     return false;
   }
 }
+
+// ─── Contact Messages ────────────────────────────────────────────────
+
+export interface ContactMessage {
+  id: string;
+  name: string;
+  email: string;
+  message: string;
+  createdAt: Timestamp | null;
+  ip: string;
+  read: boolean;
+}
+
+export interface PaginatedContactMessagesResult {
+  messages: ContactMessage[];
+  totalCount: number;
+  lastDoc: QueryDocumentSnapshot<DocumentData> | null;
+  hasMore: boolean;
+}
+
+export async function getContactMessagesPaginated(
+  pageSize: number = 20,
+  lastDocument: QueryDocumentSnapshot<DocumentData> | null = null,
+  filter: 'all' | 'unread' | 'read' = 'all'
+): Promise<PaginatedContactMessagesResult> {
+  const emptyResult: PaginatedContactMessagesResult = {
+    messages: [],
+    totalCount: 0,
+    lastDoc: null,
+    hasMore: false
+  };
+
+  if (!browser || !isFirebaseEnabled() || !db) return emptyResult;
+
+  try {
+    const ref = collection(db, 'contactMessages');
+
+    const countSnapshot = await getCountFromServer(ref);
+    const totalCount = countSnapshot.data().count;
+
+    let constraints: any[] = [orderBy('createdAt', 'desc')];
+    if (filter !== 'all') {
+      constraints.push(where('read', '==', filter === 'read'));
+    }
+
+    if (lastDocument) constraints.push(startAfter(lastDocument));
+    constraints.push(limit(pageSize));
+
+    const q = query(ref, ...constraints);
+    const snapshot = await getDocs(q);
+
+    const messages: ContactMessage[] = [];
+    snapshot.forEach((ds) => {
+      const data = ds.data() as Omit<ContactMessage, 'id'>;
+      messages.push({ id: ds.id, ...data });
+    });
+
+    return {
+      messages,
+      totalCount,
+      lastDoc: snapshot.docs[snapshot.docs.length - 1] ?? null,
+      hasMore: snapshot.docs.length === pageSize
+    };
+  } catch (err) {
+    console.error('Error fetching contact messages:', err);
+    return emptyResult;
+  }
+}
+
+export async function markContactMessageRead(messageId: string, read: boolean): Promise<void> {
+  if (!db) return;
+  await updateDoc(doc(db, 'contactMessages', messageId), { read });
+}
+
+export async function deleteContactMessage(messageId: string): Promise<void> {
+  if (!db) return;
+  await deleteDoc(doc(db, 'contactMessages', messageId));
+}

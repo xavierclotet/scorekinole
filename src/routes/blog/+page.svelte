@@ -41,10 +41,10 @@
 	let sortedPosts = $derived([...blogPosts].sort((a, b) => b.date.localeCompare(a.date)));
 
 	let allTags = $derived(
-		[...new Set(blogPosts.flatMap((p) => p.tags))].sort()
+		[...new Set(blogPosts.flatMap((p) => p.tags))].sort((a, b) => a.localeCompare(b))
 	);
 
-	let activeTag = $derived($page.url.searchParams.get('tag') || '');
+	let activeTag = $derived(page.url.searchParams.get('tag') || '');
 
 	let filteredPosts = $derived(
 		activeTag

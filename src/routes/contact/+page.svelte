@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
+	import { goto } from '$app/navigation';
 	import * as m from '$lib/paraglide/messages.js';
 	import SEO from '$lib/components/SEO.svelte';
 	import AppMenu from '$lib/components/AppMenu.svelte';
@@ -66,6 +67,13 @@
 			errorMsg = m.common_error();
 		}
 	}
+
+	$effect(() => {
+		if (status === 'sent') {
+			const t = setTimeout(() => goto('/'), 3000);
+			return () => clearTimeout(t);
+		}
+	});
 </script>
 
 <SEO
@@ -76,10 +84,11 @@
 
 <main class="contact-page">
 	<nav class="top-bar">
-		<a href="/" class="logo">Scorekinole</a>
+		<div class="top-bar-left">
+			<AppMenu currentPage="tournaments" />
+		</div>
 		<div class="top-bar-right">
 			<ThemeToggle />
-			<AppMenu currentPage="tournaments" />
 		</div>
 	</nav>
 
@@ -171,6 +180,12 @@
 		justify-content: space-between;
 		padding: 0.75rem 1rem;
 		border-bottom: 1px solid var(--border);
+	}
+
+	.top-bar-left {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
 	}
 
 	.logo {

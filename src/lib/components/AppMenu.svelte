@@ -272,6 +272,16 @@
 							<span class="flex-1 text-sm">{m.admin_tournamentManagement()}</span>
 						</DropdownMenu.Item>
 
+						<DropdownMenu.Item
+							onclick={() => goto('/admin/contact-messages')}
+							class="cursor-pointer gap-3! py-2! px-3! rounded-md hover:bg-accent"
+						>
+							<div class="flex items-center justify-center size-6 rounded bg-primary/10">
+								<Mail class="size-3.5 text-primary" />
+							</div>
+							<span class="flex-1 text-sm">Contact Messages</span>
+						</DropdownMenu.Item>
+
 						{#if $isSuperAdminUser}
 							<DropdownMenu.Item
 								onclick={() => goto('/admin/matches')}
@@ -329,18 +339,6 @@
 						{/each}
 					</DropdownMenu.SubContent>
 				</DropdownMenu.Sub>
-			{/if}
-			{#if showNavigation}
-				<DropdownMenu.Separator class="my-2" />
-				<DropdownMenu.Item
-					onclick={() => goto('/contact')}
-					class="cursor-pointer pl-3! pr-4! py-2.5! gap-2! rounded-lg transition-colors duration-150 hover:bg-accent group"
-				>
-					<div class="flex items-center justify-center size-8 rounded-md bg-primary/10 group-hover:bg-primary/20 transition-colors">
-						<Mail class="size-4 text-primary" />
-					</div>
-					<span class="flex-1 font-medium">{m.contact_title()}</span>
-				</DropdownMenu.Item>
 			{/if}
 		</DropdownMenu.Content>
 	</DropdownMenu.Portal>

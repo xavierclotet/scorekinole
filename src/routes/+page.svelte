@@ -9,6 +9,7 @@
 	import ProfileDropdown from '$lib/components/ProfileDropdown.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import LanguageSelector from '$lib/components/LanguageSelector.svelte';
+	import ContactIcon from '$lib/components/ContactIcon.svelte';
 	import { currentUser } from '$lib/firebase/auth';
 	import SEO from '$lib/components/SEO.svelte';
 	import PoweredByBadge from '$lib/components/PoweredByBadge.svelte';
@@ -273,6 +274,7 @@
 		<div class="nav-right" data-webmcp="profile-dropdown-container">
 			<LanguageSelector />
 			<ThemeToggle />
+			<ContactIcon />
 			<ProfileDropdown onlogin={handleLogin} onprofile={handleProfileOpen} />
 		</div>
 	</nav>
