@@ -32,6 +32,17 @@
 		e.stopPropagation();
 		zoomed = false;
 	}
+
+	$effect(() => {
+		if (!browser) return;
+		if (zoomed) {
+			const prev = document.body.style.overflow;
+			document.body.style.overflow = 'hidden';
+			return () => {
+				document.body.style.overflow = prev;
+			};
+		}
+	});
 </script>
 
 <div
@@ -106,6 +117,7 @@
 		tabindex="0"
 		aria-label="Close"
 		onkeydown={(e) => e.key === 'Escape' && (zoomed = false)}
+		ontouchmove={(e) => e.preventDefault()}
 	>
 		<img src={path} alt={alt ?? label} class="lightbox-img" />
 		<button class="lightbox-close" onclick={closeZoom} aria-label="Close">
