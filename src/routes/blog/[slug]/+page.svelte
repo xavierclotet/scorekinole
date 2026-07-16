@@ -181,7 +181,9 @@
 
 				<div class="post-tags">
 					{#each post.tags as tag}
-						<span class="tag">{tag}</span>
+						<button class="tag" onclick={() => goto(`/blog?tag=${encodeURIComponent(tag)}`)}>
+							{tag}
+						</button>
 					{/each}
 				</div>
 
@@ -355,9 +357,23 @@
 		padding: 0.25rem 0.6rem;
 		background: color-mix(in srgb, var(--primary) 10%, transparent);
 		color: var(--primary);
+		border: none;
 		border-radius: 4px;
 		font-size: 0.75rem;
 		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.15s;
+		font-family: inherit;
+	}
+
+	.tag:hover,
+	.tag:focus-visible {
+		background: color-mix(in srgb, var(--primary) 25%, transparent);
+	}
+
+	.tag:focus-visible {
+		outline: 2px solid var(--primary);
+		outline-offset: 1px;
 	}
 
 	.translate-bar {

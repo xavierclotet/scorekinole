@@ -15,6 +15,7 @@
 	import ChartLine from '@lucide/svelte/icons/chart-line';
 	import CirclePlus from '@lucide/svelte/icons/circle-plus';
 	import Shield from '@lucide/svelte/icons/shield';
+	import Mail from '@lucide/svelte/icons/mail';
 	import User from '@lucide/svelte/icons/user';
 	import Users from '@lucide/svelte/icons/users';
 	import Swords from '@lucide/svelte/icons/swords';
@@ -328,6 +329,18 @@
 						{/each}
 					</DropdownMenu.SubContent>
 				</DropdownMenu.Sub>
+			{/if}
+			{#if showNavigation}
+				<DropdownMenu.Separator class="my-2" />
+				<DropdownMenu.Item
+					onclick={() => goto('/contact')}
+					class="cursor-pointer pl-3! pr-4! py-2.5! gap-2! rounded-lg transition-colors duration-150 hover:bg-accent group"
+				>
+					<div class="flex items-center justify-center size-8 rounded-md bg-primary/10 group-hover:bg-primary/20 transition-colors">
+						<Mail class="size-4 text-primary" />
+					</div>
+					<span class="flex-1 font-medium">{m.contact_title()}</span>
+				</DropdownMenu.Item>
 			{/if}
 		</DropdownMenu.Content>
 	</DropdownMenu.Portal>

@@ -686,6 +686,7 @@
   "common_darkMode": "Modo Oscuro",
   "common_delete": "Eliminar",
   "common_edit": "Editar",
+  "common_email": "Correo electrónico",
   "common_editionLabel": "{n}º",
   "common_error": "Error",
   "common_errorPageNotFound": "Página no encontrada",
@@ -1874,5 +1875,15 @@
   "landing_leaderboards_f4": "Comparación de jugadores lado a lado",
   "landing_cta_title": "¿Listo para jugar?",
   "landing_cta_desc": "Abre una partida y empieza a anotar — sin cuenta para juegos amistosos.",
-  "landing_scroll": "Desliza para explorar"
+  "landing_scroll": "Desliza para explorar",
+  "contact_title": "Contacto",
+  "contact_subtitle": "¿Tienes una pregunta, sugerencia o comentario? Envíanos un mensaje.",
+  "contact_sentTitle": "¡Mensaje enviado!",
+  "contact_sentText": "Gracias por escribirnos. Te responderemos lo antes posible.",
+  "contact_namePlaceholder": "Tu nombre",
+  "contact_emailPlaceholder": "tu@email.com",
+  "contact_website": "Sitio web",
+  "contact_message": "Mensaje",
+  "contact_messagePlaceholder": "Cuéntanos qué tienes en mente...",
+  "contact_send": "Enviar mensaje"
 }

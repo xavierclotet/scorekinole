@@ -346,6 +346,7 @@
   "common_darkMode": "Mode Fosc",
   "common_delete": "Eliminar",
   "common_edit": "Editar",
+  "common_email": "Correu electrònic",
   "common_editionLabel": "{n}è",
   "common_error": "Error",
   "common_estimatedEnd": "Fi Estimat",
@@ -1873,5 +1874,15 @@
   "landing_leaderboards_f4": "Comparació de jugadors costat a costat",
   "landing_cta_title": "A punt per jugar?",
   "landing_cta_desc": "Obre una partida i comença a anotar — sense compte per a partides amistoses.",
-  "landing_scroll": "Llisca per explorar"
+  "landing_scroll": "Llisca per explorar",
+  "contact_title": "Contacte",
+  "contact_subtitle": "Tens una pregunta, suggeriment o comentari? Envia'ns un missatge.",
+  "contact_sentTitle": "Missatge enviat!",
+  "contact_sentText": "Gràcies per escriure'ns. Et respondrem el més aviat possible.",
+  "contact_namePlaceholder": "El teu nom",
+  "contact_emailPlaceholder": "teu@email.com",
+  "contact_website": "Lloc web",
+  "contact_message": "Missatge",
+  "contact_messagePlaceholder": "Explica'ns què tens al cap...",
+  "contact_send": "Enviar missatge"
 }

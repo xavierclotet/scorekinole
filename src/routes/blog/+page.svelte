@@ -11,6 +11,7 @@
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import Calendar from '@lucide/svelte/icons/calendar';
 	import Tag from '@lucide/svelte/icons/tag';
+	import X from '@lucide/svelte/icons/x';
 
 	let locale = $derived(getLocale());
 
@@ -38,6 +39,26 @@
 	}
 
 	let sortedPosts = $derived([...blogPosts].sort((a, b) => b.date.localeCompare(a.date)));
+
+	let allTags = $derived(
+		[...new Set(blogPosts.flatMap((p) => p.tags))].sort()
+	);
+
+	let activeTag = $derived($page.url.searchParams.get('tag') || '');
+
+	let filteredPosts = $derived(
+		activeTag
+			? sortedPosts.filter((p) => p.tags.includes(activeTag))
+			: sortedPosts
+	);
+
+	function setTag(tag: string) {
+		if (tag === activeTag) {
+			goto('/blog', { replaceState: true });
+		} else {
+			goto(`/blog?tag=${encodeURIComponent(tag)}`, { replaceState: true });
+		}
+	}
 </script>
 
 <SEO
@@ -64,13 +85,46 @@
 	</header>
 
 	<main class="blog-content">
-		{#if sortedPosts.length === 0}
+		{#if filteredPosts.length === 0}
 			<div class="empty-state">
-				<p>Próximamente...</p>
+				<p>{locale === 'es' ? 'No hay artículos con esa etiqueta.' : locale === 'ca' ? 'No hi ha articles amb aquesta etiqueta.' : 'No articles with that tag.'}</p>
+				<button class="clear-filter-btn" onclick={() => goto('/blog', { replaceState: true })}>
+					<X size={14} />
+					{locale === 'es' ? 'Limpiar filtro' : locale === 'ca' ? 'Netejar filtre' : 'Clear filter'}
+				</button>
 			</div>
 		{:else}
+			<div class="tag-filters">
+				<button
+					class="filter-chip"
+					class:active={activeTag === ''}
+					onclick={() => goto('/blog', { replaceState: true })}
+				>
+					{locale === 'es' ? 'Todas' : locale === 'ca' ? 'Totes' : 'All'}
+				</button>
+				{#each allTags as tag}
+					<button
+						class="filter-chip"
+						class:active={tag === activeTag}
+						onclick={() => setTag(tag)}
+					>
+						{tag}
+					</button>
+				{/each}
+			</div>
+
+			{#if activeTag}
+				<p class="filter-info">
+					{filteredPosts.length}
+					{filteredPosts.length === 1
+						? (locale === 'es' ? 'artículo con etiqueta' : locale === 'ca' ? 'article amb etiqueta' : 'article with tag')
+						: (locale === 'es' ? 'artículos con etiqueta' : locale === 'ca' ? 'articles amb etiqueta' : 'articles with tag')}
+					<strong>"{activeTag}"</strong>
+				</p>
+			{/if}
+
 			<div class="posts-grid">
-				{#each sortedPosts as post}
+				{#each filteredPosts as post}
 					<article class="post-card" onclick={() => goto(`/blog/${post.slug}`)} onkeydown={(e) => e.key === 'Enter' && goto(`/blog/${post.slug}`)} tabindex="0" role="button" aria-label={post.title}>
 						<div class="post-meta">
 							<span class="post-date">
@@ -83,10 +137,14 @@
 						<div class="post-footer">
 							<div class="post-tags">
 								{#each post.tags.slice(0, 3) as tag}
-									<span class="tag">
+									<button
+										class="tag"
+										onclick={(e) => { e.stopPropagation(); setTag(tag); }}
+										onkeydown={(e) => e.key === 'Enter' && setTag(tag)}
+									>
 										<Tag size={12} />
 										{tag}
-									</span>
+									</button>
 								{/each}
 							</div>
 							<span class="read-more">{locale === 'es' ? 'Leer más' : locale === 'ca' ? 'Llegir més' : 'Read more'} →</span>
@@ -147,11 +205,72 @@
 		padding: 2rem 1rem;
 	}
 
+	.tag-filters {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin-bottom: 1.5rem;
+	}
+
+	.filter-chip {
+		display: inline-flex;
+		align-items: center;
+		padding: 0.4rem 0.75rem;
+		background: color-mix(in srgb, var(--primary) 8%, transparent);
+		color: var(--muted-foreground);
+		border: 1px solid var(--border);
+		border-radius: 20px;
+		font-size: 0.8rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.15s;
+	}
+
+	.filter-chip:hover {
+		border-color: var(--primary);
+		color: var(--primary);
+		background: color-mix(in srgb, var(--primary) 12%, transparent);
+	}
+
+	.filter-chip.active {
+		background: var(--primary);
+		color: var(--primary-foreground);
+		border-color: var(--primary);
+	}
+
+	.filter-info {
+		font-size: 0.85rem;
+		color: var(--muted-foreground);
+		margin: 0 0 1rem 0;
+	}
+
+	.filter-info strong {
+		color: var(--foreground);
+	}
+
 	.empty-state {
 		text-align: center;
 		padding: 4rem 2rem;
 		color: var(--muted-foreground);
 		font-size: 1.1rem;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 1rem;
+	}
+
+	.clear-filter-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.5rem 1rem;
+		background: var(--primary);
+		color: var(--primary-foreground);
+		border: none;
+		border-radius: 8px;
+		font-size: 0.85rem;
+		font-weight: 500;
+		cursor: pointer;
 	}
 
 	.posts-grid {
@@ -228,9 +347,23 @@
 		padding: 0.2rem 0.5rem;
 		background: color-mix(in srgb, var(--primary) 10%, transparent);
 		color: var(--primary);
+		border: none;
 		border-radius: 4px;
 		font-size: 0.7rem;
 		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.15s;
+		font-family: inherit;
+	}
+
+	.tag:hover,
+	.tag:focus-visible {
+		background: color-mix(in srgb, var(--primary) 25%, transparent);
+	}
+
+	.tag:focus-visible {
+		outline: 2px solid var(--primary);
+		outline-offset: 1px;
 	}
 
 	.read-more {

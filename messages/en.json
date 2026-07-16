@@ -346,6 +346,7 @@
   "common_darkMode": "Dark Mode",
   "common_delete": "Delete",
   "common_edit": "Edit",
+  "common_email": "Email",
   "common_editionLabel": "{n}th",
   "common_error": "Error",
   "common_estimatedEnd": "Estimated End",
@@ -1873,5 +1874,15 @@
   "landing_leaderboards_f4": "Side-by-side player comparison",
   "landing_cta_title": "Ready to play?",
   "landing_cta_desc": "Open a match and start scoring — no account needed for friendly games.",
-  "landing_scroll": "Scroll to explore"
+  "landing_scroll": "Scroll to explore",
+  "contact_title": "Contact",
+  "contact_subtitle": "Have a question, suggestion, or feedback? Send us a message.",
+  "contact_sentTitle": "Message sent!",
+  "contact_sentText": "Thanks for reaching out. We'll get back to you as soon as possible.",
+  "contact_namePlaceholder": "Your name",
+  "contact_emailPlaceholder": "your@email.com",
+  "contact_website": "Website",
+  "contact_message": "Message",
+  "contact_messagePlaceholder": "Tell us what's on your mind...",
+  "contact_send": "Send message"
 }

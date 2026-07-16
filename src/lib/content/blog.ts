@@ -11,6 +11,58 @@ export interface BlogPost {
 
 export const blogPosts: BlogPost[] = [
 	{
+		slug: 'como-crear-torneo-en-vivo',
+		title: 'Cómo crear un torneo en vivo en Scorekinole (paso a paso)',
+		description: 'Guía rápida para crear un torneo de crokinole en Scorekinole: desde la configuración inicial hasta la publicación. Ideal para organizadores sin experiencia técnica.',
+		date: '2026-07-16',
+		author: 'Scorekinole Team',
+		image: '/og-image.png',
+		content: `Crear un torneo en vivo en Scorekinole es cuestión de minutos. Aquí te explico el proceso resumido para que lo tengas listo el día de tu evento.
+
+## 1. Accede al creador
+
+Ve a **Admin → Torneos → Nuevo torneo**. Se abre un asistente de 6 pasos. No te asustes, la mayoría son configuración rápida.
+
+## 2. Paso 1 — Información básica
+
+Pon el nombre del torneo, la fecha, ubicación y si es **Singles** o **Dobles**. La clave de 6 caracteres se genera sola — es lo que compartirás con los jugadores para que accedan a sus partidos.
+
+Si estás probando, marca **"Torneo de prueba"** para que no sea público ni cuente para el ranking hasta que tú decidas.
+
+## 3. Paso 2 — Formato
+
+Define el número de mesas físicas disponibles y la estructura:
+
+- **2 fases** (recomendado): Fase de grupos + eliminatoria final
+- **Solo grupos**: Clasificación por liga, sin eliminatorias
+- **Eliminación directa**: Brackets desde el primer partido
+
+Elige sistema de grupos: **Round Robin** (todos contra todos, ideal para ≤8 jugadores por grupo) o **Suizo** (emparejamientos por resultados, ideal para grupos grandes).
+
+## 4. Paso 3 — Ranking
+
+Si el torneo es oficial, selecciona la serie (**Series 35, 25 o 15**) para que los puntos de ranking se calculen automáticamente. La app te muestra una previsualización de los puntos por posición.
+
+## 5. Paso 4 — Participantes
+
+Añade los jugadores: puedes buscarlos entre los usuarios registrados, añadirlos como invitados, o activar la **autoinscripción** para que se apunten ellos mismos desde la app (con lista de espera incluida).
+
+## 6. Paso 5 — Tiempo y mesas
+
+Confirma el número de mesas y ajusta la duración estimada por partido. La app calcula automáticamente la duración total estimada del torneo.
+
+## 7. Paso 6 — Revisar y crear
+
+Repasa todo el resumen y pulsa **Crear torneo**. ¡Ya está! El torneo aparecerá en el listado y los jugadores podrán unirse con la clave.
+
+## Extra: publicarlo
+
+Si lo creaste como "torneo de prueba", vuelve a **Editar torneo**, desmarca esa casilla y se volverá público y contará para el ranking.
+
+¿Tienes dudas? Escríbenos o consulta la guía completa en Admin.`,
+		tags: ['torneo', 'tutorial', 'guía', 'scorekinole', 'admin']
+	},
+	{
 		slug: 'nuevo-dominio-scorekinole-es',
 		title: 'Scorekinole ahora en scorekinole.es — actualiza tus marcadores',
 		description: '¡Scorekinole se muda a scorekinole.es! Descubre por qué cambiamos de dominio, cómo afecta a los usuarios registrados y cómo actualizar tus marcadores.',

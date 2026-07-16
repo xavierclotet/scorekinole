@@ -5,7 +5,7 @@
 
 import { onDocumentUpdated, onDocumentCreated, onDocumentWritten } from "firebase-functions/v2/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { initializeApp, getApps } from "firebase-admin/app";
 import { getFirestore, FieldValue, Firestore, Timestamp } from "firebase-admin/firestore";
@@ -2252,5 +2252,74 @@ export const onPageViewCreated = onDocumentCreated(
         },
         { merge: true }
       );
+  }
+);
+
+/**
+ * Public contact form endpoint.
+ * Anti-spam: honeypot + minimum 3s elapsed + IP rate limit.
+ * Stores messages in /contactMessages for the admin to read.
+ */
+export const submitContactMessage = onRequest(
+  { region: "europe-west1", cors: true },
+  async (req, res) => {
+    if (req.method !== "POST") {
+      res.status(405).json({ error: "Method not allowed" });
+      return;
+    }
+
+    const { name, email, message, _website, _loadedAt } = (req.body ?? {}) as Record<string, unknown>;
+
+    // Honeypot — bot fills hidden field, human doesn't see it
+    if (_website) {
+      res.json({ success: true });
+      return;
+    }
+
+    // Time check — form must have been open > 3s
+    const loadedAt = typeof _loadedAt === "string" ? parseInt(_loadedAt, 10) : NaN;
+    if (!loadedAt || Date.now() - loadedAt < 3000) {
+      res.json({ success: true });
+      return;
+    }
+
+    // Validate required fields
+    if (
+      typeof name !== "string" || name.trim().length < 2 || name.length > 100 ||
+      typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+      typeof message !== "string" || message.trim().length < 10 || message.length > 5000
+    ) {
+      res.status(400).json({ error: "Invalid fields" });
+      return;
+    }
+
+    // IP rate limit: max 5 per hour
+    const ip = req.ip || "unknown";
+    try {
+      await enforceRateLimit(getDb(), `contact-${ip}`, "submitContact", {
+        max: 5,
+        windowMs: 3600_000,
+      });
+    } catch {
+      res.status(429).json({ error: "Too many messages. Try again later." });
+      return;
+    }
+
+    // Store in Firestore
+    try {
+      await getDb().collection("contactMessages").add({
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        message: message.trim(),
+        createdAt: FieldValue.serverTimestamp(),
+        ip,
+        read: false,
+      });
+      logger.info(`Contact message from ${email} (${ip})`);
+      res.json({ success: true });
+    } catch (err: any) {
+      logger.error("Failed to store contact message", err);
+      res.status(500).json({ error: "Internal error" });
+    }
   }
 );
