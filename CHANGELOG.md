@@ -2,6 +2,19 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.63] - 2026-07-16
+- Contact: new `/contact` page with spam-protected form (honeypot + time check + rate limit)
+- Contact: Cloud Function `submitContactMessage` stores messages in Firestore
+- Admin: `/admin/contact-messages` page with infinite scroll, filter, mark read/unread, delete
+- Admin: inbox icon with unread badge in top navbar (superadmin only)
+- Blog: tag filtering system with clickable chips
+- Blog: new article "Cómo crear un torneo en vivo en Scorekinole"
+- SEO: contact page added to sitemap
+- Docs: DEPLOYMENT.md updated with OAuth custom domain setup
+- Landing: contact icon in top navbar
+- i18n: new `common_email` and `contact_*` keys in EN/ES/CA
+- Fix: Firestore security rules for `contactMessages` collection
+
 ## [2.5.62] - 2026-07-12
 - Blog: added domain migration announcement post
 - Blog: blog link now visible in homepage hero quick-links section

@@ -701,7 +701,7 @@
 		min-height: calc(100dvh - 72px);
 		gap: 1.25rem;
 		text-align: center;
-		padding: 2rem 1rem 5.5rem;
+		padding: 2rem 1rem 8rem;
 		position: relative;
 		z-index: 0;
 	}
