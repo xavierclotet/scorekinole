@@ -272,8 +272,8 @@
 		</div>
 
 		<div class="nav-right" data-webmcp="profile-dropdown-container">
-			<LanguageSelector />
 			<ThemeToggle />
+			<LanguageSelector />
 			<ContactIcon />
 			<ProfileDropdown onlogin={handleLogin} onprofile={handleProfileOpen} />
 		</div>

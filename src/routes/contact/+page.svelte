@@ -51,7 +51,7 @@
 					email: email.trim(),
 					message: message.trim(),
 					_website: honeypot,
-					_loadedAt: loadedAt
+					_loadedAt: String(loadedAt)
 				})
 			});
 
