@@ -1,8 +1,22 @@
-# Counter Scoring Mode (proposal — not implemented)
+# Counter Scoring Mode
 
-> **Status**: design proposal only. Nothing in this document is built yet. This
-> file exists so the design survives between sessions; implement via a normal
-> plan (see AGENTS.md testing rules) when the team decides to build it.
+> **Status**: implemented. A third friendly-match `gameMode: 'counter'`.
+> Selectable from both mode pickers (Nuevo Juego / in-game Settings). The mode
+> picker lives in `FriendlyMatchModal.svelte` and `SettingsModal.svelte` — NOT
+> in `GameCustomizePanel.svelte` (which only handles colors/sides); the original
+> proposal's guess about that file was wrong.
+
+## Files touched by the implementation
+
+- `src/lib/utils/counterMode.ts` (+ test) — `getCounterWinner(t1, t2, target)` pure helper
+- `src/lib/types/settings.ts` — `gameMode` widened to include `'counter'`; added `counterTargetScore`, `counterIncrement`
+- `src/lib/types/history.ts` — `MatchHistory.gameMode` widened to include `'counter'`
+- `src/lib/constants.ts` — defaults `counterTargetScore: 100`, `counterIncrement: 5`
+- `src/lib/stores/gameSettings.ts` (+ test) — validation accepts `'counter'` and the two fields
+- `src/lib/components/TeamCard.svelte` — counter branches in increment/decrement, `checkCounterModeWin()`, hammer forced off
+- `src/routes/game/+page.svelte` — `isCounterMode`, hammer/20s/rounds-panel forced off, header text, single-game completion
+- `src/lib/components/FriendlyMatchModal.svelte` + `SettingsModal.svelte` — 3rd mode button + target/increment controls, hammer/20s toggles hidden
+- `messages/{es,ca,en}.json` — `scoring_modeCounter`, `scoring_friendlyModeCounter`, `scoring_counterTarget`, `scoring_counterIncrement`
 
 ## What it is
 

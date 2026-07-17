@@ -15,7 +15,7 @@ function isValidGameSettings(data: unknown): data is GameSettings {
     const settings = data as Partial<GameSettings>;
 
     // Required fields with strict type/value checks
-    if (typeof settings.gameMode !== 'string' || (settings.gameMode !== 'points' && settings.gameMode !== 'rounds')) return false;
+    if (typeof settings.gameMode !== 'string' || (settings.gameMode !== 'points' && settings.gameMode !== 'rounds' && settings.gameMode !== 'counter')) return false;
     if (typeof settings.timerMinutes !== 'number' || settings.timerMinutes < 0) return false;
     if (typeof settings.timerSeconds !== 'number' || settings.timerSeconds < 0) return false;
     if (typeof settings.gameType !== 'string' || (settings.gameType !== 'singles' && settings.gameType !== 'doubles')) return false;
@@ -26,6 +26,8 @@ function isValidGameSettings(data: unknown): data is GameSettings {
     if (settings.matchesToWin !== undefined && (typeof settings.matchesToWin !== 'number' || settings.matchesToWin < 1)) return false;
     if (settings.pointsToWin !== undefined && (typeof settings.pointsToWin !== 'number' || settings.pointsToWin < 1)) return false;
     if (settings.roundsToPlay !== undefined && (typeof settings.roundsToPlay !== 'number' || settings.roundsToPlay < 1)) return false;
+    if (settings.counterTargetScore !== undefined && (typeof settings.counterTargetScore !== 'number' || settings.counterTargetScore < 1)) return false;
+    if (settings.counterIncrement !== undefined && (typeof settings.counterIncrement !== 'number' || settings.counterIncrement < 1)) return false;
 
     return true;
 }

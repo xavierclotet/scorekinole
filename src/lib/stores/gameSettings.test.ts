@@ -396,6 +396,26 @@ describe('gameSettings store', () => {
 			expect(get(gameSettings).pointsToWin).toBe(15);
 		});
 
+		it('accepts counter mode with its target/increment fields', () => {
+			const settings = {
+				appVersion: '2.4.81',
+				gameMode: 'counter',
+				timerMinutes: 10,
+				timerSeconds: 0,
+				show20s: false,
+				showHammer: false,
+				gameType: 'singles',
+				counterTargetScore: 100,
+				counterIncrement: 5
+			};
+			localStorageMock.store['crokinoleGame'] = JSON.stringify(settings);
+			gameSettings.load();
+
+			expect(get(gameSettings).gameMode).toBe('counter');
+			expect(get(gameSettings).counterTargetScore).toBe(100);
+			expect(get(gameSettings).counterIncrement).toBe(5);
+		});
+
 		it('accepts data with optional numeric fields omitted', () => {
 			const settings = {
 				appVersion: '2.4.81',

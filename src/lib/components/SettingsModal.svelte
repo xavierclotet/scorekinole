@@ -32,14 +32,32 @@
 		}
 	}
 
-	function handleGameModeChange(mode: 'points' | 'rounds') {
+	const COUNTER_INCREMENTS = [1, 5, 50, 100] as const;
+
+	function handleGameModeChange(mode: 'points' | 'rounds' | 'counter') {
 		gameSettings.update(s => ({
 			...s,
 			gameMode: mode,
 			...(mode === 'points'
 				? { roundsToPlay: undefined, pointsToWin: s.pointsToWin ?? 7, matchesToWin: s.matchesToWin ?? 1 }
-				: { pointsToWin: undefined, matchesToWin: undefined, roundsToPlay: s.roundsToPlay ?? 4, allowTiesInRoundsMode: false })
+				: mode === 'rounds'
+					? { pointsToWin: undefined, matchesToWin: undefined, roundsToPlay: s.roundsToPlay ?? 4, allowTiesInRoundsMode: false }
+					: {
+							// Counter mode: single-game tally, no hammer/20s
+							pointsToWin: undefined,
+							matchesToWin: undefined,
+							roundsToPlay: undefined,
+							counterTargetScore: s.counterTargetScore ?? 100,
+							counterIncrement: s.counterIncrement ?? 5,
+							show20s: false,
+							showHammer: false
+						})
 		}));
+		gameSettings.save();
+	}
+
+	function handleCounterChange(key: 'counterTargetScore' | 'counterIncrement', value: number) {
+		gameSettings.update(s => ({ ...s, [key]: value }));
 		gameSettings.save();
 	}
 
@@ -117,7 +135,7 @@
 			<!-- Game Mode Section -->
 			<section class="settings-section" class:disabled={inTournamentMode}>
 				<h3>{m.scoring_gameMode()}</h3>
-				<div class="button-group">
+				<div class="button-group mode-group-three">
 					<button
 						class="mode-button"
 						class:active={$gameSettings.gameMode === 'points'}
@@ -136,11 +154,20 @@
 					>
 						{m.scoring_modeRounds()}
 					</button>
+					<button
+						class="mode-button"
+						class:active={$gameSettings.gameMode === 'counter'}
+						onclick={() => !inTournamentMode && handleGameModeChange('counter')}
+						type="button"
+						disabled={inTournamentMode}
+					>
+						{m.scoring_modeCounter()}
+					</button>
 				</div>
 			</section>
 		</div>
 
-		<!-- Points/Rounds Configuration -->
+		<!-- Points/Rounds/Counter Configuration -->
 		<section class="settings-section config-section" class:disabled={inTournamentMode}>
 			<div class="mode-config">
 				{#if $gameSettings.gameMode === 'points'}
@@ -162,7 +189,7 @@
 						label={m.scoring_matchesToWin()}
 						disabled={inTournamentMode}
 					/>
-				{:else}
+				{:else if $gameSettings.gameMode === 'rounds'}
 					<NumberControl
 						value={$gameSettings.roundsToPlay}
 						onchange={(value) => !inTournamentMode && handleNumberChange('roundsToPlay', value)}
@@ -177,25 +204,53 @@
 						<input type="checkbox" checked={$gameSettings.allowTiesInRoundsMode} disabled={inTournamentMode} onchange={() => handleToggle('allowTiesInRoundsMode')} />
 						<span class="toggle-switch"></span>
 					</label>
+				{:else}
+					<NumberControl
+						value={$gameSettings.counterTargetScore ?? 100}
+						onchange={(value) => !inTournamentMode && handleCounterChange('counterTargetScore', value)}
+						min={5}
+						max={500}
+						step={5}
+						label={m.scoring_counterTarget()}
+						disabled={inTournamentMode}
+					/>
+					<div class="increment-field">
+						<span class="increment-label">{m.scoring_counterIncrement()}</span>
+						<div class="increment-group">
+							{#each COUNTER_INCREMENTS as inc (inc)}
+								<button
+									class="increment-btn"
+									class:active={($gameSettings.counterIncrement ?? 5) === inc}
+									onclick={() => !inTournamentMode && handleCounterChange('counterIncrement', inc)}
+									type="button"
+									disabled={inTournamentMode}
+								>
+									+{inc}
+								</button>
+							{/each}
+						</div>
+					</div>
 				{/if}
 			</div>
 		</section>
 
-		<!-- Feature Toggles -->
+		<!-- Feature Toggles (hammer/20s not shown in counter mode) -->
 		<section class="settings-section" class:disabled={inTournamentMode}>
 			<h3>{m.scoring_features()}</h3>
 			<div class="toggle-grid">
-				<label class="toggle-item" class:disabled={inTournamentMode}>
-					<span class="toggle-label">{m.scoring_track20s()}</span>
-					<input type="checkbox" checked={$gameSettings.show20s} disabled={inTournamentMode} onchange={() => handleToggle('show20s')} />
-					<span class="toggle-switch"></span>
-				</label>
+				{#if $gameSettings.gameMode !== 'counter'}
+					<label class="toggle-item" class:disabled={inTournamentMode}>
+						<span class="toggle-label">{m.scoring_track20s()}</span>
+						<input type="checkbox" checked={$gameSettings.show20s} disabled={inTournamentMode} onchange={() => handleToggle('show20s')} />
+						<span class="toggle-switch"></span>
+					</label>
 
-				<label class="toggle-item" class:disabled={inTournamentMode}>
-					<span class="toggle-label">{m.scoring_hammer()}</span>
-					<input type="checkbox" checked={$gameSettings.showHammer} disabled={inTournamentMode} onchange={() => handleToggle('showHammer')} />
-					<span class="toggle-switch"></span>
-				</label>
+					<label class="toggle-item" class:disabled={inTournamentMode}>
+						<span class="toggle-label">{m.scoring_hammer()}</span>
+						<input type="checkbox" checked={$gameSettings.showHammer} disabled={inTournamentMode} onchange={() => handleToggle('showHammer')} />
+						<span class="toggle-switch"></span>
+					</label>
+				{/if}
 
 				<label class="toggle-item">
 					<span class="toggle-label">{m.scoring_showTimer()}</span>
@@ -381,6 +436,59 @@
 	.button-group {
 		display: flex;
 		gap: 0.4rem;
+	}
+
+	/* 3-way mode picker: three buttons share the row evenly */
+	.mode-group-three .mode-button {
+		flex: 1;
+		padding-left: 0.4rem;
+		padding-right: 0.4rem;
+		font-size: 0.8rem;
+	}
+
+	/* Counter increment picker */
+	.increment-field {
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+		justify-content: center;
+	}
+
+	.increment-label {
+		font-size: 0.7rem;
+		color: var(--muted-foreground);
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+
+	.increment-group {
+		display: grid;
+		grid-template-columns: repeat(4, 1fr);
+		gap: 0.3rem;
+	}
+
+	.increment-btn {
+		padding: 0.4rem 0.2rem;
+		background: var(--secondary);
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		color: var(--muted-foreground);
+		font-size: 0.8rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+
+	.increment-btn:hover {
+		background: var(--accent);
+		color: var(--foreground);
+	}
+
+	.increment-btn.active {
+		background: color-mix(in srgb, var(--primary) 15%, transparent);
+		color: var(--foreground);
+		border-color: color-mix(in srgb, var(--primary) 40%, transparent);
 	}
 
 	.button-group-three {

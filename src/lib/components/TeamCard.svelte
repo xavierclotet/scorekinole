@@ -9,6 +9,7 @@
 	import { canDecrementScore } from '$lib/utils/scoreGuards';
 	import { saveFriendlyMatchToFirestore, savePendingFriendlyMatch, removePendingFriendlyMatch } from '$lib/firebase/firestore';
 	import { lastRoundPoints, completeRound, roundsPlayed, resetGameOnly, addGame, currentMatchGames, currentMatchRounds, currentGameRounds, currentGameStartHammer, setCurrentGameStartHammer, undoLastRound } from '$lib/stores/matchState';
+	import { getCounterWinner } from '$lib/utils/counterMode';
 	import { gameTournamentContext } from '$lib/stores/tournamentContext';
 	import { currentUser } from '$lib/firebase/auth';
 	import { get } from 'svelte/store';
@@ -64,14 +65,21 @@
 	// Tournament mode detection
 	let inTournamentMode = $derived(!!$gameTournamentContext);
 
-	// Effective settings: use tournament config when in tournament mode
-	let effectiveShowHammer = $derived(inTournamentMode
-		? $gameTournamentContext?.gameConfig.showHammer ?? $gameSettings.showHammer
-		: $gameSettings.showHammer);
-
 	let effectiveGameMode = $derived(inTournamentMode
 		? $gameTournamentContext?.gameConfig.gameMode ?? $gameSettings.gameMode
 		: $gameSettings.gameMode);
+
+	// Counter mode: simple tap-to-target tally (friendly only). No hammer/20s,
+	// no rounds. See docs/en/COUNTER_SCORING_MODE.md.
+	let isCounterMode = $derived(effectiveGameMode === 'counter');
+	let effectiveCounterIncrement = $derived($gameSettings.counterIncrement ?? 5);
+	let effectiveCounterTarget = $derived($gameSettings.counterTargetScore ?? 100);
+
+	// Effective settings: use tournament config when in tournament mode.
+	// Hammer is always off in counter mode regardless of the stored flag.
+	let effectiveShowHammer = $derived(inTournamentMode
+		? $gameTournamentContext?.gameConfig.showHammer ?? $gameSettings.showHammer
+		: (isCounterMode ? false : $gameSettings.showHammer));
 
 	let effectiveRoundsToPlay = $derived(inTournamentMode
 		? ($gameTournamentContext?.gameConfig.roundsToPlay ?? $gameSettings.roundsToPlay ?? 4)
@@ -81,10 +89,11 @@
 		? ($gameTournamentContext?.gameConfig.pointsToWin ?? $gameSettings.pointsToWin ?? 7)
 		: ($gameSettings.pointsToWin ?? 7));
 
-	// matchesToWin = "First to X wins" for both tournaments and friendly matches
+	// matchesToWin = "First to X wins" for both tournaments and friendly matches.
+	// Counter mode is always a single game.
 	let effectiveRequiredWins = $derived(inTournamentMode
 		? ($gameTournamentContext?.gameConfig.matchesToWin ?? 1)
-		: ($gameSettings.matchesToWin ?? 1));
+		: (isCounterMode ? 1 : ($gameSettings.matchesToWin ?? 1)));
 
 	// Get the appropriate team store
 	let team = $derived(teamNumber === 1 ? $team1 : $team2);
@@ -352,6 +361,15 @@
 		isProcessingScoreChange = true;
 		queueMicrotask(() => { isProcessingScoreChange = false; });
 
+		// Counter mode: add a fixed increment, first team to the target wins.
+		// No round-completion detection, no hammer/20s.
+		if (isCounterMode) {
+			updateTeam(teamNumber, { points: team.points + effectiveCounterIncrement });
+			vibrate(10);
+			checkCounterModeWin();
+			return;
+		}
+
 		const previousT1 = get(lastRoundPoints).team1;
 		const previousT2 = get(lastRoundPoints).team2;
 
@@ -373,6 +391,16 @@
 		const t2 = get(team2);
 		if (t1.hasWon || t2.hasWon) {
 			return; // Don't allow score changes after match is won
+		}
+
+		// Counter mode: subtract one increment, floored at 0. This is the only
+		// way to correct a mistake in counter mode (no round history to undo).
+		if (isCounterMode) {
+			isProcessingScoreChange = true;
+			queueMicrotask(() => { isProcessingScoreChange = false; });
+			updateTeam(teamNumber, { points: Math.max(0, team.points - effectiveCounterIncrement) });
+			vibrate(10);
+			return;
 		}
 
 		const previousT1 = get(lastRoundPoints).team1;
@@ -576,6 +604,26 @@
 			updateTeam(2, { hasWon: true });
 			updateTeam(1, { hasWon: false });
 			// Check if this game win completes the match
+			saveGameAndCheckMatchComplete();
+		}
+	}
+
+	function checkCounterModeWin() {
+		if (!isCounterMode) return;
+
+		const t1 = get(team1);
+		const t2 = get(team2);
+		if (t1.hasWon || t2.hasWon) return;
+
+		// First team to reach the target wins immediately — no minimum lead.
+		const winner = getCounterWinner(t1.points, t2.points, effectiveCounterTarget);
+		if (winner === 1) {
+			updateTeam(1, { hasWon: true });
+			updateTeam(2, { hasWon: false });
+			saveGameAndCheckMatchComplete();
+		} else if (winner === 2) {
+			updateTeam(2, { hasWon: true });
+			updateTeam(1, { hasWon: false });
 			saveGameAndCheckMatchComplete();
 		}
 	}

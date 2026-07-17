@@ -19,11 +19,15 @@
 
 	// Local editable state
 	let gameType = $state<'singles' | 'doubles'>('singles');
-	let gameMode = $state<'points' | 'rounds'>('points');
+	let gameMode = $state<'points' | 'rounds' | 'counter'>('points');
 	let pointsToWin = $state(7);
 	let matchesToWin = $state(1);
 	let roundsToPlay = $state(4);
+	let counterTargetScore = $state(100);
+	let counterIncrement = $state(5);
 	let allowTies = $state(true);
+
+	const COUNTER_INCREMENTS = [1, 5, 50, 100] as const;
 	let show20s = $state(false);
 	let showHammer = $state(false);
 	let showTimer = $state(true);
@@ -43,6 +47,8 @@
 			pointsToWin = s.pointsToWin ?? 7;
 			matchesToWin = s.matchesToWin ?? 1;
 			roundsToPlay = s.roundsToPlay ?? 4;
+			counterTargetScore = s.counterTargetScore ?? 100;
+			counterIncrement = s.counterIncrement ?? 5;
 			allowTies = s.allowTiesInRoundsMode;
 			show20s = s.show20s;
 			showHammer = s.showHammer;
@@ -56,7 +62,7 @@
 		}
 	});
 
-	function handleGameModeChange(mode: 'points' | 'rounds') {
+	function handleGameModeChange(mode: 'points' | 'rounds' | 'counter') {
 		gameMode = mode;
 		if (mode === 'rounds') {
 			allowTies = false;
@@ -64,6 +70,9 @@
 	}
 
 	function handleStart() {
+		// Counter mode is a simple single-game tally with no hammer/20s.
+		const isCounter = gameMode === 'counter';
+
 		// Apply settings to store
 		gameSettings.update(s => ({
 			...s,
@@ -72,9 +81,11 @@
 			pointsToWin: gameMode === 'points' ? pointsToWin : undefined,
 			matchesToWin: gameMode === 'points' ? matchesToWin : undefined,
 			roundsToPlay: gameMode === 'rounds' ? roundsToPlay : undefined,
+			counterTargetScore: isCounter ? counterTargetScore : s.counterTargetScore,
+			counterIncrement: isCounter ? counterIncrement : s.counterIncrement,
 			allowTiesInRoundsMode: allowTies,
-			show20s,
-			showHammer,
+			show20s: isCounter ? false : show20s,
+			showHammer: isCounter ? false : showHammer,
 			showTimer,
 			timerMinutes,
 			timerSeconds
@@ -120,7 +131,7 @@
 
 			<section class="settings-section">
 				<h3>{m.scoring_gameMode()}</h3>
-				<div class="button-group">
+				<div class="button-group mode-group-three">
 					<button
 						class="mode-button"
 						class:active={gameMode === 'points'}
@@ -137,11 +148,19 @@
 					>
 						{m.scoring_modeRounds()}
 					</button>
+					<button
+						class="mode-button"
+						class:active={gameMode === 'counter'}
+						onclick={() => handleGameModeChange('counter')}
+						type="button"
+					>
+						{m.scoring_modeCounter()}
+					</button>
 				</div>
 			</section>
 		</div>
 
-		<!-- Points/Rounds Configuration -->
+		<!-- Points/Rounds/Counter Configuration -->
 		<section class="settings-section config-section">
 			<div class="mode-config">
 				{#if gameMode === 'points'}
@@ -159,7 +178,7 @@
 						step={1}
 						label={m.scoring_matchesToWin()}
 					/>
-				{:else}
+				{:else if gameMode === 'rounds'}
 					<NumberControl
 						bind:value={roundsToPlay}
 						min={1}
@@ -172,24 +191,49 @@
 						<input type="checkbox" bind:checked={allowTies} />
 						<span class="toggle-switch"></span>
 					</label>
+				{:else}
+					<NumberControl
+						bind:value={counterTargetScore}
+						min={5}
+						max={500}
+						step={5}
+						label={m.scoring_counterTarget()}
+					/>
+					<div class="increment-field">
+						<span class="increment-label">{m.scoring_counterIncrement()}</span>
+						<div class="increment-group">
+							{#each COUNTER_INCREMENTS as inc (inc)}
+								<button
+									class="increment-btn"
+									class:active={counterIncrement === inc}
+									onclick={() => counterIncrement = inc}
+									type="button"
+								>
+									+{inc}
+								</button>
+							{/each}
+						</div>
+					</div>
 				{/if}
 			</div>
 		</section>
 
-		<!-- Feature Toggles -->
+		<!-- Feature Toggles (hammer/20s not shown in counter mode) -->
 		<section class="settings-section">
 			<h3>{m.scoring_features()}</h3>
 			<div class="toggle-grid">
-				<label class="toggle-item">
-					<span class="toggle-label">{m.scoring_track20s()}</span>
-					<input type="checkbox" bind:checked={show20s} />
-					<span class="toggle-switch"></span>
-				</label>
-				<label class="toggle-item">
-					<span class="toggle-label">{m.scoring_hammer()}</span>
-					<input type="checkbox" bind:checked={showHammer} />
-					<span class="toggle-switch"></span>
-				</label>
+				{#if gameMode !== 'counter'}
+					<label class="toggle-item">
+						<span class="toggle-label">{m.scoring_track20s()}</span>
+						<input type="checkbox" bind:checked={show20s} />
+						<span class="toggle-switch"></span>
+					</label>
+					<label class="toggle-item">
+						<span class="toggle-label">{m.scoring_hammer()}</span>
+						<input type="checkbox" bind:checked={showHammer} />
+						<span class="toggle-switch"></span>
+					</label>
+				{/if}
 				<label class="toggle-item">
 					<span class="toggle-label">{m.scoring_showTimer()}</span>
 					<input type="checkbox" bind:checked={showTimer} />
@@ -377,6 +421,58 @@
 		display: grid;
 		grid-template-columns: 1fr 1fr;
 		gap: 0.5rem;
+	}
+
+	/* 3-way mode picker: let the three buttons share the row evenly */
+	.mode-group-three .mode-button {
+		padding-left: 0.4rem;
+		padding-right: 0.4rem;
+		font-size: 0.8rem;
+	}
+
+	/* Counter increment picker */
+	.increment-field {
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+		justify-content: center;
+	}
+
+	.increment-label {
+		font-size: 0.7rem;
+		color: var(--muted-foreground);
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+
+	.increment-group {
+		display: grid;
+		grid-template-columns: repeat(4, 1fr);
+		gap: 0.3rem;
+	}
+
+	.increment-btn {
+		padding: 0.4rem 0.2rem;
+		background: var(--secondary);
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		color: var(--muted-foreground);
+		font-size: 0.8rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+
+	.increment-btn:hover {
+		background: var(--accent);
+		color: var(--foreground);
+	}
+
+	.increment-btn.active {
+		background: color-mix(in srgb, var(--primary) 15%, transparent);
+		color: var(--foreground);
+		border-color: color-mix(in srgb, var(--primary) 40%, transparent);
 	}
 
 	.timer-controls {

@@ -25,6 +25,8 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
     gameType: 'singles',
     gameMode: 'rounds',
     roundsToPlay: 4,
+    counterTargetScore: 100,
+    counterIncrement: 5,
     allowTiesInRoundsMode: true,
     eventTitle: '',
     matchPhase: '',

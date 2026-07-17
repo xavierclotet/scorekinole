@@ -173,6 +173,10 @@
 	// Tournament mode state
 	let inTournamentMode = $derived(!!$gameTournamentContext);
 
+	// Counter mode: simple tap-to-target scoreboard (friendly only, no hammer/20s
+	// /rounds). See docs/en/COUNTER_SCORING_MODE.md.
+	let isCounterMode = $derived(!inTournamentMode && $gameSettings.gameMode === 'counter');
+
 	// Whether to show the assign/invite button for each team
 	// Show button in all cases when logged in (different actions based on state)
 	let canAssignUserToTeam1 = $derived(!inTournamentMode && !!$currentUser);
@@ -224,24 +228,29 @@
 	let friendlyMatchMode = $derived(
 		$gameSettings.gameMode === 'rounds'
 			? m.scoring_friendlyModeRounds({ n: $gameSettings.roundsToPlay ?? 4 })
-			: (($gameSettings.matchesToWin ?? 1) > 1
-				? m.scoring_friendlyModePointsFtw({ points: $gameSettings.pointsToWin ?? 7, matches: $gameSettings.matchesToWin ?? 1 })
-				: m.scoring_friendlyModePoints({ n: $gameSettings.pointsToWin ?? 7 }))
+			: $gameSettings.gameMode === 'counter'
+				? m.scoring_friendlyModeCounter({ n: $gameSettings.counterTargetScore ?? 100 })
+				: (($gameSettings.matchesToWin ?? 1) > 1
+					? m.scoring_friendlyModePointsFtw({ points: $gameSettings.pointsToWin ?? 7, matches: $gameSettings.matchesToWin ?? 1 })
+					: m.scoring_friendlyModePoints({ n: $gameSettings.pointsToWin ?? 7 }))
 	);
 
-	// Effective settings: use tournament config when in tournament mode, otherwise gameSettings
+	// Effective settings: use tournament config when in tournament mode, otherwise
+	// gameSettings. Hammer/20s are always off in counter mode.
 	let effectiveShowHammer = $derived(inTournamentMode
 		? $gameTournamentContext?.gameConfig.showHammer ?? $gameSettings.showHammer
-		: $gameSettings.showHammer);
+		: (isCounterMode ? false : $gameSettings.showHammer));
 	let effectiveShow20s = $derived(inTournamentMode
 		? $gameTournamentContext?.gameConfig.show20s ?? $gameSettings.show20s
-		: $gameSettings.show20s);
+		: (isCounterMode ? false : $gameSettings.show20s));
 	let effectiveShowRoundsPanel = $derived(
-		inTournamentMode ||
-		effectiveShow20s ||
-		$gameSettings.gameMode === 'rounds' ||
-		($gameSettings.matchesToWin ?? 1) > 1 ||
-		!!$gameSettings.lastTournamentResult
+		!isCounterMode && (
+			inTournamentMode ||
+			effectiveShow20s ||
+			$gameSettings.gameMode === 'rounds' ||
+			($gameSettings.matchesToWin ?? 1) > 1 ||
+			!!$gameSettings.lastTournamentResult
+		)
 	);
 
 	// Tournament match format string (e.g., "4R", "7p", "7p Bo3")
@@ -298,7 +307,7 @@
 	// In rounds mode, match is complete after first game (includes ties)
 	// In points mode, match is complete when someone reaches the required wins
 	// matchesToWin = "First to X wins" for both tournaments and friendly matches
-	let requiredWinsToComplete = $derived($gameSettings.matchesToWin ?? 1);
+	let requiredWinsToComplete = $derived(isCounterMode ? 1 : ($gameSettings.matchesToWin ?? 1));
 	let isMatchComplete = $derived($gameSettings.gameMode === 'rounds'
 		? (team1GamesWon >= 1 || team2GamesWon >= 1 || ($currentMatchGames.length > 0 && !$team1.hasWon && !$team2.hasWon))
 		: (team1GamesWon >= requiredWinsToComplete || team2GamesWon >= requiredWinsToComplete));

@@ -34,11 +34,17 @@ export interface GameSettings {
     /** Singles (1v1) or doubles (2v2) game type */
     gameType: 'singles' | 'doubles';
 
-    /** Game mode: play to X points or play N rounds */
-    gameMode: 'points' | 'rounds';
+    /** Game mode: play to X points, play N rounds, or a simple tap-to-target counter */
+    gameMode: 'points' | 'rounds' | 'counter';
 
     /** Number of rounds to play in 'rounds' mode (undefined when in points mode) */
     roundsToPlay?: number;
+
+    /** Target score a team must reach to win in 'counter' mode (default 100) */
+    counterTargetScore?: number;
+
+    /** Points added/subtracted per tap in 'counter' mode: 1, 5, 50 or 100 (default 5) */
+    counterIncrement?: number;
 
     /** Whether ties are allowed in rounds mode (if false, extra rounds until winner) */
     allowTiesInRoundsMode: boolean;

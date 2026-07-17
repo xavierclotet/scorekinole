@@ -29,7 +29,7 @@ export interface MatchHistory {
     team2Rounds?: number;
     totalRounds?: number;
     winner: 1 | 2 | null;
-    gameMode: 'points' | 'rounds';
+    gameMode: 'points' | 'rounds' | 'counter';
     gameType: 'singles' | 'doubles';
     pointsToWin?: number;
     roundsToPlay?: number;
