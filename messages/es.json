@@ -1062,6 +1062,8 @@
   "scoring_modeCounter": "Contador",
   "scoring_counterTarget": "Objetivo",
   "scoring_counterIncrement": "Incremento",
+  "scoring_counterWinConfirm": "¿{name} gana la partida?",
+  "scoring_counterUndo": "Deshacer",
   "scoring_newMatchButton": "Nuevo Amistoso",
   "scoring_newMatchShort": "Amistoso",
   "scoring_nextGame": "Siguiente Partida",

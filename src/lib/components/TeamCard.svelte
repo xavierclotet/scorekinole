@@ -361,12 +361,14 @@
 		isProcessingScoreChange = true;
 		queueMicrotask(() => { isProcessingScoreChange = false; });
 
-		// Counter mode: add a fixed increment, first team to the target wins.
-		// No round-completion detection, no hammer/20s.
+		// Counter mode: add a fixed increment. The win is NOT finalized here —
+		// reaching the target opens a confirm step in +page.svelte so an accidental
+		// tap (which, with a large increment, can jump straight to the target) can be
+		// undone. The parent calls finalizeCounterWin() on confirm.
+		// See docs/en/COUNTER_SCORING_MODE.md.
 		if (isCounterMode) {
 			updateTeam(teamNumber, { points: team.points + effectiveCounterIncrement });
 			vibrate(10);
-			checkCounterModeWin();
 			return;
 		}
 
@@ -608,7 +610,10 @@
 		}
 	}
 
-	function checkCounterModeWin() {
+	// Finalize a counter-mode win once the user confirms it in +page.svelte
+	// (reaching the target only opens the confirm dialog; this commits it: sets
+	// hasWon, saves the match, and locks scoring). Idempotent — no-op if already won.
+	export function finalizeCounterWin() {
 		if (!isCounterMode) return;
 
 		const t1 = get(team1);

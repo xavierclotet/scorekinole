@@ -68,7 +68,7 @@
 	import QrCode from '@lucide/svelte/icons/qr-code';
 	import { requestWakeLock, releaseWakeLock } from '$lib/utils/wakeLock';
 	import { resolveIsUserSideA } from '$lib/utils/tournamentSideMapping';
-	import { shouldAutoAssignCounterUser } from '$lib/utils/counterMode';
+	import { shouldAutoAssignCounterUser, getCounterWinner } from '$lib/utils/counterMode';
 	import { goto, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { assignUserToTeam, unassignUserFromTeam, unassignPartnerFromTeam } from '$lib/stores/teams';
@@ -186,8 +186,20 @@
 	// only overwrites a default "Team 1" placeholder, so a custom name you typed is
 	// preserved. Idempotent: once team1 has a userId the guard is false, so it never
 	// loops or overwrites a real assignment.
+	//
+	// One-shot: we attribute at most once per match (guarded by counterAssignChecked,
+	// reset on New Match). This is deliberate — a reactive re-assign would fight a
+	// manual unassign, making the "unassign" button a silent no-op (it clears the
+	// userId, the effect immediately puts it back). With the one-shot guard, a user
+	// who unassigns to keep score for others stays unassigned.
+	let counterAssignChecked = $state(false);
 	$effect(() => {
-		if (shouldAutoAssignCounterUser(isCounterMode, $authInitialized, !!$currentUser, !!$team1.userId, !!$team2.userId)) {
+		// Wait for a logged-in user before consuming the one-shot, so logging in
+		// while already on the counter board still attributes the match.
+		if (!isCounterMode || !$authInitialized || !$currentUser) return;
+		if (counterAssignChecked) return;
+		counterAssignChecked = true;
+		if (shouldAutoAssignCounterUser(true, true, true, !!$team1.userId, !!$team2.userId)) {
 			const currentName = ($team1.name ?? '').trim();
 			const isDefaultName = currentName === '' || currentName === 'Team 1';
 			const userName = ($currentUser!.name ?? '').trim();
@@ -198,6 +210,29 @@
 			});
 		}
 	});
+
+	// Counter win confirmation: reaching the target does NOT finalize the game
+	// (see TeamCard.incrementScore). Instead this derives the crossing team and
+	// +page shows a confirm dialog, so an accidental tap — especially with a large
+	// increment that jumps straight to the target — can be undone before the match
+	// is saved/locked. null while nobody has crossed or the win is already finalized.
+	let counterWinner = $derived(
+		isCounterMode && !$team1.hasWon && !$team2.hasWon
+			? getCounterWinner($team1.points, $team2.points, $gameSettings.counterTargetScore ?? 100)
+			: null
+	);
+
+	function confirmCounterWin() {
+		teamCard1?.finalizeCounterWin();
+	}
+
+	function undoCounterWin() {
+		const w = counterWinner;
+		if (!w) return;
+		const inc = $gameSettings.counterIncrement ?? 5;
+		const pts = w === 1 ? $team1.points : $team2.points;
+		updateTeam(w, { points: Math.max(0, pts - inc) });
+	}
 
 	// Whether to show the assign/invite button for each team
 	// Show button in all cases when logged in (different actions based on state)
@@ -2262,6 +2297,8 @@
 		resetTeams();
 		resetMatchState();
 		isInExtraRounds = false;
+		// Fresh match: re-enable the one-shot counter auto-attribution.
+		counterAssignChecked = false;
 
 		const totalSeconds = $gameSettings.timerMinutes * 60 + $gameSettings.timerSeconds;
 		resetTimer(totalSeconds);
@@ -2301,6 +2338,8 @@
 		resetTeams();
 		resetMatchState();
 		isInExtraRounds = false;
+		// Fresh match: re-enable the one-shot counter auto-attribution.
+		counterAssignChecked = false;
 
 		const totalSeconds = $gameSettings.timerMinutes * 60 + $gameSettings.timerSeconds;
 		resetTimer(totalSeconds);
@@ -3097,6 +3136,35 @@
 		</div>
 	{/if}
 
+	<!-- Counter mode: confirm the win before finalizing, so an accidental tap
+	     (large increments can jump straight to the target) can be undone. Nothing
+	     is saved or locked until the user confirms. -->
+	{#if counterWinner}
+		{@const winnerName = counterWinner === 1 ? ($team1.name || m.scoring_teamName()) : ($team2.name || m.scoring_teamName())}
+		{@const winnerScore = counterWinner === 1 ? $team1.points : $team2.points}
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div class="newmatch-overlay" onclick={undoCounterWin}>
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div class="newmatch-dialog" onclick={(e) => e.stopPropagation()}>
+				<div class="newmatch-icon">
+					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+				</div>
+				<p class="newmatch-title">{m.scoring_counterWinConfirm({ name: winnerName })}</p>
+				<span class="counter-win-score">{winnerScore}</span>
+				<div class="newmatch-buttons">
+					<button class="newmatch-btn cancel" onclick={undoCounterWin}>
+						{m.scoring_counterUndo()}
+					</button>
+					<button class="newmatch-btn confirm" onclick={confirmCounterWin}>
+						{m.common_confirm()}
+					</button>
+				</div>
+			</div>
+		</div>
+	{/if}
+
 	<!-- Tournament Exit Confirmation Modal -->
 	{#if showTournamentExitConfirm}
 		{@const hasProgress = $roundsPlayed > 0 || $currentGameRounds.length > 0 || $currentMatchGames.length > 0}
@@ -3829,6 +3897,15 @@
 		color: var(--game-text);
 		opacity: 0.85;
 		text-align: center;
+	}
+
+	.counter-win-score {
+		font-family: 'Lexend', sans-serif;
+		font-size: 2.4rem;
+		font-weight: 800;
+		line-height: 1;
+		color: var(--game-text);
+		font-variant-numeric: tabular-nums;
 	}
 
 	.newmatch-buttons {

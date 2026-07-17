@@ -425,6 +425,8 @@
   "scoring_modeCounter": "Comptador",
   "scoring_counterTarget": "Objectiu",
   "scoring_counterIncrement": "Increment",
+  "scoring_counterWinConfirm": "{name} guanya la partida?",
+  "scoring_counterUndo": "Desfés",
   "scoring_newMatchButton": "Nova Partida Amistosa",
   "scoring_newMatchShort": "Partida",
   "scoring_nextGame": "Següent Partida",

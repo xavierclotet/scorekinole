@@ -425,6 +425,8 @@
   "scoring_modeCounter": "Counter",
   "scoring_counterTarget": "Target",
   "scoring_counterIncrement": "Increment",
+  "scoring_counterWinConfirm": "Does {name} win the match?",
+  "scoring_counterUndo": "Undo",
   "scoring_newMatchButton": "New Friendly Match",
   "scoring_newMatchShort": "Match",
   "scoring_nextGame": "Next Game",
