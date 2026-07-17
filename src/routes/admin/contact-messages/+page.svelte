@@ -13,6 +13,7 @@
     type ContactMessage
   } from '$lib/firebase/admin';
   import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
+  import { createRequestSequencer } from '$lib/utils/requestSequencer';
   import Trash2 from '@lucide/svelte/icons/trash-2';
   import Mail from '@lucide/svelte/icons/mail';
   import MailOpen from '@lucide/svelte/icons/mail-open';
@@ -31,11 +32,16 @@
 
   const pageSize = 20;
 
+  // Drops out-of-order responses when switching filters quickly
+  const seq = createRequestSequencer();
+
   async function loadInitial() {
+    const rid = seq.next();
     loading = true;
     messages = [];
     lastDoc = null;
     const result = await getContactMessagesPaginated(pageSize, null, filter);
+    if (!seq.isLatest(rid)) return;
     totalCount = result.totalCount;
     hasMore = result.hasMore;
     lastDoc = result.lastDoc;
@@ -45,12 +51,14 @@
 
   async function loadMore() {
     if (loadingMore || !hasMore) return;
+    const rid = seq.next();
     loadingMore = true;
     const result = await getContactMessagesPaginated(pageSize, lastDoc, filter);
+    loadingMore = false;
+    if (!seq.isLatest(rid)) return;
     hasMore = result.hasMore;
     lastDoc = result.lastDoc;
     messages = [...messages, ...result.messages];
-    loadingMore = false;
   }
 
   function handleScroll(e: Event) {

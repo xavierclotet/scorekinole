@@ -155,7 +155,7 @@
 									<button
 										class="tag"
 										onclick={(e) => { e.stopPropagation(); setTag(tag); }}
-										onkeydown={(e) => e.key === 'Enter' && setTag(tag)}
+										onkeydown={(e) => e.stopPropagation()}
 									>
 										<Tag size={12} />
 										{tag}

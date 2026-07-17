@@ -26,6 +26,15 @@
 	let showTranslation = $state(false);
 	let translationError = $state<string | null>(null);
 
+	// Reset translation state when navigating to another post
+	$effect(() => {
+		slug;
+		translating = false;
+		translatedContent = null;
+		showTranslation = false;
+		translationError = null;
+	});
+
 	let articleJsonLd = $derived(post ? {
 		"@context": "https://schema.org",
 		"@type": "Article",
@@ -111,15 +120,32 @@
 	let renderedTranslated = $derived(translatedContent ? renderMarkdown(translatedContent) : '');
 
 	async function handleTranslate() {
-		if (!post) return;
+		if (!post || translating) return;
+
+		// Toggle back to the original without re-fetching
+		if (showTranslation) {
+			showTranslation = false;
+			return;
+		}
+
+		// Reuse an existing translation
+		if (translatedContent) {
+			showTranslation = true;
+			return;
+		}
+
 		translating = true;
 		translationError = null;
+		const requestSlug = slug;
 
 		const result = await translateText(
 			post.content,
 			'autodetect',
 			locale
 		);
+
+		// Ignore the response if the user navigated to another post meanwhile
+		if (requestSlug !== slug) return;
 
 		if (result.success && result.translatedText) {
 			translatedContent = result.translatedText;

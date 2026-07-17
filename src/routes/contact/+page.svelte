@@ -37,7 +37,8 @@
 			: ''
 	);
 
-	async function handleSubmit() {
+	async function handleSubmit(e: SubmitEvent) {
+		e.preventDefault();
 		if (!valid || status === 'sending') return;
 		status = 'sending';
 		errorMsg = '';
