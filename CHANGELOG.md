@@ -2,6 +2,17 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.65] - 2026-07-17
+- New: "Counter" friendly-match scoring mode — simple tap-to-target scoreboard (configurable target + increment: 1/5/50/100), no hammer/20s/rounds
+- Counter: reaching the target opens an Undo/Confirm dialog instead of finalizing on the tap, so an accidental large-increment tap can be reverted before the match saves and locks
+- Counter: logged-in users are auto-attributed to Team 1 (name + avatar) so matches save without tapping "+"; attribution is one-shot per match so a manual unassign sticks
+- Counter matches show their target/format in `/my-stats` and `/admin/matches`
+- Landing: hero spacing rhythm, redesigned scroll indicator, fixed stale body-scroll lock after closing the screenshot lightbox, new BlogIcon in navbar
+- Fix: contact form missing `preventDefault` caused native navigation and aborted the submit
+- Fix: blog "Show original" toggle re-translated instead of switching back; stale translation could show after navigating to another post
+- Fix: Enter key on a blog tag opened the post instead of filtering by tag
+- Fix: admin contact-messages missing Firestore composite index; out-of-order filter responses now dropped correctly
+
 ## [2.5.64] - 2026-07-17
 - Fix: renaming a team or partner name now properly opens the on-screen keyboard on iOS Safari and in-app browsers (focus was deferred via `setTimeout`, which drops the keyboard-triggering user-activation context — now uses `tick()`)
 - Fix: screenshot lightbox locks body scroll while open
