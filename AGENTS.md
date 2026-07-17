@@ -55,6 +55,7 @@ Docs are organized by language. Read on demand when working on the related area 
 - [TOURNAMENT_REGISTRATION.md](docs/en/TOURNAMENT_REGISTRATION.md) — Self-registration flow, waitlist, doubles modes, admin tooling, known issues
 - [NETWORK_STATUS.md](docs/en/NETWORK_STATUS.md) — OfflineIndicator, auto-sync, reconnect
 - [SCORING_TERMINOLOGY.md](docs/en/SCORING_TERMINOLOGY.md) — Round/Game/Match hierarchy, abbreviations
+- [COUNTER_SCORING_MODE.md](docs/en/COUNTER_SCORING_MODE.md) — Design proposal for a 3rd `gameMode` (simple tap-to-target counter, no Hammer/20s) — **not implemented yet**
 - [TABLE_ASSIGNMENT.md](docs/en/TABLE_ASSIGNMENT.md) — Equitable table distribution algorithm
 - [TIEBREAKER.md](docs/en/TIEBREAKER.md) — Tiebreaker resolution algorithm
 - [RANKING_SYSTEM.md](docs/en/RANKING_SYSTEM.md) — Ranking points model

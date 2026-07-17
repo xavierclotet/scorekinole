@@ -2,6 +2,12 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.64] - 2026-07-17
+- Fix: renaming a team or partner name now properly opens the on-screen keyboard on iOS Safari and in-app browsers (focus was deferred via `setTimeout`, which drops the keyboard-triggering user-activation context — now uses `tick()`)
+- Fix: screenshot lightbox locks body scroll while open
+- Blog: new post explaining points-mode vs rounds-mode scoring in friendly matches
+- Docs: design proposal for a future "Counter" scoring mode (simple tap-to-target, no Hammer/20s)
+
 ## [2.5.63] - 2026-07-16
 - Contact: new `/contact` page with spam-protected form (honeypot + time check + rate limit)
 - Contact: Cloud Function `submitContactMessage` stores messages in Firestore

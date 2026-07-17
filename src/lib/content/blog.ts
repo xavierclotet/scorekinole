@@ -11,6 +11,39 @@ export interface BlogPost {
 
 export const blogPosts: BlogPost[] = [
 	{
+		slug: 'como-anotar-puntos-partido-amistoso',
+		title: 'Cómo anotar puntos en un partido amistoso: por puntos vs por rondas',
+		description: 'Descubre cómo se anota un partido amistoso de crokinole en Scorekinole: la diferencia entre el modo "por puntos" y "por rondas", y cómo sumar y restar puntos con un simple toque o deslizando el dedo.',
+		date: '2026-07-17',
+		author: 'Scorekinole Team',
+		image: '/og-image.png',
+		content: `Cuando juegas un partido amistoso en Scorekinole tienes dos formas de decidir cuándo termina la partida: **por puntos** o **por rondas**. Aquí te explicamos la diferencia y cómo se anota realmente en la pantalla de juego.
+
+## Cómo se suman los puntos: toca y desliza
+
+En la pantalla de juego, cada equipo tiene un marcador gigante en su tarjeta — no hay que buscar botones pequeños:
+
+- **Toca el marcador** para sumar 1 punto.
+- **Desliza el dedo hacia abajo** sobre el marcador para restar ese punto (perfecto si te equivocas al contar).
+
+Así anotas sin apartar la vista del tablero, con una sola mano.
+
+## Modo "Por puntos"
+
+Eliges un número objetivo (normalmente 7, 9 u 11) y gana el primer equipo en llegar a esa cifra **con 2 puntos de ventaja** sobre el rival. Es el formato más habitual entre amigos.
+
+## Modo "Por rondas"
+
+En lugar de un objetivo de puntos, se juega un número fijo de rondas (por ejemplo, 4). Cuando la diferencia de puntos anotados en la ronda llega a 2 (por ejemplo 2-0 o 1-1), la ronda se cierra sola, el marcador de ronda avanza y el hammer (última piedra) pasa al otro equipo. Al final de las N rondas, gana quien tenga más puntos acumulados.
+
+## Extras opcionales
+
+Desde la configuración del partido puedes activar **Hammer** (quién tira último cada ronda), **20s** (discos en el agujero central, útiles para desempates) y **Mejor de N** (encadenar varias partidas). Ninguno es obligatorio — puedes jugar a pelo si quieres máxima rapidez.
+
+¿Todavía no lo has probado? Abre Scorekinole, pulsa "Nuevo Juego" y elige tu modo — llevar el marcador de crokinole nunca fue tan rápido.`,
+		tags: ['scorekinole', 'tutorial', 'guía', 'crokinole', 'amistoso']
+	},
+	{
 		slug: 'como-crear-torneo-en-vivo',
 		title: 'Cómo crear un torneo en vivo en Scorekinole (paso a paso)',
 		description: 'Guía rápida para crear un torneo de crokinole en Scorekinole: desde la configuración inicial hasta la publicación. Ideal para organizadores sin experiencia técnica.',

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import { vibrate } from '$lib/utils/vibration';
 	import { getContrastColor } from '$lib/utils/colors';
 	import { gameSettings } from '$lib/stores/gameSettings';
@@ -793,29 +794,33 @@
 		updateTeam(teamNumber, { name: text });
 	}
 
-	function startEditingName(e: Event) {
+	async function startEditingName(e: Event) {
 		if (inTournamentMode) return;
 		e.stopPropagation();
 		isEditingName = true;
-		// Focus the input after it renders
-		setTimeout(() => {
-			nameInputRef?.focus();
-			nameInputRef?.select();
-		}, 0);
+		// Focus the input after it renders. Must use tick(), not setTimeout —
+		// setTimeout defers past the original tap/click's user-activation
+		// window, so iOS Safari/WebKit (and in-app browsers like the Google
+		// app's, which are stricter still) silently refuses to raise the
+		// on-screen keyboard even though the input does become focused.
+		await tick();
+		nameInputRef?.focus();
+		nameInputRef?.select();
 	}
 
 	function stopEditingName() {
 		isEditingName = false;
 	}
 
-	function startEditingPartnerName(e: Event) {
+	async function startEditingPartnerName(e: Event) {
 		if (inTournamentMode) return;
 		e.stopPropagation();
 		isEditingPartnerName = true;
-		setTimeout(() => {
-			partnerNameInputRef?.focus();
-			partnerNameInputRef?.select();
-		}, 0);
+		// See startEditingName() above — tick(), not setTimeout, to keep the
+		// focus() call inside the tap's user-activation window.
+		await tick();
+		partnerNameInputRef?.focus();
+		partnerNameInputRef?.select();
 	}
 
 	function stopEditingPartnerName() {
