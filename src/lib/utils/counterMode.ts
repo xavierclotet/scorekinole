@@ -28,3 +28,22 @@ export function getCounterWinner(
 	if (t2Reached && !t1Reached) return 2;
 	return team2Points > team1Points ? 2 : 1;
 }
+
+/**
+ * Whether to auto-assign the logged-in user to Team 1 in counter mode.
+ *
+ * Counter is a lightweight scoreboard where users don't tap the "+" assign
+ * button, so a logged-in user's match would never be credited to anyone and
+ * would never persist to `/matches`. When counter is active, auth is ready, a
+ * user is logged in, and NEITHER team has an assigned user yet, we attribute
+ * the match to that user (Team 1) so it saves and appears in admin + stats.
+ */
+export function shouldAutoAssignCounterUser(
+	isCounterMode: boolean,
+	authInitialized: boolean,
+	hasLoggedInUser: boolean,
+	team1HasUser: boolean,
+	team2HasUser: boolean
+): boolean {
+	return isCounterMode && authInitialized && hasLoggedInUser && !team1HasUser && !team2HasUser;
+}

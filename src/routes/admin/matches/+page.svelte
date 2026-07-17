@@ -339,6 +339,8 @@
       return `${match.pointsToWin}p · Pg${match.matchesToWin}`;
     } else if (match.gameMode === 'rounds') {
       return `${match.roundsToPlay}r`;
+    } else if (match.gameMode === 'counter') {
+      return `counter · ${match.counterTargetScore ?? '?'}p`;
     }
     return match.gameMode || 'N/A';
   }

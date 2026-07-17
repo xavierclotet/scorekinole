@@ -764,6 +764,7 @@
 			gameType: settings.gameType,
 			pointsToWin: settings.pointsToWin,
 			roundsToPlay: settings.roundsToPlay,
+			counterTargetScore: settings.gameMode === 'counter' ? (settings.counterTargetScore ?? 100) : undefined,
 			eventTitle: settings.eventTitle,
 			eventEdition: settings.eventEdition,
 			matchPhase: settings.matchPhase,

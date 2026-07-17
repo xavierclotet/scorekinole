@@ -1039,7 +1039,7 @@
   "scoring_friendlyModePoints": "Primero a {n}",
   "scoring_friendlyModePointsFtw": "{points}p (Pg {matches}p)",
   "scoring_friendlyModeRounds": "{n} rondas",
-  "scoring_friendlyModeCounter": "Hasta {n}",
+  "scoring_friendlyModeCounter": "Hasta {n} puntos",
   "scoring_friendlySingles": "Individual",
   "scoring_extraRound": "Ronda Extra",
   "scoring_gameMode": "Modo de Juego",

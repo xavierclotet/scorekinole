@@ -290,6 +290,21 @@
 			+ ' ' + date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 	}
 
+	// Friendly-match format label for the card header (mirrors the in-game header):
+	// points → "Primero a X", rounds → "X rondas", counter → "Hasta X puntos".
+	function getFriendlyFormat(match: MatchHistory): string {
+		if (match.gameMode === 'rounds') {
+			return m.scoring_friendlyModeRounds({ n: match.roundsToPlay ?? 4 });
+		}
+		if (match.gameMode === 'counter') {
+			return m.scoring_friendlyModeCounter({ n: match.counterTargetScore ?? 100 });
+		}
+		if ((match.matchesToWin ?? 1) > 1) {
+			return m.scoring_friendlyModePointsFtw({ points: match.pointsToWin ?? 7, matches: match.matchesToWin ?? 1 });
+		}
+		return m.scoring_friendlyModePoints({ n: match.pointsToWin ?? 7 });
+	}
+
 	function toggleExpand(matchId: string) {
 		if (expandedMatches.has(matchId)) {
 			expandedMatches.delete(matchId);
@@ -554,6 +569,8 @@
 										{:else}
 											<span class="separator">•</span>
 											<span class="phase-text">{m.stats_friendly()}</span>
+											<span class="separator">•</span>
+											<span class="format-text">{getFriendlyFormat(match)}</span>
 										{/if}
 									</div>
 
@@ -1001,6 +1018,7 @@
 	.tournament-name { font-weight: 500; color: var(--foreground); }
 	.phase-text { text-transform: lowercase; letter-spacing: 0.03em; }
 	.phase-text::first-letter { text-transform: uppercase; }
+	.format-text { letter-spacing: 0.03em; opacity: 0.85; }
 
 	.match-players {
 		display: flex;

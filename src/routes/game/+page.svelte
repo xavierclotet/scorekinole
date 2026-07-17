@@ -68,6 +68,7 @@
 	import QrCode from '@lucide/svelte/icons/qr-code';
 	import { requestWakeLock, releaseWakeLock } from '$lib/utils/wakeLock';
 	import { resolveIsUserSideA } from '$lib/utils/tournamentSideMapping';
+	import { shouldAutoAssignCounterUser } from '$lib/utils/counterMode';
 	import { goto, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { assignUserToTeam, unassignUserFromTeam, unassignPartnerFromTeam } from '$lib/stores/teams';
@@ -177,6 +178,27 @@
 	// /rounds). See docs/en/COUNTER_SCORING_MODE.md.
 	let isCounterMode = $derived(!inTournamentMode && $gameSettings.gameMode === 'counter');
 
+	// Counter auto-attribution: users don't tap the "+" assign button in this
+	// quick-scoreboard mode, so a logged-in user's match would never be credited
+	// nor persist. When nobody is assigned, attribute the match to the logged-in
+	// user (Team 1) so it saves to /matches and shows in /admin/matches + my-stats.
+	// Mirrors the manual "+" assign: sets userId, photo AND the display name — but
+	// only overwrites a default "Team 1" placeholder, so a custom name you typed is
+	// preserved. Idempotent: once team1 has a userId the guard is false, so it never
+	// loops or overwrites a real assignment.
+	$effect(() => {
+		if (shouldAutoAssignCounterUser(isCounterMode, $authInitialized, !!$currentUser, !!$team1.userId, !!$team2.userId)) {
+			const currentName = ($team1.name ?? '').trim();
+			const isDefaultName = currentName === '' || currentName === 'Team 1';
+			const userName = ($currentUser!.name ?? '').trim();
+			updateTeam(1, {
+				userId: $currentUser!.id,
+				userPhotoURL: $currentUser!.photoURL,
+				...(isDefaultName && userName ? { name: userName } : {})
+			});
+		}
+	});
+
 	// Whether to show the assign/invite button for each team
 	// Show button in all cases when logged in (different actions based on state)
 	let canAssignUserToTeam1 = $derived(!inTournamentMode && !!$currentUser);
@@ -192,6 +214,7 @@
 	let shouldShowAssignHint = $derived(
 		!assignHintDismissed &&
 		!inTournamentMode &&
+		!isCounterMode &&
 		!!$currentUser &&
 		$authInitialized &&
 		!$team1.userId &&
@@ -208,6 +231,7 @@
 	let shouldShowInviteHint = $derived(
 		!inviteHintDismissed &&
 		!inTournamentMode &&
+		!isCounterMode &&
 		!!$currentUser &&
 		$authInitialized &&
 		!!$team1.userId &&

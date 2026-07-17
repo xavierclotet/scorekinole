@@ -33,6 +33,8 @@ export interface MatchHistory {
     gameType: 'singles' | 'doubles';
     pointsToWin?: number;
     roundsToPlay?: number;
+    /** Target score for a 'counter'-mode match (e.g. 100) */
+    counterTargetScore?: number;
     matchesToWin: number;
     games: MatchGame[];
     startTime: number;

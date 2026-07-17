@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getCounterWinner } from './counterMode';
+import { getCounterWinner, shouldAutoAssignCounterUser } from './counterMode';
 
 /**
  * Counter scoring mode: two independent per-team scores, first to reach the
@@ -29,5 +29,37 @@ describe('getCounterWinner', () => {
 	it('defensive: if both are at/over target, the higher score wins', () => {
 		expect(getCounterWinner(105, 100, 100)).toBe(1);
 		expect(getCounterWinner(100, 105, 100)).toBe(2);
+	});
+});
+
+/**
+ * Counter mode auto-attribution: a logged-in user playing a counter match won't
+ * tap the "+" assign button (it's a quick scoreboard), so the match would never
+ * be credited to anyone and never persist. When nobody is assigned we auto-assign
+ * the logged-in user to Team 1 so the match saves to /matches and shows in stats.
+ */
+describe('shouldAutoAssignCounterUser', () => {
+	it('assigns when counter + logged in + auth ready + nobody assigned', () => {
+		expect(shouldAutoAssignCounterUser(true, true, true, false, false)).toBe(true);
+	});
+
+	it('does not assign outside counter mode', () => {
+		expect(shouldAutoAssignCounterUser(false, true, true, false, false)).toBe(false);
+	});
+
+	it('does not assign before auth is initialized', () => {
+		expect(shouldAutoAssignCounterUser(true, false, true, false, false)).toBe(false);
+	});
+
+	it('does not assign when there is no logged-in user', () => {
+		expect(shouldAutoAssignCounterUser(true, true, false, false, false)).toBe(false);
+	});
+
+	it('does not re-assign when team 1 already has a user', () => {
+		expect(shouldAutoAssignCounterUser(true, true, true, true, false)).toBe(false);
+	});
+
+	it('does not assign when team 2 already has a user', () => {
+		expect(shouldAutoAssignCounterUser(true, true, true, false, true)).toBe(false);
 	});
 });

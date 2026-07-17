@@ -1344,7 +1344,7 @@
   "scoring_friendlyModePoints": "First to {n}",
   "scoring_friendlyModePointsFtw": "{points} (Ftw {matches} g)",
   "scoring_friendlyModeRounds": "{n} rounds",
-  "scoring_friendlyModeCounter": "To {n}",
+  "scoring_friendlyModeCounter": "To {n} points",
   "scoring_friendlySingles": "Singles",
   "scan_enableCamera": "Enable camera",
   "scan_instruction": "Point the camera at the QR code",
