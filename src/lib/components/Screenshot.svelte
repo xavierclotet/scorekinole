@@ -36,10 +36,12 @@
 	$effect(() => {
 		if (!browser) return;
 		if (zoomed) {
-			const prev = document.body.style.overflow;
+			// Don't capture/restore the previous value: bits-ui dropdowns restore the
+			// body style with a ~24ms delay, so "previous" can be a stale 'hidden'
+			// owned by a closing dropdown — restoring it would lock the page forever.
 			document.body.style.overflow = 'hidden';
 			return () => {
-				document.body.style.overflow = prev;
+				document.body.style.overflow = '';
 			};
 		}
 	});

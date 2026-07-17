@@ -9,6 +9,7 @@
 	import ProfileDropdown from '$lib/components/ProfileDropdown.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import LanguageSelector from '$lib/components/LanguageSelector.svelte';
+	import BlogIcon from '$lib/components/BlogIcon.svelte';
 	import ContactIcon from '$lib/components/ContactIcon.svelte';
 	import { currentUser } from '$lib/firebase/auth';
 	import SEO from '$lib/components/SEO.svelte';
@@ -250,14 +251,6 @@
 	<!-- Navigation bar -->
 	<nav class="navbar">
 		<div class="nav-left">
-			<Button
-				variant="outline"
-				size="sm"
-				onclick={() => goto('/blog')}
-				class="bg-primary/10 border-primary/30 text-primary hover:bg-primary/20 hover:text-primary font-semibold px-6 min-w-20"
-			>
-				Blog
-			</Button>
 			{#if $canAccessAdmin}
 				<Button
 					variant="outline"
@@ -274,6 +267,7 @@
 		<div class="nav-right" data-webmcp="profile-dropdown-container">
 			<ThemeToggle />
 			<LanguageSelector />
+			<BlogIcon />
 			<ContactIcon />
 			<ProfileDropdown onlogin={handleLogin} onprofile={handleProfileOpen} />
 		</div>
@@ -394,8 +388,6 @@
 					</div>
 				</div>
 			{/if}
-		</div>
-		<div class="support-section">
 			<a href="https://ko-fi.com/I3I11SVYEM" target="_blank" rel="noopener noreferrer" class="kofi-btn">
 				<svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
 					<path d="M23.881 8.948c-.773-4.085-4.859-4.593-4.859-4.593H.723c-.604 0-.679.798-.679.798s-.082 7.324-.022 11.822c.164 2.424 2.586 2.672 2.586 2.672s8.267-.023 11.966-.049c2.438-.426 2.683-2.566 2.658-3.734 4.352.24 7.422-2.831 6.649-6.916zm-11.062 3.511c-1.246 1.453-4.011 3.976-4.011 3.976s-.121.119-.31.023c-.076-.057-.108-.09-.108-.09-.443-.441-3.368-3.049-4.034-3.954-.709-.965-1.041-2.7-.091-3.71.951-1.01 3.005-1.086 4.363.407 0 0 1.565-1.782 3.468-.963 1.904.82 1.832 3.011.723 4.311zm6.173.478c-.928.116-1.682.028-1.682.028V7.284h1.77s1.971.551 1.971 2.638c0 1.913-.985 2.667-2.059 3.015z"/>
@@ -407,7 +399,9 @@
 		<!-- Scroll indicator -->
 		<button class="scroll-indicator" onclick={() => document.getElementById('showcase')?.scrollIntoView({ behavior: 'smooth' })}>
 			<span class="scroll-text">{m.landing_scroll()}</span>
-			<ChevronDown class="scroll-arrow" />
+			<span class="scroll-circle">
+				<ChevronDown class="scroll-arrow" />
+			</span>
 		</button>
 	</section>
 
@@ -699,7 +693,6 @@
 		justify-content: center;
 		flex: 1;
 		min-height: calc(100dvh - 72px);
-		gap: 1.25rem;
 		text-align: center;
 		padding: 2rem 1rem 8rem;
 		position: relative;
@@ -783,8 +776,9 @@
 	}
 
 	.hero-subtitle {
-		margin: 0;
-		font-size: 1rem;
+		margin: 1rem 0 0;
+		font-size: 1.05rem;
+		line-height: 1.6;
 		color: rgba(255, 255, 255, 0.5);
 		font-weight: 400;
 		max-width: 600px;
@@ -800,6 +794,7 @@
 		align-items: center;
 		justify-content: center;
 		gap: 0.75rem;
+		margin-top: clamp(1.75rem, 4.5vh, 2.75rem);
 		height: 3.5rem;
 		width: 100%;
 		max-width: 280px;
@@ -833,18 +828,19 @@
 	.quick-links {
 		display: grid;
 		grid-template-columns: repeat(5, 1fr);
-		gap: 0.4rem;
+		gap: 0.5rem;
 		width: 100%;
-		max-width: 500px;
+		max-width: 540px;
+		margin-top: clamp(1.75rem, 4.5vh, 2.5rem);
 	}
 
 	.quick-links :global(.quick-link) {
 		display: flex !important;
 		flex-direction: column;
 		align-items: center;
-		gap: 0.25rem;
-		min-height: 60px;
-		padding: 0.75rem 0.5rem;
+		gap: 0.4rem;
+		min-height: 68px;
+		padding: 0.85rem 0.5rem;
 		background: color-mix(in srgb, var(--primary) 12%, transparent) !important;
 		border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent) !important;
 		color: var(--foreground) !important;
@@ -872,11 +868,11 @@
 	/* Support section */
 	.support-section {
 		display: flex;
+		flex-direction: column;
 		justify-content: center;
 		align-items: center;
-		gap: 0.75rem;
-		margin-top: 0.25rem;
-		flex-wrap: wrap;
+		gap: 0.85rem;
+		margin-top: clamp(1.5rem, 4vh, 2.25rem);
 	}
 
 	.install-btn {
@@ -1017,26 +1013,51 @@
 	/* Scroll indicator */
 	.scroll-indicator {
 		position: absolute;
-		bottom: 1.25rem;
+		bottom: 1.5rem;
 		left: 50%;
 		transform: translateX(-50%);
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 0.25rem;
+		gap: 0.6rem;
+		padding: 0.5rem;
 		background: none;
 		border: none;
 		cursor: pointer;
-		color: rgba(255, 255, 255, 0.4);
+		color: rgba(255, 255, 255, 0.45);
 		font-family: inherit;
-		font-size: 0.75rem;
-		font-weight: 500;
 		transition: color 0.2s;
 		z-index: 10;
 	}
 
+	.scroll-text {
+		font-size: 0.68rem;
+		font-weight: 600;
+		letter-spacing: 0.16em;
+		text-transform: uppercase;
+	}
+
+	.scroll-circle {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 38px;
+		height: 38px;
+		border-radius: 50%;
+		border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+		background: color-mix(in srgb, var(--primary) 8%, transparent);
+		animation: scroll-float 2.6s ease-in-out infinite;
+		transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+	}
+
 	.scroll-indicator:hover {
 		color: var(--primary);
+	}
+
+	.scroll-indicator:hover .scroll-circle {
+		border-color: var(--primary);
+		background: color-mix(in srgb, var(--primary) 15%, transparent);
+		box-shadow: 0 4px 16px color-mix(in srgb, var(--primary) 25%, transparent);
 	}
 
 	:global([data-theme='light']) .landing .scroll-indicator,
@@ -1050,15 +1071,13 @@
 	}
 
 	.scroll-indicator :global(.scroll-arrow) {
-		width: 1.5rem;
-		height: 1.5rem;
-		animation: bounce 2s infinite;
+		width: 1.1rem;
+		height: 1.1rem;
 	}
 
-	@keyframes bounce {
-		0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
-		40% { transform: translateY(-6px); }
-		60% { transform: translateY(-3px); }
+	@keyframes scroll-float {
+		0%, 100% { transform: translateY(0); }
+		50% { transform: translateY(-4px); }
 	}
 
 	/* Showcase */
@@ -1435,7 +1454,6 @@
 		.hero {
 			min-height: auto;
 			padding: 0.5rem 1rem 1rem;
-			gap: 0.75rem;
 		}
 
 		.title-main {
@@ -1448,16 +1466,19 @@
 
 		.hero-subtitle {
 			font-size: 0.75rem;
+			margin-top: 0.4rem;
 		}
 
 		.hero :global(button[data-webmcp="btn-new-game"]) {
 			height: 2.5rem;
 			font-size: 0.9rem;
 			max-width: 220px;
+			margin-top: 0.75rem;
 		}
 
 		.quick-links {
 			max-width: 260px;
+			margin-top: 0.75rem;
 		}
 
 		.quick-links :global(.quick-link) {
@@ -1473,7 +1494,8 @@
 		}
 
 		.support-section {
-			margin-top: 0;
+			margin-top: 0.75rem;
+			gap: 0.5rem;
 		}
 
 		.install-btn {
