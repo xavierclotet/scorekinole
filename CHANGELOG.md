@@ -2,6 +2,13 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.66] - 2026-07-19
+- SEO: prerender /ranking, /tournaments, /leaderboards, /blog and every blog post so Google indexes real HTML instead of the empty SPA shell
+- SEO: Spanish-first, Spain-geotargeted metadata on /ranking and /tournaments (+ a visible ranking intro line); landing reinforces "crokinole españa" and English "crokinole score live / live scoreboard"
+- Hosting: enable cleanUrls so extension-less URLs (/ranking, /blog/...) serve the prerendered pages; /ranking.html now 301-redirects to /ranking
+- Blog: retarget the "mejores jugadores de crokinole" post to Spain; refresh sitemap lastmods
+- Menu: add Blog and Contact entries to the Scorekinole menu; fix the contact page highlighting the wrong nav item
+
 ## [2.5.65] - 2026-07-17
 - New: "Counter" friendly-match scoring mode — simple tap-to-target scoreboard (configurable target + increment: 1/5/50/100), no hammer/20s/rounds
 - Counter: reaching the target opens an Undo/Confirm dialog instead of finalizing on the tap, so an accidental large-increment tap can be reverted before the match saves and locks
