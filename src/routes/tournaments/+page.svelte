@@ -235,9 +235,9 @@
 </script>
 
 <SEO
-	title="Live Crokinole Tournaments"
-	description="Browse and follow live crokinole tournaments worldwide. Real-time scores, brackets, group standings, and results from crokinole competitions."
-	keywords="crokinole tournaments, live crokinole, crokinole competition, crokinole brackets, crokinole results, scorekinole tournaments"
+	title="Torneos de Crokinole en España"
+	description="Consulta y sigue en directo los torneos de crokinole de España: resultados en tiempo real, brackets, clasificaciones de grupo y resultados de cada competición."
+	keywords="torneos crokinole españa, torneo crokinole, crokinole en directo, competición crokinole, brackets crokinole, resultados crokinole, scorekinole"
 	canonical="https://scorekinole.es/tournaments"
 />
 

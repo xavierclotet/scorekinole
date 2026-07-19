@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import * as m from '$lib/paraglide/messages.js';
+	import { getLocale } from '$lib/paraglide/runtime.js';
 	import {
 		getAllUsersWithTournaments,
 		getCompletedTournaments,
@@ -241,13 +242,41 @@
 		url.searchParams.set('year', String(year));
 		goto(url, { replaceState: true, keepFocus: true, noScroll: true });
 	}
+
+	// SEO — Spanish-first (the prerendered HTML uses baseLocale='es', which is what
+	// Google indexes) and geo-targeted to Spain, to rank for "mejores jugadores
+	// crokinole España". Locale-derived so the client-hydrated tab title matches the
+	// user's language.
+	let seoLocale = $derived(getLocale());
+	let seoTitle = $derived(
+		seoLocale === 'ca'
+			? 'Millors Jugadors de Crokinole a Espanya · Rànquing'
+			: seoLocale === 'en'
+				? 'Best Crokinole Players in Spain · Rankings'
+				: 'Mejores Jugadores de Crokinole en España · Ranking'
+	);
+	let seoDescription = $derived(
+		seoLocale === 'ca'
+			? "Rànquing dels millors jugadors de crokinole en els tornejos disputats a Espanya. Consulta la classificació, l'historial i les estadístiques de cada jugador."
+			: seoLocale === 'en'
+				? 'Ranking of the best crokinole players from tournaments played in Spain. Explore the standings, match history and stats for every player.'
+				: 'Ranking de los mejores jugadores de crokinole en los torneos disputados en España. Consulta la clasificación, el historial y las estadísticas de cada jugador.'
+	);
+	let seoKeywords = $derived(
+		seoLocale === 'ca'
+			? "millors jugadors crokinole espanya, rànquing crokinole, rànquing crokinole espanya, classificació crokinole, jugadors crokinole espanya, scorekinole"
+			: seoLocale === 'en'
+				? 'best crokinole players spain, crokinole ranking, crokinole rankings spain, crokinole leaderboard, crokinole players spain, scorekinole'
+				: 'mejores jugadores crokinole españa, ranking crokinole, ranking crokinole españa, mejores jugadores crokinole, clasificación crokinole, jugadores crokinole españa, scorekinole'
+	);
 </script>
 
 <SEO
-	title="Crokinole Player Rankings"
-	description="Official crokinole player rankings based on tournament results. Track the best crokinole players, their performance history, and tournament achievements worldwide."
-	keywords="crokinole rankings, crokinole players, crokinole leaderboard, best crokinole players, tournament rankings, scorekinole rankings"
+	title={seoTitle}
+	description={seoDescription}
+	keywords={seoKeywords}
 	canonical="https://scorekinole.es/ranking"
+	locale={seoLocale}
 />
 
 <div class="rankings-container" data-theme={$theme}>
@@ -267,6 +296,8 @@
 			</div>
 		</div>
 	</header>
+
+	<p class="seo-intro">{m.ranking_seoIntro()}</p>
 
 	<PullToRefresh onrefresh={loadData}>
 	<div class="controls-section">
@@ -484,6 +515,22 @@
 		font-weight: 600;
 	}
 
+	.seo-intro {
+		margin: -0.5rem 0 1rem;
+		color: #8b9bb3;
+		font-size: 0.85rem;
+		line-height: 1.5;
+		white-space: nowrap;
+	}
+
+	/* On narrow screens the one-line description would overflow — let it wrap
+	   instead of pushing horizontal scroll (never truncated). */
+	@media (max-width: 768px) {
+		.seo-intro {
+			white-space: normal;
+		}
+	}
+
 	/* Controls */
 	.controls-section {
 		display: flex;
@@ -617,7 +664,9 @@
 	.table-container {
 		overflow-x: auto;
 		overflow-y: auto;
-		max-height: calc(100vh - 220px);
+		/* -252px accounts for header + controls + the SEO intro line so the table's
+		   own scroll is the only vertical scroll (no outer page scroll). */
+		max-height: calc(100vh - 252px);
 		background: #1a2332;
 		border-radius: 6px;
 		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
@@ -893,7 +942,8 @@
 		}
 
 		.table-container {
-			max-height: calc(100vh - 200px);
+			/* +extra vs desktop: the intro can wrap to ~2 lines on narrow screens */
+			max-height: calc(100vh - 244px);
 		}
 	}
 
@@ -978,7 +1028,7 @@
 		}
 
 		.table-container {
-			max-height: calc(100vh - 140px);
+			max-height: calc(100vh - 168px);
 		}
 
 		.rankings-table th,
@@ -1004,6 +1054,10 @@
 	.rankings-container[data-theme='light'] .count-badge {
 		background: #e2e8f0;
 		color: #4a5568;
+	}
+
+	.rankings-container[data-theme='light'] .seo-intro {
+		color: #64748b;
 	}
 
 	.rankings-container[data-theme='light'] .filter-tab {
@@ -1304,6 +1358,10 @@
 	.rankings-container[data-theme='violet-light'] .count-badge {
 		background: #ececf7;
 		color: #5b60a0;
+	}
+
+	.rankings-container[data-theme='violet-light'] .seo-intro {
+		color: #6b70ad;
 	}
 
 	.rankings-container[data-theme='violet-light'] .filter-tab {

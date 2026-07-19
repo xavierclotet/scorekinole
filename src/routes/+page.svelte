@@ -69,8 +69,8 @@
 			"url": "https://scorekinole.es",
 			"applicationCategory": "SportsApplication",
 			"operatingSystem": "Web",
-			"description": "The ultimate crokinole live scoring app. Track match scores, manage live tournaments, view brackets, and follow player rankings in real-time.",
-			"descriptionES": "La app definitiva de puntuación en vivo de crokinole. Sigue partidas, gestiona torneos, visualiza brackets y consulta rankings en tiempo real.",
+			"description": "The ultimate crokinole live scoring app and live scoreboard. Score crokinole live, manage tournaments, view brackets, and follow player rankings in real-time.",
+			"descriptionES": "La app definitiva de puntuación en vivo de crokinole en España. Sigue partidas, gestiona torneos, visualiza brackets y consulta el ranking de los mejores jugadores en tiempo real.",
 			"offers": {
 				"@type": "Offer",
 				"price": "0",
@@ -83,26 +83,26 @@
 
 	let seoTitle = $derived(
 		locale === 'es'
-			? 'Scorekinole - Puntuación en vivo de Crokinole y Gestión de Torneos'
+			? 'Scorekinole - Crokinole en España: Puntuación en Vivo y Torneos'
 			: locale === 'ca'
-				? 'Scorekinole - Puntuació en viu de Crokinole i Gestió de Tornejos'
-				: 'Scorekinole - Crokinole Live Scoring & Tournament App'
+				? 'Scorekinole - Crokinole a Espanya: Puntuació en Viu i Tornejos'
+				: 'Scorekinole - Crokinole Live Scoring & Live Scoreboard'
 	);
 
 	let seoDescription = $derived(
 		locale === 'es'
-			? 'Scorekinole es la app gratuita definitiva para puntuación en vivo de crokinole. Sigue partidas, gestiona torneos, consulta rankings de jugadores y estadísticas en tiempo real.'
+			? 'Scorekinole es la app gratuita para puntuación en vivo de crokinole en España. Sigue partidas, gestiona torneos, consulta el ranking de los mejores jugadores y estadísticas en tiempo real.'
 			: locale === 'ca'
-				? 'Scorekinole és l\'app gratuïta definitiva per a puntuació en viu de crokinole. Segueix partides, gestiona tornejos, consulta rànquings de jugadors i estadístiques en temps real.'
-				: 'Scorekinole is the ultimate free crokinole live scoring app. Track scores, manage live tournaments, view player rankings, and run round robins, Swiss, or brackets in real-time.'
+				? 'Scorekinole és l\'app gratuïta per a puntuació en viu de crokinole a Espanya. Segueix partides, gestiona tornejos, consulta el rànquing dels millors jugadors i estadístiques en temps real.'
+				: 'Scorekinole is the ultimate free crokinole live scoring app and live scoreboard. Score crokinole live, manage tournaments, view player rankings, and run round robins, Swiss, or brackets in real-time.'
 	);
 
 	let seoKeywords = $derived(
 		locale === 'es'
-			? 'puntuación en vivo crokinole, crokinole, puntuación crokinole, app crokinole, torneo crokinole, live scoring, scorekinole, seguimiento crokinole, crokinole en vivo, puntos crokinole'
+			? 'crokinole españa, puntuación en vivo crokinole, crokinole, app crokinole, torneo crokinole, ranking crokinole, live scoring, scorekinole, crokinole score live, crokinole live scoreboard'
 			: locale === 'ca'
-				? 'puntuació en viu crokinole, crokinole, puntuació crokinole, app crokinole, torneig crokinole, live scoring, scorekinole, seguiment crokinole, crokinole en viu, punts crokinole'
-				: 'live scoring crokinole, crokinole, crokinole scoring, crokinole app, crokinole tournament, live scoring, scorekinole, crokinole tracker, crokinole live scoring, crokinole points'
+				? 'crokinole espanya, puntuació en viu crokinole, crokinole, app crokinole, torneig crokinole, rànquing crokinole, live scoring, scorekinole, crokinole score live, crokinole live scoreboard'
+				: 'crokinole score live, crokinole live scoreboard, live scoring crokinole, crokinole, crokinole scoring app, crokinole tournament, scorekinole, crokinole tracker'
 	);
 
 	let showProfile = $state(false);

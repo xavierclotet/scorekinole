@@ -1743,6 +1743,7 @@
   "ranking_modeRankingHint": "The 2 best tournaments of the year",
   "ranking_titleLeague": "Annual League {year}",
   "ranking_titleRanking": "Ranking {year}",
+  "ranking_seoIntro": "Ranking of the best crokinole players from tournaments played in Spain, sorted by their results.",
   "admin_dependenciesLoadError": "The user dependencies could not be loaded. Close the dialog and try again.",
   "admin_deleteMatchError": "The match could not be deleted. Check your browser console for more details.",
   "admin_enableUserError": "Could not re-enable the user. Check the browser console for more details.",

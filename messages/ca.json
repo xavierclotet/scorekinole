@@ -1743,6 +1743,7 @@
   "ranking_modeRankingHint": "Els 2 millors tornejos de l´any",
   "ranking_titleLeague": "Lliga anual de {year}",
   "ranking_titleRanking": "Rànquing de {year}",
+  "ranking_seoIntro": "Rànquing dels millors jugadors de crokinole en els tornejos disputats a Espanya, ordenats pels seus resultats.",
   "admin_dependenciesLoadError": "No s'han pogut carregar les dependències de l'usuari. Tanca el diàleg i torna a intentar-ho.",
   "admin_deleteMatchError": "No es va poder eliminar el partit. Reviseu la consola del navegador per a més detalls.",
   "admin_enableUserError": "No s'ha pogut reactivar l'usuari. Revisa la consola del navegador per a més detalls.",

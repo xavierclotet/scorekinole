@@ -937,6 +937,7 @@
   "ranking_standings": "Clasificación",
   "ranking_titleLeague": "Liga anual de {year}",
   "ranking_titleRanking": "Ranking de {year}",
+  "ranking_seoIntro": "Ranking de los mejores jugadores de crokinole en los torneos disputados en España, ordenados por sus resultados.",
   "ranking_totalSum": "Total",
   "ranking_tournamentsCount": "Torneos",
   "ranking_otherTournaments": "Otros torneos del {year}",
