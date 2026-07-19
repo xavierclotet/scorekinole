@@ -29,7 +29,7 @@
 	// link (?year=2026&time=future&mode=doubles...). Param names/values in
 	// English. `year=all` distinguishes an explicit "all years" from the
 	// default (current year).
-	const initialParams = page.url.searchParams;
+	const initialParams = browser ? page.url.searchParams : new URLSearchParams();
 
 	function parseYearParam(value: string | null): number | undefined {
 		if (!value || value === 'all') return undefined;

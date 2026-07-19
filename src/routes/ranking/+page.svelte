@@ -4,6 +4,7 @@
 	import { page } from '$app/state';
 	import * as m from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime.js';
+	import { browser } from '$app/environment';
 	import {
 		getAllUsersWithTournaments,
 		getCompletedTournaments,
@@ -40,13 +41,13 @@
 	let availableYears = $state<number[]>(cachedAtInit ? getAvailableYears(cachedAtInit.tournamentsMap) : []);
 	// Mode: ?mode=league → all tournaments of the year · default (no param) → best 2 tournaments.
 	let rankingMode = $derived<'ranking' | 'league'>(
-		page.url.searchParams.get('mode') === 'league' ? 'league' : 'ranking'
+		(browser ? page.url.searchParams.get('mode') : null) === 'league' ? 'league' : 'ranking'
 	);
 	let bestOfN = $derived(rankingMode === 'league' ? 0 : 2);
 	// Year: ?year=2025 → that year · default → current year, or the most recent year
 	// with tournaments if the current one has none.
 	let selectedYear = $derived.by(() => {
-		const param = page.url.searchParams.get('year');
+		const param = browser ? page.url.searchParams.get('year') : null;
 		const parsed = param ? parseInt(param, 10) : NaN;
 		if (!Number.isNaN(parsed)) return parsed;
 		const currentYear = new Date().getFullYear();

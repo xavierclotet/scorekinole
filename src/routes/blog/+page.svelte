@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import { browser } from '$app/environment';
 	import * as m from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime.js';
 	import SEO from '$lib/components/SEO.svelte';
@@ -48,7 +49,7 @@
 	let visibleTags = $derived(showAllTags ? allTags : allTags.slice(0, 10));
 	let hiddenCount = $derived(allTags.length - visibleTags.length);
 
-	let activeTag = $derived(page.url.searchParams.get('tag') || '');
+	let activeTag = $derived(browser ? page.url.searchParams.get('tag') || '' : '');
 
 	let filteredPosts = $derived(
 		activeTag

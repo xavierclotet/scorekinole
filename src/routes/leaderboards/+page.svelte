@@ -2,6 +2,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/state';
+  import { browser } from '$app/environment';
   import * as m from '$lib/paraglide/messages.js';
   import SEO from '$lib/components/SEO.svelte';
   import AppMenu from '$lib/components/AppMenu.svelte';
@@ -29,7 +30,7 @@
   let isLoading = $state($playerStatsCache === null);
 
   // ?compare=id1,id2 opens the compare tab pre-filled.
-  const initialCompare = (page.url.searchParams.get('compare') ?? '').split(',').filter(Boolean);
+  const initialCompare = (browser ? page.url.searchParams.get('compare') ?? '' : '').split(',').filter(Boolean);
   let tab = $state<Tab>(initialCompare.length ? 'compare' : 'twenties');
 
   let year = $state('all');
