@@ -33,6 +33,7 @@
   },
   "hosting": {
     "public": "www",
+    "cleanUrls": true,
     "ignore": [
       "firebase.json",
       "**/.*",
