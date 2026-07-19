@@ -208,12 +208,12 @@ Scorekinole calcula automáticamente los puntos de ranking, genera los resultado
 	},
 	{
 		slug: 'mejores-jugadores-crokinole-ranking',
-		title: 'Los mejores jugadores de crokinole del mundo',
-		description: 'Conoce el ranking mundial de crokinole. Descubre quiénes son los mejores jugadores, sus estadísticas y cómo se calcula la puntuación en los torneos.',
+		title: 'Los mejores jugadores de crokinole en España',
+		description: 'Conoce el ranking de crokinole en España. Descubre quiénes son los mejores jugadores, sus estadísticas y cómo se calcula la puntuación en los torneos.',
 		date: '2026-07-05',
 		author: 'Scorekinole Team',
 		image: '/og-image.png',
-		content: `El crokinole tiene una comunidad global de jugadores apasionados. Cada año se celebran torneos por todo el mundo y los mejores jugadores compiten por estar en lo más alto del ranking.
+		content: `El crokinole tiene una comunidad cada vez mayor en España. Cada año se celebran torneos por todo el país y los mejores jugadores compiten por estar en lo más alto del ranking.
 
 ## ¿Cómo funciona el ranking?
 
