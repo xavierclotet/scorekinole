@@ -86,7 +86,7 @@
 <main class="contact-page">
 	<nav class="top-bar">
 		<div class="top-bar-left">
-			<AppMenu currentPage="tournaments" />
+			<AppMenu currentPage="contact" />
 		</div>
 		<div class="top-bar-right">
 			<ThemeToggle />

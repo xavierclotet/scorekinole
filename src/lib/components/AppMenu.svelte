@@ -16,6 +16,7 @@
 	import CirclePlus from '@lucide/svelte/icons/circle-plus';
 	import Shield from '@lucide/svelte/icons/shield';
 	import Mail from '@lucide/svelte/icons/mail';
+	import Newspaper from '@lucide/svelte/icons/newspaper';
 	import User from '@lucide/svelte/icons/user';
 	import Users from '@lucide/svelte/icons/users';
 	import Swords from '@lucide/svelte/icons/swords';
@@ -24,7 +25,7 @@
 	import { saveUserLanguage } from '$lib/firebase/userProfile';
 	import { isAdminUser, isSuperAdminUser } from '$lib/stores/admin';
 
-	type PageId = 'game' | 'tournaments' | 'ranking' | 'leaderboards' | 'my-stats';
+	type PageId = 'game' | 'tournaments' | 'ranking' | 'leaderboards' | 'my-stats' | 'blog' | 'contact';
 
 	interface Props {
 		showHome?: boolean;
@@ -69,7 +70,9 @@
 		{ id: 'tournaments', href: '/tournaments', labelKey: () => m.common_tournaments() },
 		{ id: 'ranking', href: '/ranking', labelKey: () => m.common_rankings() },
 		{ id: 'leaderboards', href: '/leaderboards', labelKey: () => m.leaderboards_title() },
-		{ id: 'my-stats', href: '/my-stats', labelKey: () => m.stats_myStatistics() }
+		{ id: 'my-stats', href: '/my-stats', labelKey: () => m.stats_myStatistics() },
+		{ id: 'blog', href: '/blog', labelKey: () => 'Blog' },
+		{ id: 'contact', href: '/contact', labelKey: () => m.contact_title() }
 	];
 
 	let visibleNavItems = $derived(navItems.filter((item) => item.id !== currentPage));
@@ -137,11 +140,11 @@
 	});
 
 	function getNavIcon(id: PageId) {
-		return { game: CirclePlus, tournaments: Trophy, ranking: BarChart3, leaderboards: Medal, 'my-stats': User }[id];
+		return { game: CirclePlus, tournaments: Trophy, ranking: BarChart3, leaderboards: Medal, 'my-stats': User, blog: Newspaper, contact: Mail }[id];
 	}
 
 	function getNavShortcut(id: PageId): string | null {
-		const shortcuts: Record<PageId, string> = {
+		const shortcuts: Partial<Record<PageId, string>> = {
 			game: 'G',
 			tournaments: 'U',
 			ranking: 'R',

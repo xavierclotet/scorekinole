@@ -78,7 +78,7 @@
 	<header class="page-header">
 		<div class="header-row">
 			<div class="header-left">
-				<AppMenu showHome homeHref="/" />
+				<AppMenu showHome homeHref="/" currentPage="blog" />
 			</div>
 			<div class="header-center">
 				<h1>Blog</h1>
