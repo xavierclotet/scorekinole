@@ -2,6 +2,14 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.67] - 2026-07-21
+- Stats fix: BYE walkovers no longer count as played matches (they were a free win in current data and a free loss in imported data)
+- Stats fix: tournaments with parallel brackets counted the first bracket twice, since goldBracket is stored as a copy of it
+- Leaderboards: minimums now apply to what each metric actually measures, so 1 knockout match won can no longer show as a 100% win rate
+- Leaderboards: "Win rate en finales" replaced by "Win rate en semis y final" (semifinals + final + 3rd-place, min. 3 such matches)
+- Leaderboards: perfect rounds shown as an absolute count instead of a percentage; year filter defaults to the current year; per-card "Mín." chip removed
+- Player stats are now recomputed when a completed tournament is edited, and for tournaments with ranking disabled
+
 ## [2.5.66] - 2026-07-19
 - SEO: prerender /ranking, /tournaments, /leaderboards, /blog and every blog post so Google indexes real HTML instead of the empty SPA shell
 - SEO: Spanish-first, Spain-geotargeted metadata on /ranking and /tournaments (+ a visible ranking intro line); landing reinforces "crokinole españa" and English "crokinole score live / live scoreboard"
