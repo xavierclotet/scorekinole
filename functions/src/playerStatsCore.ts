@@ -11,6 +11,7 @@ export interface CounterBlock {
   koMatches: number;        koMatchesWon: number;       koRounds: number;   koTwenties: number;
   groupMatches: number;     groupMatchesWon: number;    groupRounds: number; groupTwenties: number;
   finalsPlayed: number;     finalsWon: number;
+  medalMatches: number;     medalMatchesWon: number;    // semifinal + final + 3rd-place
   marginSum: number;        marginWins: number;
 }
 
@@ -25,6 +26,7 @@ export function emptyBlock(): CounterBlock {
     koMatches: 0, koMatchesWon: 0, koRounds: 0, koTwenties: 0,
     groupMatches: 0, groupMatchesWon: 0, groupRounds: 0, groupTwenties: 0,
     finalsPlayed: 0, finalsWon: 0,
+    medalMatches: 0, medalMatchesWon: 0,
     marginSum: 0, marginWins: 0,
   };
 }
@@ -36,7 +38,7 @@ export function addBlock(target: CounterBlock, src: CounterBlock): void {
   });
 }
 
-export type MatchPhase = 'group' | 'ko' | 'final';
+export type MatchPhase = 'group' | 'ko' | 'semi' | 'third' | 'final';
 
 export interface RawRound {
   gameNumber: number;
@@ -55,6 +57,58 @@ export interface RawMatch {
   totalPointsA?: number;
   totalPointsB?: number;
   rounds?: RawRound[];
+}
+
+/** The subset of a tournament doc that player stats are derived from. */
+export interface StatsInputSnapshot {
+  name?: unknown;
+  gameType?: unknown;
+  isTest?: unknown;
+  tournamentDate?: unknown;
+  date?: unknown;
+  completedAt?: unknown;
+  rankingConfig?: unknown;
+  groupStage?: unknown;
+  finalStage?: unknown;
+  participants?: readonly unknown[];
+}
+
+/**
+ * Everything that feeds computeUserStats, and nothing else — ranking points, summaries and the
+ * participantUserIds index are deliberately excluded so this function's own writes to the
+ * tournament doc don't look like an edit.
+ */
+function statsFingerprint(t: StatsInputSnapshot): string {
+  const participants = (t.participants ?? []).map((p) => {
+    const q = p as { id?: string; userId?: string; name?: string; finalPosition?: number; status?: string; partner?: { userId?: string; name?: string } };
+    return [q.id, q.userId, q.name, q.finalPosition, q.status, q.partner?.userId, q.partner?.name];
+  });
+  const tier = (t.rankingConfig as { tier?: string } | undefined)?.tier;
+  return JSON.stringify([
+    t.name, t.gameType, t.isTest === true, t.tournamentDate, t.date, t.completedAt, tier,
+    t.groupStage ?? null, t.finalStage ?? null, participants,
+  ]);
+}
+
+/**
+ * Did an already-completed tournament change in a way that moves player stats?
+ * Key-order differences between two snapshots can yield a false positive, which only costs one
+ * redundant (idempotent) recompute — a false negative would leave leaderboards stale, so the
+ * comparison stays deliberately broad.
+ */
+export function statsInputChanged(before: StatsInputSnapshot, after: StatsInputSnapshot): boolean {
+  return statsFingerprint(before) !== statsFingerprint(after);
+}
+
+/**
+ * A walkover, not a played match. Current brackets leave the empty side undefined and set `winner`
+ * to the real player (bracket.ts:136-147); tournaments imported before tournaments.ts:2041 persist
+ * the placeholder id `unknown-BYE` instead — and a 0-0 "score" that crowned the BYE as winner.
+ * Either way the match must not reach the counters.
+ */
+export function isByeMatch(match: RawMatch): boolean {
+  const bye = (id?: string) => !id || id.toUpperCase() === 'BYE' || id.toUpperCase() === 'UNKNOWN-BYE';
+  return bye(match.participantA) || bye(match.participantB);
 }
 
 /** Per-match record candidates, surfaced to the caller for max() tracking. */
@@ -166,14 +220,17 @@ function maybeRecord(
   return candidate > (current?.value ?? -1) ? { value: candidate, ...ctx } : current;
 }
 
-/** All bracket matches with their phase ('final' for the championship final, else 'ko') and game format. */
+/** All bracket matches with their phase ('final'/'semi'/'third' for the medal rounds, else 'ko') and game format. */
 function* bracketMatches(t: RawTournament): Generator<{ match: RawMatch; phase: MatchPhase; format: GameFormat | null }> {
   const fs = t.finalStage;
   if (!fs) return;
-  const brackets: (RawBracket | undefined)[] = [
-    fs.goldBracket, fs.silverBracket,
-    ...(fs.parallelBrackets ?? []).map((nb) => nb.bracket),
-  ];
+  // In PARALLEL_BRACKETS mode goldBracket is a *copy* of parallelBrackets[0] (see
+  // tournaments.ts:2141 and tournamentImport.ts:710), so walking both double-counts every match of
+  // the first bracket. Same rule the client uses in getTournamentMatchesForUser.
+  const parallel = (fs.parallelBrackets ?? []).map((nb) => nb.bracket);
+  const brackets: (RawBracket | undefined)[] = parallel.length > 0
+    ? [fs.silverBracket, ...parallel]
+    : [fs.goldBracket, fs.silverBracket];
   for (const br of brackets) {
     if (!br) continue;
     for (const round of br.rounds ?? []) {
@@ -182,12 +239,12 @@ function* bracketMatches(t: RawTournament): Generator<{ match: RawMatch; phase: 
       const n = (round.name ?? '').toLowerCase();
       const isFinal = n === 'finals' || (n.includes('final') && !n.includes('semi') && !n.includes('quarter'));
       const isSemi = n.includes('semi');
-      const phase: MatchPhase = isFinal ? 'final' : 'ko';
+      const phase: MatchPhase = isFinal ? 'final' : isSemi ? 'semi' : 'ko';
       const cfg = isFinal ? br.config?.final : isSemi ? br.config?.semifinal : br.config?.earlyRounds;
       const format = formatKey(cfg);
       for (const m of round.matches ?? []) yield { match: m, phase, format };
     }
-    if (br.thirdPlaceMatch) yield { match: br.thirdPlaceMatch, phase: 'ko', format: formatKey(br.config?.final) };
+    if (br.thirdPlaceMatch) yield { match: br.thirdPlaceMatch, phase: 'third', format: formatKey(br.config?.final) };
     for (const cb of br.consolationBrackets ?? [])
       for (const round of cb.rounds ?? [])
         for (const m of round.matches ?? []) yield { match: m, phase: 'ko', format: formatKey(br.config?.earlyRounds) };
@@ -253,6 +310,7 @@ export function computeUserStats(userId: string, tournaments: RawTournament[]): 
 
     for (const { match, phase, format } of all) {
       if (match.participantA !== part.id && match.participantB !== part.id) continue;
+      if (isByeMatch(match)) continue;              // walkover — never played
       if (!match.winner && !match.rounds) continue; // unplayed / TBD
       const ctx = accumulateMatch(block, match, part.id, phase);
 
@@ -298,6 +356,9 @@ export function accumulateMatch(
   if (phase === 'group') { block.groupMatches += 1; if (won) block.groupMatchesWon += 1; }
   else { block.koMatches += 1; if (won) block.koMatchesWon += 1; }
   if (phase === 'final') { block.finalsPlayed += 1; if (won) block.finalsWon += 1; }
+  if (phase === 'final' || phase === 'semi' || phase === 'third') {
+    block.medalMatches += 1; if (won) block.medalMatchesWon += 1;
+  }
 
   if (won) {
     const mine = (isA ? match.totalPointsA : match.totalPointsB) ?? 0;

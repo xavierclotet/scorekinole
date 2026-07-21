@@ -24,7 +24,6 @@
   <div class="lb-head">
     <span class="lb-title">{label}</span>
     <MetricInfo {metric} />
-    {#if metric.kind === 'avg'}<span class="lb-min">{m.leaderboards_minTag?.({ n: minMatches }) ?? `Mín. ${minMatches}`}</span>{/if}
   </div>
   {#if visible.length === 0}
     <div class="lb-empty">{m.leaderboards_noData?.() ?? 'Sin datos suficientes'}</div>
@@ -54,7 +53,6 @@
   .lb-card { border: 1px solid var(--border); border-radius: 12px; background: var(--card); padding: 0.8rem 0.9rem; }
   .lb-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
   .lb-title { font-size: 0.82rem; font-weight: 700; }
-  .lb-min { font-size: 0.55rem; padding: 0.1rem 0.4rem; border-radius: 5px; background: var(--muted); color: var(--muted-foreground); margin-left: auto; }
   .lb-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.45rem; border-radius: 7px; font-size: 0.78rem; color: var(--foreground); text-decoration: none; }
   .lb-row:nth-of-type(even) { background: color-mix(in srgb, var(--muted) 60%, transparent); }
   .lb-row:hover { background: color-mix(in srgb, var(--primary) 12%, transparent); }

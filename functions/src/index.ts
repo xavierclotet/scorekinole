@@ -24,6 +24,7 @@ import {
 } from "./selfRegistrationCore";
 import { buildTournamentSummary, summariesEqual } from "./tournamentSummaryCore";
 import { recomputeUserStats, collectAllPlayerUserIds } from "./playerStatsIO";
+import { statsInputChanged } from "./playerStatsCore";
 
 // Telegram secrets
 const telegramBotToken = defineSecret("TELEGRAM_BOT_TOKEN");
@@ -588,6 +589,21 @@ function collectParticipantUserIds(participants: TournamentParticipant[]): strin
   return Array.from(ids);
 }
 
+/**
+ * Rebuild /playerStats for everyone who played a tournament. Idempotent: each user's stats are
+ * recomputed from scratch from their tournaments (read via the participantUserIds index).
+ */
+async function recomputePlayerStats(participants: TournamentParticipant[], tag = ""): Promise<void> {
+  try {
+    const db = getDb();
+    const statsUserIds = collectParticipantUserIds(participants);
+    await Promise.allSettled(statsUserIds.map((uid) => recomputeUserStats(db, uid)));
+    logger.info(`Recomputed playerStats for ${statsUserIds.length} user(s)${tag}`);
+  } catch (error) {
+    logger.error("Error recomputing playerStats:", error);
+  }
+}
+
 export const onTournamentComplete = onDocumentUpdated(
   {
     document: "tournaments/{tournamentId}",
@@ -603,8 +619,19 @@ export const onTournamentComplete = onDocumentUpdated(
       return;
     }
 
-    // Only trigger when status changes TO COMPLETED
-    if (beforeData.status === "COMPLETED" || afterData.status !== "COMPLETED") {
+    // A tournament edited AFTER it was completed (a corrected score, winner or date) never
+    // reaches the ranking/notification work below — that already ran — but the leaderboards do
+    // need rebuilding, otherwise they keep serving the pre-edit numbers forever.
+    if (beforeData.status === "COMPLETED") {
+      if (afterData.status === "COMPLETED" && statsInputChanged(beforeData, afterData)) {
+        logger.info(`Completed tournament ${tournamentId} was edited - recomputing player stats`);
+        await recomputePlayerStats(afterData.participants, " [post-completion edit]");
+      }
+      return;
+    }
+
+    // Everything below only runs on the transition TO completed.
+    if (afterData.status !== "COMPLETED") {
       return;
     }
 
@@ -639,9 +666,12 @@ export const onTournamentComplete = onDocumentUpdated(
 
     const rankingEnabled = afterData.rankingConfig?.enabled ?? false;
 
-    // If ranking is disabled, skip all processing
+    // If ranking is disabled, skip the ranking work — but NOT the player stats. Leaderboards count
+    // every completed tournament regardless of ranking, so skipping this left them stale until some
+    // other tournament happened to trigger a recompute. (Same reasoning as participantUserIds above.)
     if (!rankingEnabled) {
       logger.info(`Ranking disabled for tournament ${tournamentId} - skipping participant ranking updates`);
+      await recomputePlayerStats(afterData.participants, " [ranking disabled]");
       return;
     }
 
@@ -739,16 +769,7 @@ export const onTournamentComplete = onDocumentUpdated(
     }
 
     // Recompute aggregate player stats for everyone who played this tournament.
-    // Idempotent: each user's PlayerStats is rebuilt from scratch from their
-    // tournaments (read via the participantUserIds index), so retries are safe.
-    try {
-      const db = getDb();
-      const statsUserIds = collectParticipantUserIds(afterData.participants);
-      await Promise.allSettled(statsUserIds.map((uid) => recomputeUserStats(db, uid)));
-      logger.info(`Recomputed playerStats for ${statsUserIds.length} user(s)`);
-    } catch (error) {
-      logger.error("Error recomputing playerStats:", error);
-    }
+    await recomputePlayerStats(afterData.participants);
 
     // Send ranking push notifications to all participants with userId
     // Skip for test tournaments — no need to spam players with test results

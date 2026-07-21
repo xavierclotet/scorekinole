@@ -33,23 +33,30 @@
   const initialCompare = (browser ? page.url.searchParams.get('compare') ?? '' : '').split(',').filter(Boolean);
   let tab = $state<Tab>(initialCompare.length ? 'compare' : 'twenties');
 
-  let year = $state('all');
+  const CURRENT_YEAR = String(new Date().getFullYear());
+  let year = $state(CURRENT_YEAR);
   let minMatches = $state(5);
   let fullscreen = $state<{ metric: MetricDescriptor; entries: LeaderboardEntry[] } | null>(null);
 
   let years = $derived(availableYears(players));
+
+  /** The current year is the default, but fall back to the latest year with data if it has none. */
+  function ensureYearHasData() {
+    if (year === CURRENT_YEAR && !years.includes(CURRENT_YEAR) && years.length > 0) year = years[0];
+  }
   let shownMetrics = $derived(tab === 'compare' ? [] : METRICS.filter((mm) => mm.family === tab));
 
   async function refresh() {
     const loaded = await getAllPlayerStats();
     players = loaded;
     playerStatsCache.set({ players: loaded, lastUpdated: Date.now() });
+    ensureYearHasData();
     isLoading = false;
   }
 
   onMount(async () => {
     const cache = $playerStatsCache;
-    if (cache && Date.now() - cache.lastUpdated < PLAYER_STATS_TTL) { players = cache.players; isLoading = false; return; }
+    if (cache && Date.now() - cache.lastUpdated < PLAYER_STATS_TTL) { players = cache.players; ensureYearHasData(); isLoading = false; return; }
     if (!cache) isLoading = true;
     await refresh();
   });

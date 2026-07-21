@@ -8,6 +8,7 @@ export interface CounterBlock {
   koMatches: number;        koMatchesWon: number;       koRounds: number;   koTwenties: number;
   groupMatches: number;     groupMatchesWon: number;    groupRounds: number; groupTwenties: number;
   finalsPlayed: number;     finalsWon: number;
+  medalMatches: number;     medalMatchesWon: number;    // semifinal + final + 3rd-place
   marginSum: number;        marginWins: number;
 }
 
@@ -40,6 +41,7 @@ export function emptyCounterBlock(): CounterBlock {
     nonHammerRounds: 0, nonHammerTwenties: 0, nonHammerRoundsWon: 0,
     koMatches: 0, koMatchesWon: 0, koRounds: 0, koTwenties: 0,
     groupMatches: 0, groupMatchesWon: 0, groupRounds: 0, groupTwenties: 0,
-    finalsPlayed: 0, finalsWon: 0, marginSum: 0, marginWins: 0,
+    finalsPlayed: 0, finalsWon: 0, medalMatches: 0, medalMatchesWon: 0,
+    marginSum: 0, marginWins: 0,
   };
 }

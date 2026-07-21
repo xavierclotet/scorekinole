@@ -6,7 +6,8 @@ export type YearScope = string; // 'all' | '2025' | …
 export function allTimeBlock(p: PlayerStats): CounterBlock {
   const acc = emptyCounterBlock();
   for (const b of Object.values(p.byYear)) {
-    (Object.keys(acc) as (keyof CounterBlock)[]).forEach((k) => { acc[k] += b[k]; });
+    // `?? 0`: stored docs predating a new counter would otherwise turn the whole sum into NaN.
+    (Object.keys(acc) as (keyof CounterBlock)[]).forEach((k) => { acc[k] += b[k] ?? 0; });
   }
   return acc;
 }
@@ -27,7 +28,12 @@ export function buildLeaderboard(
   for (const p of players) {
     // Records are all-time and ignore the minimum; averages use the year scope + min gate.
     const block = metric.kind === 'avg' ? scopeBlock(p, opts.year) : allTimeBlock(p);
-    if (metric.kind === 'avg' && block.matches < opts.minMatches) continue;
+    if (metric.kind === 'avg') {
+      // Two gates: enough matches overall, and enough of what this metric actually measures —
+      // otherwise 1 knockout match won shows up as a 100% win rate.
+      if (block.matches < opts.minMatches) continue;
+      if (metric.sample && metric.sample(block) < (metric.sampleMin ?? opts.minMatches)) continue;
+    }
     const value = metric.compute(block, p);
     // Hide players with no meaningful value (null, NaN, or exactly 0) from every leaderboard.
     if (value === null || Number.isNaN(value) || value === 0) continue;

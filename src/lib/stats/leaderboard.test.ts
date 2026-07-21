@@ -39,6 +39,21 @@ describe('buildLeaderboard', () => {
     expect(lb[0].value).toBe(4);
   });
 
+  it('applies the minimum to the metric sample, not just to total matches', () => {
+    const lucky = player('lucky', { '2025': { matches: 10, koMatches: 1, koMatchesWon: 1 } });   // 100% off a single KO match
+    const real = player('real', { '2025': { matches: 12, koMatches: 6, koMatchesWon: 4 } });     // 67% off 6
+    const lb = buildLeaderboard([lucky, real], getMetric('koWinRate'), { year: 'all', minMatches: 5 });
+    expect(lb.map((e) => e.stats.userId)).toEqual(['real']);
+  });
+
+  it('honours a metric sampleMin over the user filter (medal rounds are rare)', () => {
+    const three = player('three', { '2025': { matches: 10, medalMatches: 3, medalMatchesWon: 2 } });
+    const two = player('two', { '2025': { matches: 10, medalMatches: 2, medalMatchesWon: 2 } });
+    const few = player('few', { '2025': { matches: 2, medalMatches: 3, medalMatchesWon: 3 } }); // fails total matches
+    const lb = buildLeaderboard([three, two, few], getMetric('medalWinRate'), { year: 'all', minMatches: 5 });
+    expect(lb.map((e) => e.stats.userId)).toEqual(['three']);
+  });
+
   it('record metrics ignore minMatches and year', () => {
     const t = player('t', { '2025': { matches: 1 } }, { singlesTitles: 5 });
     const lb = buildLeaderboard([a, b, t], getMetric('singlesTitles'), { year: '2025', minMatches: 5 });
