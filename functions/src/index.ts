@@ -1820,6 +1820,63 @@ export const cleanupExpiredInvites = onSchedule(
 );
 
 /**
+ * Retención de datos: /pageViews e /ipGeo guardan IPs, que son dato personal
+ * bajo RGPD. Se conservan 90 días y se borran.
+ *
+ * Los agregados diarios de /pageViewStats NO se tocan: no contienen IPs y son
+ * los que alimentan los gráficos históricos del dashboard.
+ */
+export const cleanupOldPageViews = onSchedule(
+  { schedule: "30 4 * * 0", timeZone: "Europe/Madrid" },
+  async () => {
+    const db = getDb();
+    const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
+
+    async function deleteBatched(
+      snap: FirebaseFirestore.QuerySnapshot,
+      label: string
+    ): Promise<number> {
+      if (snap.empty) return 0;
+
+      // Los batches de Firestore admiten 500 operaciones como máximo
+      const batches: FirebaseFirestore.WriteBatch[] = [];
+      let batch = db.batch();
+      let count = 0;
+
+      for (const doc of snap.docs) {
+        batch.delete(doc.ref);
+        count++;
+        if (count % 500 === 0) {
+          batches.push(batch);
+          batch = db.batch();
+        }
+      }
+      batches.push(batch);
+
+      await Promise.all(batches.map((b) => b.commit()));
+      logger.info(`Cleaned up ${count} old ${label}`);
+      return count;
+    }
+
+    // Límite de 5000 por ejecución: acota el coste de un domingo con backlog.
+    // Como corre semanalmente, el remanente se recoge en la siguiente pasada.
+    const viewsSnap = await db
+      .collection("pageViews")
+      .where("timestamp", "<", cutoff)
+      .limit(5000)
+      .get();
+    await deleteBatched(viewsSnap, "pageViews");
+
+    const geoSnap = await db
+      .collection("ipGeo")
+      .where("fetchedAt", "<", cutoff)
+      .limit(5000)
+      .get();
+    await deleteBatched(geoSnap, "ipGeo entries");
+  }
+);
+
+/**
  * Disable a user account (admin only).
  * Disables Firebase Auth + marks Firestore profile as disabled.
  * Revokes refresh tokens for immediate session invalidation.
