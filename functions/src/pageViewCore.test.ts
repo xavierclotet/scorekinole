@@ -3,6 +3,7 @@ import {
   isAllowedOrigin,
   pickClientIp,
   rateLimitKeyForIp,
+  isBotUserAgent,
   validatePageViewPayload,
   ipCacheKey,
   isGeoCacheFresh,
@@ -94,6 +95,33 @@ describe('rateLimitKeyForIp', () => {
 
   it('distingue IPs distintas', () => {
     expect(rateLimitKeyForIp('81.44.1.2')).not.toBe(rateLimitKeyForIp('81.44.1.3'));
+  });
+});
+
+describe('isBotUserAgent', () => {
+  it('detecta crawlers que se identifican', () => {
+    expect(isBotUserAgent('Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)')).toBe(true);
+    expect(isBotUserAgent('Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)')).toBe(true);
+    expect(isBotUserAgent('Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)')).toBe(true);
+  });
+
+  it('detecta headless y herramientas HTTP', () => {
+    expect(isBotUserAgent('Mozilla/5.0 (X11; Linux x86_64) HeadlessChrome/120.0.0.0')).toBe(true);
+    expect(isBotUserAgent('curl/8.4.0')).toBe(true);
+    expect(isBotUserAgent('python-requests/2.31.0')).toBe(true);
+  });
+
+  it('trata un UA ausente o vacío como bot', () => {
+    expect(isBotUserAgent(undefined)).toBe(true);
+    expect(isBotUserAgent('')).toBe(true);
+    expect(isBotUserAgent('   ')).toBe(true);
+    expect(isBotUserAgent(42)).toBe(true);
+  });
+
+  it('deja pasar navegadores reales', () => {
+    expect(isBotUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36')).toBe(false);
+    expect(isBotUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1')).toBe(false);
+    expect(isBotUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:127.0) Gecko/20100101 Firefox/127.0')).toBe(false);
   });
 });
 

@@ -28,6 +28,7 @@ import { statsInputChanged } from "./playerStatsCore";
 import {
   validatePageViewPayload,
   isAllowedOrigin,
+  isBotUserAgent,
   ALLOWED_ORIGINS,
   pickClientIp,
   rateLimitKeyForIp,
@@ -2511,6 +2512,14 @@ export const logPageView = onRequest(
     // ignora el CORS por completo. Este check sí lo para, y cuesta 0 lecturas.
     if (!isAllowedOrigin(req.headers.origin)) {
       res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
+    // Crawlers que ejecutan JS (Googlebot renderiza con Chrome headless)
+    // disparan el tracker como un visitante real. Se responde 204 sin escribir
+    // nada: la visita no cuenta y el bot no ve nada que reintentar.
+    if (isBotUserAgent(req.headers["user-agent"])) {
+      res.status(204).send();
       return;
     }
 

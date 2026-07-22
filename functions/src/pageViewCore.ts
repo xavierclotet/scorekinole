@@ -41,6 +41,61 @@ export function pickClientIp(reqIp: unknown, xForwardedFor: unknown): string {
   return "unknown";
 }
 
+/**
+ * Detección de bots por User-Agent (leído de la cabecera en servidor: el
+ * payload no lo trae y así no es falsificable desde el body). Googlebot y
+ * compañía ejecutan JavaScript, disparan el tracker como un visitante real y
+ * ensuciarían las métricas. Un UA ausente o vacío también cuenta como bot:
+ * todos los navegadores reales lo envían.
+ *
+ * Lista de tokens, no lista exhaustiva: los crawlers legítimos se identifican
+ * (bot/crawler/spider...); un scraper que falsifique un UA de Chrome pasará,
+ * pero de eso ya se ocupa el rate limit.
+ */
+const BOT_UA_TOKENS = [
+  "bot",
+  "crawler",
+  "spider",
+  "crawling",
+  "headless",
+  "lighthouse",
+  "slurp",
+  "bingpreview",
+  "facebookexternalhit",
+  "whatsapp",
+  "telegram",
+  "discordbot",
+  "embedly",
+  "pinterest",
+  "semrush",
+  "ahrefs",
+  "mj12",
+  "dotbot",
+  "petalbot",
+  "bytespider",
+  "gptbot",
+  "ccbot",
+  "claudebot",
+  "python-requests",
+  "python-httpx",
+  "curl/",
+  "wget/",
+  "axios/",
+  "go-http-client",
+  "okhttp",
+  "java/",
+  "libwww",
+  "phantomjs",
+  "puppeteer",
+  "playwright",
+];
+
+export function isBotUserAgent(userAgent: unknown): boolean {
+  if (typeof userAgent !== "string" || !userAgent.trim()) return true;
+  const ua = userAgent.toLowerCase();
+  return BOT_UA_TOKENS.some((token) => ua.includes(token));
+}
+
 /** Clave de rate-limit derivada de la IP: los docs de /internalRateLimits
  *  no deben contener la IP en claro (RGPD — no se purgan por visita). */
 export function rateLimitKeyForIp(ip: string): string {
