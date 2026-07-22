@@ -7,6 +7,9 @@
  * Espejo del patrón de playerStatsCore.ts y selfRegistrationCore.ts.
  */
 
+import { createHash } from "node:crypto";
+import { isIP } from "node:net";
+
 export const ALLOWED_ORIGINS: readonly string[] = [
   "https://scorekinole.es",
   "https://www.scorekinole.es",
@@ -19,21 +22,29 @@ export function isAllowedOrigin(origin: unknown): boolean {
 }
 
 /**
- * La IP del cliente. Cloud Functions v2 corre sobre Express con trust proxy,
- * así que req.ip suele bastar; el fallback a x-forwarded-for cubre el caso de
- * que no lo esté. El primer valor de la lista es el cliente original, el resto
- * son los proxies intermedios.
+ * La IP del cliente. req.ip en Cloud Functions v2 deriva de la PRIMERA entrada
+ * de x-forwarded-for, que la controla el cliente (spoofeable). El front de
+ * Google AÑADE la IP real de conexión al final de la lista, así que se recorre
+ * desde el final buscando la primera entrada que sea una IP válida. req.ip
+ * queda solo como fallback si la cabecera falta. Verificar empíricamente tras
+ * el primer deploy (ver plan de verificación).
  */
 export function pickClientIp(reqIp: unknown, xForwardedFor: unknown): string {
-  if (typeof reqIp === "string" && reqIp.trim()) return reqIp.trim();
-
   const raw = Array.isArray(xForwardedFor) ? xForwardedFor[0] : xForwardedFor;
-  if (typeof raw === "string") {
-    const first = raw.split(",")[0]?.trim();
-    if (first) return first;
+  if (typeof raw === "string" && raw) {
+    const entries = raw.split(",").map((e) => e.trim()).filter(Boolean);
+    for (let i = entries.length - 1; i >= 0; i--) {
+      if (isIP(entries[i]) > 0) return entries[i];
+    }
   }
-
+  if (typeof reqIp === "string" && isIP(reqIp.trim()) > 0) return reqIp.trim();
   return "unknown";
+}
+
+/** Clave de rate-limit derivada de la IP: los docs de /internalRateLimits
+ *  no deben contener la IP en claro (RGPD — no se purgan por visita). */
+export function rateLimitKeyForIp(ip: string): string {
+  return createHash("sha256").update(ip).digest("hex").slice(0, 32);
 }
 
 export interface PageViewInput {
@@ -153,8 +164,8 @@ export function parseGeoResponse(json: unknown): GeoResult {
 
   return {
     countryCode,
-    country: asString(j.country) || UNKNOWN_GEO.country,
-    city: asString(j.city),
+    country: (asString(j.country) || UNKNOWN_GEO.country).slice(0, 120),
+    city: asString(j.city).slice(0, 120),
   };
 }
 

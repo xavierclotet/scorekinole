@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   isAllowedOrigin,
   pickClientIp,
+  rateLimitKeyForIp,
   validatePageViewPayload,
   ipCacheKey,
   isGeoCacheFresh,
@@ -56,21 +57,43 @@ describe('isAllowedOrigin', () => {
 });
 
 describe('pickClientIp', () => {
-  it('prefiere req.ip cuando existe', () => {
-    expect(pickClientIp('81.44.1.2', '10.0.0.1, 70.1.1.1')).toBe('81.44.1.2');
+  it('toma la última entrada válida de x-forwarded-for (la añade el front de Google)', () => {
+    expect(pickClientIp('10.0.0.1', 'spoofed, 81.44.1.2')).toBe('81.44.1.2');
   });
 
-  it('cae al primer valor de x-forwarded-for', () => {
-    expect(pickClientIp(undefined, '81.44.1.2, 10.0.0.1')).toBe('81.44.1.2');
+  it('retrocede sobre entradas finales no válidas hasta una IP real', () => {
+    expect(pickClientIp(undefined, '81.44.1.2, garbage')).toBe('81.44.1.2');
   });
 
   it('acepta x-forwarded-for como array de cabeceras', () => {
-    expect(pickClientIp(undefined, ['81.44.1.2, 10.0.0.1'])).toBe('81.44.1.2');
+    expect(pickClientIp(undefined, ['10.0.0.1, 81.44.1.2'])).toBe('81.44.1.2');
   });
 
-  it('devuelve "unknown" cuando no hay nada', () => {
+  it('acepta IPv6', () => {
+    expect(pickClientIp(undefined, '2a02:9130::1')).toBe('2a02:9130::1');
+  });
+
+  it('cae a req.ip cuando no hay x-forwarded-for', () => {
+    expect(pickClientIp('81.44.1.2', undefined)).toBe('81.44.1.2');
+  });
+
+  it('devuelve "unknown" cuando nada es una IP válida', () => {
+    expect(pickClientIp('not-an-ip', 'garbage, more')).toBe('unknown');
     expect(pickClientIp(undefined, undefined)).toBe('unknown');
     expect(pickClientIp('', '')).toBe('unknown');
+  });
+});
+
+describe('rateLimitKeyForIp', () => {
+  it('es determinista y no contiene la IP en claro', () => {
+    const k = rateLimitKeyForIp('81.44.1.2');
+    expect(k).toBe(rateLimitKeyForIp('81.44.1.2'));
+    expect(k).toMatch(/^[0-9a-f]{32}$/);
+    expect(k).not.toContain('81.44');
+  });
+
+  it('distingue IPs distintas', () => {
+    expect(rateLimitKeyForIp('81.44.1.2')).not.toBe(rateLimitKeyForIp('81.44.1.3'));
   });
 });
 
@@ -213,6 +236,12 @@ describe('parseGeoResponse', () => {
   it('tolera una ciudad ausente', () => {
     const r = parseGeoResponse({ success: true, country: 'Spain', country_code: 'ES' });
     expect(r.city).toBe('');
+  });
+
+  it('trunca country y city desmesurados', () => {
+    const r = parseGeoResponse({ success: true, country: 'X'.repeat(500), country_code: 'ES', city: 'Y'.repeat(500) });
+    expect(r.country.length).toBeLessThanOrEqual(120);
+    expect(r.city.length).toBeLessThanOrEqual(120);
   });
 });
 

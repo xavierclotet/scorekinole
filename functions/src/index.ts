@@ -30,6 +30,7 @@ import {
   isAllowedOrigin,
   ALLOWED_ORIGINS,
   pickClientIp,
+  rateLimitKeyForIp,
   ipCacheKey,
   isGeoCacheFresh,
   parseGeoResponse,
@@ -2449,12 +2450,17 @@ export const logPageView = onRequest(
     const ip = pickClientIp(req.ip, req.headers["x-forwarded-for"]);
 
     try {
-      await enforceRateLimit(getDb(), `pv-${ip}`, "logPageView", {
+      await enforceRateLimit(getDb(), `pv-${rateLimitKeyForIp(ip)}`, "logPageView", {
         max: 200,
         windowMs: 3600_000,
       });
-    } catch {
-      res.status(429).json({ error: "Too many requests" });
+    } catch (err) {
+      if (err instanceof HttpsError && err.code === "resource-exhausted") {
+        res.status(429).json({ error: "Too many requests" });
+      } else {
+        logger.error("Rate limit check failed", err);
+        res.status(500).json({ error: "Internal error" });
+      }
       return;
     }
 
