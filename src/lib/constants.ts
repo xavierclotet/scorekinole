@@ -1,6 +1,6 @@
 import type { GameSettings } from './types/settings';
 
-export const APP_VERSION = '2.5.67';
+export const APP_VERSION = '2.5.68';
 export const APP_NAME = 'Scorekinole';
 export const PRODUCTION_URL = 'https://scorekinole.es';
 

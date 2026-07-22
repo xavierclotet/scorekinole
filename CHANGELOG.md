@@ -2,6 +2,14 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.68] - 2026-07-22
+- Security: direct writes to /contactMessages closed — messages can only be created through the contact form Cloud Function (honeypot, rate limit and field validation can no longer be bypassed)
+- Security: blog translations are HTML-escaped before rendering, so a malicious translation API response can no longer inject markup (XSS)
+- Contact: the anti-bot time check now measures elapsed time on the visitor's clock — clocks running minutes ahead silently dropped valid messages
+- Admin contact messages: mark read/delete now work for any admin (rules required super-admin and the denied write hung silently); updates are limited to the read flag
+- Admin contact messages: the counter badge counts the active tab, load failures show a retry state instead of "No messages", and opening a message marks it as read
+- Contact function: email length capped at 100 chars
+
 ## [2.5.67] - 2026-07-21
 - Stats fix: BYE walkovers no longer count as played matches (they were a free win in current data and a free loss in imported data)
 - Stats fix: tournaments with parallel brackets counted the first bracket twice, since goldBracket is stored as a copy of it
