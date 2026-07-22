@@ -749,11 +749,14 @@
           {/key}
         </ChartWrapper>
 
-        <ChartWrapper title={m.analytics_topUsers()} hasData={topUsersData.length > 0} isLoading={isLoadingCharts} autoHeight={true}>
-          {#key usersChartKey}
-            <canvas use:initUsersChart style="min-height: {Math.max(120, topUsersData.length * 28)}px"></canvas>
-          {/key}
-        </ChartWrapper>
+        <!-- Con el filtro en "Anónimos" este gráfico sería una sola barra "Anónimo": sin valor -->
+        {#if audienceFilter !== 'anonymous'}
+          <ChartWrapper title={m.analytics_topUsers()} hasData={topUsersData.length > 0} isLoading={isLoadingCharts} autoHeight={true}>
+            {#key usersChartKey}
+              <canvas use:initUsersChart style="min-height: {Math.max(120, topUsersData.length * 28)}px"></canvas>
+            {/key}
+          </ChartWrapper>
+        {/if}
 
         <ChartWrapper title={m.analytics_countryBreakdown()} hasData={topCountriesData.length > 0} isLoading={isLoadingCharts} autoHeight={true}>
           {#key countryChartKey}
