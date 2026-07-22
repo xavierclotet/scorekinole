@@ -189,13 +189,6 @@
 		gap: 0.5rem;
 	}
 
-	.logo {
-		font-size: 1.1rem;
-		font-weight: 700;
-		color: var(--primary);
-		text-decoration: none;
-	}
-
 	.top-bar-right {
 		display: flex;
 		align-items: center;
@@ -302,7 +295,9 @@
 		opacity: 0.9;
 	}
 
-	.spin {
+	/* Lucide icons render inside a child component, so the class we pass never
+	   gets this component's scope hash — needs :global() anchored to an ancestor. */
+	.submit-btn :global(.spin) {
 		animation: spin 1s linear infinite;
 	}
 
@@ -329,7 +324,7 @@
 		border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
 	}
 
-	.success-card .icon {
+	.success-card :global(.icon) {
 		width: 2.5rem;
 		height: 2.5rem;
 		color: var(--primary);
@@ -351,7 +346,7 @@
 		border: 1px solid color-mix(in srgb, #ef4444 25%, transparent);
 	}
 
-	.error-card .icon {
+	.error-card :global(.icon) {
 		width: 1.25rem;
 		height: 1.25rem;
 		color: #ef4444;

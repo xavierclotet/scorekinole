@@ -149,7 +149,7 @@
                 <td class="status-col">
                   <button class="icon-btn" onclick={() => toggleRead(msg)} title={msg.read ? 'Mark unread' : 'Mark read'}>
                     {#if msg.read}
-                      <MailOpen class="size-4 text-muted" />
+                      <MailOpen class="size-4 text-muted-foreground" />
                     {:else}
                       <Mail class="size-4 text-primary" />
                     {/if}
@@ -350,9 +350,6 @@
   .icon-btn:hover { background: var(--accent); color: var(--foreground); }
   .icon-btn.danger:hover { background: color-mix(in srgb, #ef4444 15%, transparent); color: #ef4444; }
 
-  .text-muted { color: var(--muted-foreground); }
-  .text-primary { color: var(--primary); }
-
   .name { font-weight: 500; }
 
   .email-link {
@@ -410,7 +407,9 @@
     gap: 1rem;
   }
 
-  .empty-state .icon {
+  /* Lucide renders inside a child component, so the class we pass never gets
+     this component's scope hash — needs :global() anchored to an ancestor. */
+  .empty-state :global(.icon) {
     width: 3rem;
     height: 3rem;
     opacity: 0.4;

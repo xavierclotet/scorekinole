@@ -3987,11 +3987,6 @@
 		color: var(--primary) !important;
 	}
 
-	@keyframes pulse-score {
-		0%, 100% { opacity: 1; }
-		50% { opacity: 0.6; }
-	}
-
 	@keyframes score-pop {
 		0% { transform: scale(1); }
 		30% { transform: scale(1.4); }
