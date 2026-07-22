@@ -25,6 +25,12 @@ import {
 import { buildTournamentSummary, summariesEqual } from "./tournamentSummaryCore";
 import { recomputeUserStats, collectAllPlayerUserIds } from "./playerStatsIO";
 import { statsInputChanged } from "./playerStatsCore";
+import {
+  validatePageViewPayload,
+  isAllowedOrigin,
+  ALLOWED_ORIGINS,
+  pickClientIp,
+} from "./pageViewCore";
 
 // Telegram secrets
 const telegramBotToken = defineSecret("TELEGRAM_BOT_TOKEN");
@@ -2273,6 +2279,72 @@ export const onPageViewCreated = onDocumentCreated(
         },
         { merge: true }
       );
+  }
+);
+
+/**
+ * Endpoint público de page views.
+ *
+ * Es la ÚNICA vía de escritura a /pageViews: las reglas de Firestore deniegan
+ * el create desde cliente. Existe porque la app es adapter-static (sin SSR) y
+ * el navegador no puede conocer su propia IP — aquí sí la vemos.
+ *
+ * El país NO se resuelve aquí: lo hace onPageViewCreated, para que el visitante
+ * no espere por una API externa.
+ *
+ * Defensas, en orden de coste creciente: método → origin → payload → rate limit.
+ */
+export const logPageView = onRequest(
+  { region: "europe-west1", cors: [...ALLOWED_ORIGINS] },
+  async (req, res) => {
+    if (req.method !== "POST") {
+      res.status(405).json({ error: "Method not allowed" });
+      return;
+    }
+
+    // Defensa en profundidad: la opción `cors` de arriba hace que el navegador
+    // rechace respuestas de origins ajenos, pero un cliente que no sea navegador
+    // ignora el CORS por completo. Este check sí lo para, y cuesta 0 lecturas.
+    if (!isAllowedOrigin(req.headers.origin)) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
+    const parsed = validatePageViewPayload(req.body);
+    if (!parsed.ok) {
+      res.status(400).json({ error: parsed.reason });
+      return;
+    }
+
+    const ip = pickClientIp(req.ip, req.headers["x-forwarded-for"]);
+
+    try {
+      await enforceRateLimit(getDb(), `pv-${ip}`, "logPageView", {
+        max: 200,
+        windowMs: 3600_000,
+      });
+    } catch {
+      res.status(429).json({ error: "Too many requests" });
+      return;
+    }
+
+    try {
+      await getDb().collection("pageViews").add({
+        ...parsed.value,
+        timestamp: Date.now(),
+        platform: "web",
+        ip,
+        // Los rellena onPageViewCreated tras consultar la caché de geo
+        countryCode: "",
+        country: "",
+        city: "",
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      res.status(204).send();
+    } catch (err: any) {
+      logger.error("Failed to write page view", err);
+      res.status(500).json({ error: "Internal error" });
+    }
   }
 );
 
