@@ -298,11 +298,12 @@ service cloud.firestore {
     // ---------------------------------------------------------------
     // Page-view analytics (append-only log)
     // ---------------------------------------------------------------
+    // Escritura exclusiva del Admin SDK vía la Cloud Function logPageView, que
+    // es la única que ve la IP real del visitante (la app es adapter-static, sin
+    // SSR). Cerrar el create además impide que un usuario autenticado inyecte
+    // entradas falsas en el analytics.
     match /pageViews/{viewId} {
-      allow create: if isAuthenticated()
-                    && (!('path'      in request.resource.data) || request.resource.data.path.size()      < 500)
-                    && (!('referrer'  in request.resource.data) || request.resource.data.referrer.size()  < 500)
-                    && (!('userAgent' in request.resource.data) || request.resource.data.userAgent.size() < 500);
+      allow create: if false;
       allow read: if isAdmin();
       allow update, delete: if false;
     }

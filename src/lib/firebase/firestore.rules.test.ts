@@ -970,36 +970,51 @@ describe('PageViewStats', () => {
 // -------------------------------------------------------------------------
 
 describe('PageViews', () => {
-	it('PV1 — usuario autenticado puede crear pageView con payload válido', async () => {
+	// /pageViews pasó a ser escritura exclusiva del Admin SDK: la Cloud Function
+	// logPageView es la única vía de entrada, porque es la única que ve la IP
+	// real del visitante. Cerrar el create desde cliente además impide inyectar
+	// entradas falsas en el analytics.
+	it('PV1 — usuario autenticado NO puede crear pageView', async () => {
 		const ctx = userCtx('user1');
-		await assertSucceeds(
+		await assertFails(
 			setDoc(doc(ctx.firestore(), 'pageViews', 'view1'), {
 				userId: 'user1',
-				path: '/tournament/abc',
-				referrer: 'https://google.com',
-				userAgent: 'Mozilla/5.0'
+				path: '/tournaments/abc',
+				referrer: 'https://google.com'
 			})
 		);
 	});
 
-	it('PV2 — NO puede crear pageView con path de 1000 chars', async () => {
-		const ctx = userCtx('user1');
+	it('PV2 — anónimo NO puede crear pageView', async () => {
+		const ctx = anonCtx();
 		await assertFails(
 			setDoc(doc(ctx.firestore(), 'pageViews', 'view2'), {
-				userId: 'user1',
-				path: '/t/' + 'x'.repeat(1000)
+				path: '/',
+				isAnonymous: true
 			})
 		);
 	});
 
-	it('PV3 — NO puede crear pageView con userAgent de 1000 chars', async () => {
-		const ctx = userCtx('user1');
+	it('PV3 — admin NO puede crear pageView (ni siquiera él escribe aquí)', async () => {
+		await setupUser('admin-uid', { isAdmin: true });
+		const ctx = userCtx('admin-uid');
 		await assertFails(
 			setDoc(doc(ctx.firestore(), 'pageViews', 'view3'), {
-				userId: 'user1',
-				userAgent: 'A'.repeat(1000)
+				path: '/',
+				isAnonymous: true
 			})
 		);
+	});
+
+	it('PV4 — usuario normal NO puede leer pageViews', async () => {
+		const ctx = userCtx('user1');
+		await assertFails(getDoc(doc(ctx.firestore(), 'pageViews', 'view1')));
+	});
+
+	it('PV5 — admin sí puede leer pageViews', async () => {
+		await setupUser('admin-uid', { isAdmin: true });
+		const ctx = userCtx('admin-uid');
+		await assertSucceeds(getDoc(doc(ctx.firestore(), 'pageViews', 'view1')));
 	});
 });
 
