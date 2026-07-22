@@ -117,6 +117,14 @@ describe('FIRESTORE_COLLECTIONS', () => {
       expect(FIRESTORE_COLLECTIONS).toContain(name);
     }
   });
+
+  it("excludes 'pageViews' (client writes are rules-denied — a restore would hang; raw IPs are 90-day retention only)", () => {
+    expect(FIRESTORE_COLLECTIONS).not.toContain('pageViews');
+  });
+
+  it("includes 'pageViewStats' (the aggregate holds no IPs)", () => {
+    expect(FIRESTORE_COLLECTIONS).toContain('pageViewStats');
+  });
 });
 
 // ─── exportCollections ───────────────────────────────────────────────────────
@@ -272,6 +280,11 @@ describe('restoreDocuments', () => {
 
   it('rejects unknown collection names (file content is untrusted)', async () => {
     await expect(restoreDocuments('evilCollection', { d1: { x: 1 } })).rejects.toThrow(/desconocida/i);
+    expect(store.size).toBe(0);
+  });
+
+  it("rejects 'pageViews' from an old backup file (client writes are rules-denied — would hang, not error, under persistentLocalCache)", async () => {
+    await expect(restoreDocuments('pageViews', { pv1: { path: '/' } })).rejects.toThrow(/desconocida/i);
     expect(store.size).toBe(0);
   });
 

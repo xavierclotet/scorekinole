@@ -15,6 +15,12 @@ import {
 // written by Cloud Functions) was missing — backups silently excluded it.
 // NOTE: subcollections (users/{id}/fcmTokens) are NOT exported; FCM tokens
 // regenerate when devices re-register, so that loss is acceptable.
+// 'pageViews' is deliberately excluded: Firestore rules deny ALL client
+// writes to it (even super-admin), so restoring it would hang forever under
+// persistentLocalCache (denied writes never reject, they just never
+// resolve). It also holds raw visitor IPs, which are purged after 90 days on
+// purpose (RGPD) — keeping them indefinitely in a downloaded JSON backup
+// would defeat that retention. 'pageViewStats' (the aggregate, no IPs) stays.
 export const FIRESTORE_COLLECTIONS = [
 	'tournaments',
 	'users',
@@ -22,7 +28,6 @@ export const FIRESTORE_COLLECTIONS = [
 	'matches',
 	'venues',
 	'matchInvites',
-	'pageViews',
 	'pageViewStats'
 ] as const;
 

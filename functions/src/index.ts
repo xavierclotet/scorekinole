@@ -8,7 +8,7 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { initializeApp, getApps } from "firebase-admin/app";
-import { getFirestore, FieldValue, Firestore, Timestamp } from "firebase-admin/firestore";
+import { getFirestore, FieldValue, FieldPath, Firestore, Timestamp } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
 import { getAuth } from "firebase-admin/auth";
 import { logger } from "firebase-functions";
@@ -1822,13 +1822,18 @@ export const cleanupExpiredInvites = onSchedule(
 
 /**
  * Retención de datos: /pageViews e /ipGeo guardan IPs, que son dato personal
- * bajo RGPD. Se conservan 90 días y se borran.
+ * bajo RGPD. Se conservan 90 días y se borran a diario (no semanal: un backlog
+ * de una semana entera de tráfico no cabe en una sola pasada de 5000 docs).
+ *
+ * También limpia /internalRateLimits: los buckets "pv-*" de logPageView solo
+ * guardan una clave de IP hasheada + timestamps, pero se acumulan como basura
+ * de storage si nadie los purga (la ventana deslizante en sí no los borra).
  *
  * Los agregados diarios de /pageViewStats NO se tocan: no contienen IPs y son
  * los que alimentan los gráficos históricos del dashboard.
  */
 export const cleanupOldPageViews = onSchedule(
-  { schedule: "30 4 * * 0", timeZone: "Europe/Madrid" },
+  { schedule: "30 4 * * *", timeZone: "Europe/Madrid", region: "europe-west1" },
   async () => {
     const db = getDb();
     const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
@@ -1859,23 +1864,92 @@ export const cleanupOldPageViews = onSchedule(
       return count;
     }
 
-    // Límite de 5000 por ejecución: acota el coste de un domingo con backlog.
-    // Como corre semanalmente, el remanente se recoge en la siguiente pasada.
-    const viewsSnap = await db
-      .collection("pageViews")
-      .where("timestamp", "<", cutoff)
-      .limit(5000)
-      .get();
-    await deleteBatched(viewsSnap, "pageViews");
+    // 5000 por página acota el coste de una sola pasada, pero repetir hasta
+    // vaciar (o 20 páginas = 100k docs) evita que un backlog se acumule día
+    // tras día en vez de drenarse.
+    async function purgeUntilDrained(
+      queryFn: () => FirebaseFirestore.Query,
+      label: string
+    ): Promise<void> {
+      for (let page = 0; page < 20; page++) {
+        const snap = await queryFn().limit(5000).get();
+        if (snap.empty) break;
+        await deleteBatched(snap, label);
+        if (snap.size < 5000) break;
+      }
+    }
 
-    const geoSnap = await db
-      .collection("ipGeo")
-      .where("fetchedAt", "<", cutoff)
-      .limit(5000)
-      .get();
-    await deleteBatched(geoSnap, "ipGeo entries");
+    await purgeUntilDrained(
+      () => db.collection("pageViews").where("timestamp", "<", cutoff),
+      "pageViews"
+    );
+
+    await purgeUntilDrained(
+      () => db.collection("ipGeo").where("fetchedAt", "<", cutoff),
+      "ipGeo entries"
+    );
+
+    await purgeStalePageViewRateLimits(db);
   }
 );
+
+/**
+ * Housekeeping de /internalRateLimits: borra los buckets "pv-*" de logPageView
+ * (solo contienen una clave de IP hasheada + timestamps de invocación) cuando
+ * llevan tiempo inactivos. La ventana deslizante de enforceRateLimit es de 1h,
+ * así que un timestamp más reciente de 7 días atrás es papelera segura de
+ * tirar — muy por encima de cualquier bucket todavía "vivo".
+ */
+async function purgeStalePageViewRateLimits(db: Firestore): Promise<void> {
+  const staleCutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const startId = "pv-";
+  const endId = "pv-\uf8ff"; // sentinel: mayor que cualquier "pv-<hash>"
+
+  let cursor: FirebaseFirestore.QueryDocumentSnapshot | undefined;
+  let deleted = 0;
+
+  for (let page = 0; page < 20; page++) {
+    let q = db
+      .collection("internalRateLimits")
+      .orderBy(FieldPath.documentId())
+      .where(FieldPath.documentId(), ">=", startId)
+      .where(FieldPath.documentId(), "<", endId)
+      .limit(500);
+
+    if (cursor) q = q.startAfter(cursor);
+
+    const snap = await q.get();
+    if (snap.empty) break;
+
+    let batch = db.batch();
+    let inBatch = 0;
+
+    for (const doc of snap.docs) {
+      const data = doc.data();
+      const timestamps = Object.values(data).flatMap((v) =>
+        Array.isArray(v) ? v.filter((t): t is number => typeof t === "number") : []
+      );
+      const newest = timestamps.length > 0 ? Math.max(...timestamps) : 0;
+
+      if (newest < staleCutoff) {
+        batch.delete(doc.ref);
+        deleted++;
+        inBatch++;
+        if (inBatch === 500) {
+          await batch.commit();
+          batch = db.batch();
+          inBatch = 0;
+        }
+      }
+    }
+    if (inBatch > 0) await batch.commit();
+
+    cursor = snap.docs[snap.docs.length - 1];
+    if (snap.size < 500) break;
+  }
+
+  logger.info(`Cleaned up ${deleted} stale pv- rate-limit bucket(s)`);
+}
 
 /**
  * Disable a user account (admin only).
@@ -2293,15 +2367,14 @@ export const syncTournamentSummary = onDocumentWritten(
 // ────────────────────────────────────────────────────────────────────────────
 // Page-view stats aggregation
 // ────────────────────────────────────────────────────────────────────────────
-// Clients (any authenticated visitor) write raw `pageViews` docs, but the
-// `pageViewStats` aggregation is admin-write-only by rules (it must not be
-// world-writable). This trigger performs the daily aggregation with the Admin
-// SDK — bypassing rules — so EVERY visitor's view is counted, not just admins'.
-//
-// One set(merge) with nested-map FieldValue.increment reproduces exactly the
-// document shape the client used to write (totalViews + viewsByPath/Device/
-// Platform/Browser/User maps + userNames), which the /admin analytics dashboard
-// reads via getDailyStats(). Keep the key derivation in sync with
+// `pageViews` docs are created exclusively by the `logPageView` CF below (Admin
+// SDK) — Firestore rules deny client `create` on this collection entirely. This
+// trigger fires on each new doc, resolves the visitor's country via the
+// `/ipGeo` cache, and merges the audience-split aggregates into
+// `/pageViewStats/{date}`: `reg`/`anon` branches per breakdown map (path,
+// device, platform, browser, country), plus the `registeredViews` /
+// `anonymousViews` scalars. Read by the /admin analytics dashboard via
+// getDailyStats(). Keep the key derivation in sync with
 // src/lib/utils/pageViewPaths.ts (encodePathKey) and pageViews.ts.
 
 /**
