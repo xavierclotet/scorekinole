@@ -52,6 +52,12 @@
 					email: email.trim(),
 					message: message.trim(),
 					_website: honeypot,
+					// Elapsed time measured on the client clock — comparing a raw
+					// client timestamp against the server clock silently dropped
+					// messages from users whose clock runs minutes ahead.
+					_elapsedMs: String(loadedAt ? Date.now() - loadedAt : 0),
+					// Legacy field for the previous CF version; remove once the
+					// updated submitContactMessage function is deployed.
 					_loadedAt: String(loadedAt)
 				})
 			});

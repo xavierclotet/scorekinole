@@ -320,10 +320,20 @@ service cloud.firestore {
     // ---------------------------------------------------------------
     // Contact messages
     // ---------------------------------------------------------------
+    // Created ONLY by the submitContactMessage Cloud Function (Admin SDK,
+    // bypasses rules) — it enforces honeypot + rate limit + field validation.
+    // A public create here would let anyone skip all of that.
+    // Managed from /admin/contact-messages, which is open to any admin
+    // (AdminGuard checks isAdmin), so update/delete must be isAdmin too —
+    // isSuperAdmin here made the client's denied writes hang silently.
+    // Update is restricted to flipping the `read` flag (the only client write).
     match /contactMessages/{messageId} {
       allow read: if isAdmin();
-      allow write: if isSuperAdmin();
-      allow create: if true; // public form submission
+      allow create: if false;
+      allow update: if isAdmin() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']) &&
+        request.resource.data.read is bool;
+      allow delete: if isAdmin();
     }
 
     // ---------------------------------------------------------------

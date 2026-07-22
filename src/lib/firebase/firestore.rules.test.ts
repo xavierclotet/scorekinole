@@ -1086,6 +1086,122 @@ describe('Venues', () => {
 });
 
 // -------------------------------------------------------------------------
+// Contact messages (/contactMessages — leídos por /admin/contact-messages,
+// creados por la Cloud Function submitContactMessage con Admin SDK)
+// -------------------------------------------------------------------------
+
+describe('ContactMessages', () => {
+	async function setupMessage(id: string, data: Record<string, unknown> = {}) {
+		await testEnv.withSecurityRulesDisabled(async (ctx) => {
+			await setDoc(doc(ctx.firestore(), 'contactMessages', id), {
+				name: 'Ana',
+				email: 'ana@example.com',
+				message: 'Hola, tengo una duda sobre los torneos.',
+				createdAt: Timestamp.now(),
+				ip: '1.2.3.4',
+				read: false,
+				...data
+			});
+		});
+	}
+
+	it('CM1 — anónimo NO puede leer mensajes', async () => {
+		await setupMessage('cm1');
+		const ctx = anonCtx();
+		await assertFails(getDoc(doc(ctx.firestore(), 'contactMessages', 'cm1')));
+	});
+
+	it('CM2 — usuario normal NO puede leer mensajes', async () => {
+		await setupUser('user1');
+		await setupMessage('cm2');
+		const ctx = userCtx('user1');
+		await assertFails(getDoc(doc(ctx.firestore(), 'contactMessages', 'cm2')));
+	});
+
+	it('CM3 — admin puede leer mensajes', async () => {
+		await setupUser('admin1', { isAdmin: true });
+		await setupMessage('cm3');
+		const ctx = userCtx('admin1');
+		await assertSucceeds(getDoc(doc(ctx.firestore(), 'contactMessages', 'cm3')));
+	});
+
+	it('CM4 — usuario normal NO puede marcar como leído ni borrar', async () => {
+		await setupUser('user2');
+		await setupMessage('cm4');
+		// ctx.firestore() solo puede llamarse una vez por contexto: la segunda
+		// llamada re-aplica settings y lanza "Firestore has already been started"
+		const fs = userCtx('user2').firestore();
+		await assertFails(updateDoc(doc(fs, 'contactMessages', 'cm4'), { read: true }));
+		await assertFails(deleteDoc(doc(fs, 'contactMessages', 'cm4')));
+	});
+
+	// La UI de /admin/contact-messages (AdminGuard = isAdmin) ofrece "marcar
+	// leído" y "borrar" a cualquier admin — las reglas deben permitirlo o el
+	// write denegado se cuelga sin error con persistentLocalCache.
+	it('CM5 — admin normal puede marcar como leído (mismo payload que la UI: solo el flag read)', async () => {
+		await setupUser('admin2', { isAdmin: true, isSuperAdmin: false });
+		await setupMessage('cm5');
+		const ctx = userCtx('admin2');
+		await assertSucceeds(updateDoc(doc(ctx.firestore(), 'contactMessages', 'cm5'), { read: true }));
+	});
+
+	it('CM6 — admin normal puede borrar', async () => {
+		await setupUser('admin3', { isAdmin: true, isSuperAdmin: false });
+		await setupMessage('cm6');
+		const ctx = userCtx('admin3');
+		await assertSucceeds(deleteDoc(doc(ctx.firestore(), 'contactMessages', 'cm6')));
+	});
+
+	it('CM7 — super-admin puede marcar como leído y borrar', async () => {
+		await setupUser('su1', { isAdmin: true, isSuperAdmin: true });
+		await setupMessage('cm7');
+		const fs = userCtx('su1').firestore();
+		await assertSucceeds(updateDoc(doc(fs, 'contactMessages', 'cm7'), { read: true }));
+		await assertSucceeds(deleteDoc(doc(fs, 'contactMessages', 'cm7')));
+	});
+
+	// Regresión del agujero `allow create: if true`: la CF submitContactMessage
+	// escribe con Admin SDK (ignora las reglas), así que NADIE debe poder crear
+	// docs directamente — un create público se salta honeypot, rate limit por
+	// IP y validación de campos.
+	it('CM8 — anónimo NO puede crear mensajes directamente (solo la CF crea)', async () => {
+		const ctx = anonCtx();
+		await assertFails(
+			setDoc(doc(ctx.firestore(), 'contactMessages', 'cm8'), {
+				name: 'spam',
+				email: 'not-even-an-email',
+				message: 'x',
+				ip: 'spoofed',
+				read: true
+			})
+		);
+	});
+
+	it('CM9 — usuario autenticado tampoco puede crear mensajes directamente', async () => {
+		await setupUser('user3');
+		const ctx = userCtx('user3');
+		await assertFails(
+			setDoc(doc(ctx.firestore(), 'contactMessages', 'cm9'), {
+				name: 'spam',
+				email: 'x@x.com',
+				message: 'hola hola hola',
+				ip: '9.9.9.9',
+				read: false
+			})
+		);
+	});
+
+	it('CM10 — admin NO puede modificar otros campos (update limitado al flag read)', async () => {
+		await setupUser('admin4', { isAdmin: true });
+		await setupMessage('cm10');
+		const fs = userCtx('admin4').firestore();
+		await assertFails(updateDoc(doc(fs, 'contactMessages', 'cm10'), { message: 'tampered' }));
+		await assertFails(updateDoc(doc(fs, 'contactMessages', 'cm10'), { read: true, ip: '0.0.0.0' }));
+		await assertFails(updateDoc(doc(fs, 'contactMessages', 'cm10'), { read: 'yes' }));
+	});
+});
+
+// -------------------------------------------------------------------------
 // Critical attack vector regression tests
 // -------------------------------------------------------------------------
 

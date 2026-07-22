@@ -2289,7 +2289,8 @@ export const submitContactMessage = onRequest(
       return;
     }
 
-    const { name, email, message, _website, _loadedAt } = (req.body ?? {}) as Record<string, unknown>;
+    const { name, email, message, _website, _loadedAt, _elapsedMs } =
+      (req.body ?? {}) as Record<string, unknown>;
 
     // Honeypot — bot fills hidden field, human doesn't see it
     if (_website) {
@@ -2297,9 +2298,18 @@ export const submitContactMessage = onRequest(
       return;
     }
 
-    // Time check — form must have been open > 3s
-    const loadedAt = typeof _loadedAt === "string" ? parseInt(_loadedAt, 10) : NaN;
-    if (!loadedAt || Date.now() - loadedAt < 3000) {
+    // Time check — form must have been open > 3s. Prefer _elapsedMs, measured
+    // entirely on the client clock: comparing the client's _loadedAt timestamp
+    // against the server clock silently dropped messages from users whose
+    // clock runs ahead. _loadedAt remains as fallback for pre-update clients.
+    let elapsed = NaN;
+    if (typeof _elapsedMs === "string") {
+      elapsed = parseInt(_elapsedMs, 10);
+    } else if (typeof _loadedAt === "string") {
+      const loadedAt = parseInt(_loadedAt, 10);
+      if (loadedAt) elapsed = Date.now() - loadedAt;
+    }
+    if (!Number.isFinite(elapsed) || elapsed < 3000) {
       res.json({ success: true });
       return;
     }
@@ -2307,7 +2317,7 @@ export const submitContactMessage = onRequest(
     // Validate required fields
     if (
       typeof name !== "string" || name.trim().length < 2 || name.length > 100 ||
-      typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+      typeof email !== "string" || email.length > 100 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
       typeof message !== "string" || message.trim().length < 10 || message.length > 5000
     ) {
       res.status(400).json({ error: "Invalid fields" });

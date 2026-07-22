@@ -7,6 +7,7 @@
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import { theme } from '$lib/stores/theme';
 	import { blogPosts, type BlogPost } from '$lib/content/blog';
+	import { renderMarkdown } from '$lib/utils/blogMarkdown';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import ArrowRight from '@lucide/svelte/icons/arrow-right';
 	import Calendar from '@lucide/svelte/icons/calendar';
@@ -90,22 +91,6 @@
 	let currentIdx = $derived(sortedPosts.findIndex((p) => p.slug === slug));
 	let prevPost = $derived(currentIdx > 0 ? sortedPosts[currentIdx - 1] : null);
 	let nextPost = $derived(currentIdx >= 0 && currentIdx < sortedPosts.length - 1 ? sortedPosts[currentIdx + 1] : null);
-
-	function renderMarkdown(text: string): string {
-		let html = text
-			.replace(/^### (.+)$/gm, '<h3>$1</h3>')
-			.replace(/^## (.+)$/gm, '<h2>$1</h2>')
-			.replace(/^\* (.+)$/gm, '<li>$1</li>')
-			.replace(/^- (.+)$/gm, '<li>$1</li>')
-			.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-			.replace(/\n\n/g, '</p><p>');
-		html = '<p>' + html + '</p>';
-		html = html.replace(/<\/p>\s*<li>/g, '<li>');
-		html = html.replace(/<\/li>\s*<p>/g, '</li>');
-		html = html.replace(/(<li>.*?<\/li>)/gs, (m) => `<ul>${m}</ul>`);
-		html = html.replace(/<\/ul>\s*<ul>/g, '');
-		return html;
-	}
 
 	function formatDate(dateStr: string): string {
 		const [y, m, d] = dateStr.split('-');

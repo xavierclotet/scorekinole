@@ -15,6 +15,7 @@
   import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
   import { createRequestSequencer } from '$lib/utils/requestSequencer';
   import Trash2 from '@lucide/svelte/icons/trash-2';
+  import CircleAlert from '@lucide/svelte/icons/circle-alert';
   import Mail from '@lucide/svelte/icons/mail';
   import MailOpen from '@lucide/svelte/icons/mail-open';
   import ChevronDown from '@lucide/svelte/icons/chevron-down';
@@ -23,6 +24,7 @@
   let messages: ContactMessage[] = $state([]);
   let loading = $state(true);
   let loadingMore = $state(false);
+  let loadError = $state(false);
   let lastDoc: QueryDocumentSnapshot<DocumentData> | null = $state(null);
   let hasMore = $state(true);
   let totalCount = $state(0);
@@ -38,27 +40,42 @@
   async function loadInitial() {
     const rid = seq.next();
     loading = true;
+    loadError = false;
     messages = [];
     lastDoc = null;
-    const result = await getContactMessagesPaginated(pageSize, null, filter);
-    if (!seq.isLatest(rid)) return;
-    totalCount = result.totalCount;
-    hasMore = result.hasMore;
-    lastDoc = result.lastDoc;
-    messages = result.messages;
-    loading = false;
+    try {
+      const result = await getContactMessagesPaginated(pageSize, null, filter);
+      if (!seq.isLatest(rid)) return;
+      totalCount = result.totalCount;
+      hasMore = result.hasMore;
+      lastDoc = result.lastDoc;
+      messages = result.messages;
+    } catch {
+      if (!seq.isLatest(rid)) return;
+      loadError = true;
+      hasMore = false;
+    } finally {
+      if (seq.isLatest(rid)) loading = false;
+    }
   }
 
   async function loadMore() {
     if (loadingMore || !hasMore) return;
     const rid = seq.next();
     loadingMore = true;
-    const result = await getContactMessagesPaginated(pageSize, lastDoc, filter);
-    loadingMore = false;
-    if (!seq.isLatest(rid)) return;
-    hasMore = result.hasMore;
-    lastDoc = result.lastDoc;
-    messages = [...messages, ...result.messages];
+    try {
+      const result = await getContactMessagesPaginated(pageSize, lastDoc, filter);
+      if (!seq.isLatest(rid)) return;
+      hasMore = result.hasMore;
+      lastDoc = result.lastDoc;
+      messages = [...messages, ...result.messages];
+    } catch {
+      if (!seq.isLatest(rid)) return;
+      loadError = true;
+      hasMore = false; // stop the auto-fill effect from retry-looping
+    } finally {
+      loadingMore = false;
+    }
   }
 
   function handleScroll(e: Event) {
@@ -159,6 +176,12 @@
 
     {#if loading}
       <div class="loading-state"><LoadingSpinner /></div>
+    {:else if loadError && messages.length === 0}
+      <div class="empty-state">
+        <CircleAlert class="icon error-icon" />
+        <p>Failed to load messages</p>
+        <button class="retry-btn" onclick={() => loadInitial()}>Retry</button>
+      </div>
     {:else if messages.length === 0}
       <div class="empty-state">
         <Mail class="icon" />
@@ -227,6 +250,12 @@
         </table>
         {#if loadingMore}
           <div class="loading-more"><LoadingSpinner /></div>
+        {/if}
+        {#if loadError}
+          <div class="load-error-banner">
+            <span>Failed to load more messages</span>
+            <button class="retry-btn" onclick={() => loadInitial()}>Retry</button>
+          </div>
         {/if}
       </div>
     {/if}
@@ -451,6 +480,42 @@
   .empty-state p {
     font-size: 1rem;
     margin: 0;
+  }
+
+  .empty-state :global(.error-icon) {
+    color: #ef4444;
+    opacity: 0.7;
+  }
+
+  .retry-btn {
+    padding: 0.4rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--background);
+    color: var(--foreground);
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .retry-btn:hover {
+    background: var(--accent);
+    border-color: var(--primary);
+  }
+
+  .load-error-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    margin: 0.75rem 0;
+    padding: 0.6rem 1rem;
+    background: color-mix(in srgb, #ef4444 8%, transparent);
+    border: 1px solid color-mix(in srgb, #ef4444 25%, transparent);
+    border-radius: 8px;
+    color: #ef4444;
+    font-size: 0.85rem;
   }
 
   .loading-more {

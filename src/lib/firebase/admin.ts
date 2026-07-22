@@ -23,7 +23,8 @@ import {
   arrayRemove,
   runTransaction,
   type QueryDocumentSnapshot,
-  type DocumentData
+  type DocumentData,
+  type Timestamp
 } from 'firebase/firestore';
 import { get } from 'svelte/store';
 import { browser } from '$app/environment';
@@ -1090,13 +1091,15 @@ export async function getContactMessagesPaginated(
   try {
     const ref = collection(db, 'contactMessages');
 
-    const countSnapshot = await getCountFromServer(ref);
+    const readFilter = filter !== 'all' ? where('read', '==', filter === 'read') : null;
+
+    // Count the same subset the list shows — counting the whole collection
+    // made the header badge show the global total under Unread/Read.
+    const countSnapshot = await getCountFromServer(readFilter ? query(ref, readFilter) : ref);
     const totalCount = countSnapshot.data().count;
 
     let constraints: any[] = [orderBy('createdAt', 'desc')];
-    if (filter !== 'all') {
-      constraints.push(where('read', '==', filter === 'read'));
-    }
+    if (readFilter) constraints.push(readFilter);
 
     if (lastDocument) constraints.push(startAfter(lastDocument));
     constraints.push(limit(pageSize));
@@ -1118,7 +1121,9 @@ export async function getContactMessagesPaginated(
     };
   } catch (err) {
     console.error('Error fetching contact messages:', err);
-    return emptyResult;
+    // Rethrow so the page can show a real error state — returning an empty
+    // result here rendered a misleading "No messages".
+    throw err;
   }
 }
 
