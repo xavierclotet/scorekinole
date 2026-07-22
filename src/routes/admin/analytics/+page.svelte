@@ -332,30 +332,70 @@
     const colors = getChartColors();
     const baseOpts = getBaseChartOptions(colors);
 
+    const datasets = lineChartSplit
+      ? [
+          {
+            label: m.analytics_registered(),
+            data: lineChartSplit.registered,
+            borderColor: colors.primary,
+            backgroundColor: `${colors.primary}20`,
+            fill: true,
+            tension: 0.3,
+            pointRadius: lineChartSplit.registered.length > 14 ? 0 : 3,
+            pointHoverRadius: 5,
+            borderWidth: 2
+          },
+          {
+            label: m.analytics_anonymous(),
+            data: lineChartSplit.anonymous,
+            borderColor: '#f59e0b',
+            backgroundColor: '#f59e0b20',
+            fill: true,
+            tension: 0.3,
+            pointRadius: lineChartSplit.anonymous.length > 14 ? 0 : 3,
+            pointHoverRadius: 5,
+            borderWidth: 2
+          }
+        ]
+      : [
+          {
+            data: lineChartValues,
+            borderColor: colors.primary,
+            backgroundColor: `${colors.primary}20`,
+            fill: true,
+            tension: 0.3,
+            pointRadius: lineChartValues.length > 14 ? 0 : 3,
+            pointHoverRadius: 5,
+            borderWidth: 2
+          }
+        ];
+
     const chart = new Chart(canvas, {
       type: 'line',
       data: {
         labels: lineChartLabels,
-        datasets: [{
-          data: lineChartValues,
-          borderColor: colors.primary,
-          backgroundColor: `${colors.primary}20`,
-          fill: true,
-          tension: 0.3,
-          pointRadius: lineChartValues.length > 14 ? 0 : 3,
-          pointHoverRadius: 5,
-          borderWidth: 2
-        }]
+        datasets
       },
       options: {
         ...baseOpts,
         plugins: {
           ...baseOpts.plugins,
-          legend: { display: false },
+          legend: {
+            display: lineChartSplit !== null,
+            position: 'bottom',
+            labels: {
+              color: colors.mutedForeground,
+              font: { size: 11 },
+              usePointStyle: true,
+              pointStyleWidth: 8,
+              boxHeight: 8,
+              padding: 10
+            }
+          },
           tooltip: {
             ...baseOpts.plugins.tooltip,
             callbacks: {
-              label: (ctx: any) => ` ${ctx.raw} ${m.analytics_pageViews().toLowerCase()}`
+              label: (ctx: any) => ` ${ctx.dataset.label ? ctx.dataset.label + ': ' : ''}${ctx.raw} ${m.analytics_pageViews().toLowerCase()}`
             }
           }
         },
