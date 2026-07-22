@@ -30,6 +30,12 @@ import {
   isAllowedOrigin,
   ALLOWED_ORIGINS,
   pickClientIp,
+  ipCacheKey,
+  isGeoCacheFresh,
+  parseGeoResponse,
+  buildStatsIncrement,
+  UNKNOWN_GEO,
+  type GeoResult,
 } from "./pageViewCore";
 
 // Telegram secrets
@@ -2239,6 +2245,59 @@ export const syncTournamentSummary = onDocumentWritten(
 // Platform/Browser/User maps + userNames), which the /admin analytics dashboard
 // reads via getDailyStats(). Keep the key derivation in sync with
 // src/lib/utils/pageViewPaths.ts (encodePathKey) and pageViews.ts.
+
+/**
+ * País de una IP, con caché en /ipGeo.
+ *
+ * Las IPs se repiten muchísimo entre visitas, así que la caché hace que las
+ * llamadas externas reales sean una fracción mínima del tráfico. Un fallo
+ * NO se cachea: así la siguiente visita de esa IP vuelve a intentarlo.
+ */
+async function resolveGeo(ip: string): Promise<GeoResult> {
+  if (!ip || ip === "unknown") return UNKNOWN_GEO;
+
+  const db = getDb();
+  const cacheRef = db.collection("ipGeo").doc(ipCacheKey(ip));
+
+  try {
+    const cached = await cacheRef.get();
+    if (cached.exists) {
+      const data = cached.data() ?? {};
+      if (isGeoCacheFresh(data.fetchedAt, Date.now())) {
+        return {
+          countryCode: data.countryCode ?? UNKNOWN_GEO.countryCode,
+          country: data.country ?? UNKNOWN_GEO.country,
+          city: data.city ?? "",
+        };
+      }
+    }
+  } catch (err) {
+    logger.warn(`ipGeo cache read failed for ${ip}`, err);
+  }
+
+  let geo: GeoResult = UNKNOWN_GEO;
+  try {
+    const resp = await fetch(`https://ipwho.is/${encodeURIComponent(ip)}`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    if (resp.ok) {
+      geo = parseGeoResponse(await resp.json());
+    }
+  } catch (err) {
+    logger.warn(`Geo lookup failed for ${ip}`, err);
+  }
+
+  if (geo.countryCode !== UNKNOWN_GEO.countryCode) {
+    try {
+      await cacheRef.set({ ip, ...geo, fetchedAt: Date.now() });
+    } catch (err) {
+      logger.warn(`ipGeo cache write failed for ${ip}`, err);
+    }
+  }
+
+  return geo;
+}
+
 export const onPageViewCreated = onDocumentCreated(
   {
     document: "pageViews/{viewId}",
@@ -2251,16 +2310,36 @@ export const onPageViewCreated = onDocumentCreated(
     const timestamp = typeof pv.timestamp === "number" ? pv.timestamp : Date.now();
     const dateKey = new Date(timestamp).toISOString().split("T")[0];
 
-    // encodePathKey: Firestore map keys cannot contain '/' (and we strip brackets).
-    const normalizedPath = typeof pv.normalizedPath === "string" ? pv.normalizedPath : "/";
-    const pathKey = normalizedPath.replace(/\//g, "_").replace(/[[\]]/g, "") || "_root";
+    // Resolver el país aquí, y no en logPageView, mantiene el request HTTP
+    // rápido: el visitante nunca espera por la API de geolocalización.
+    const geo = await resolveGeo(typeof pv.ip === "string" ? pv.ip : "");
 
-    const userId = typeof pv.userId === "string" ? pv.userId : "unknown";
-    const userKey = userId.replace(/\./g, "_");
-    const deviceType = pv.deviceType || "unknown";
-    const platform = pv.platform || "unknown";
-    const browserName = pv.browserName || "unknown";
-    const userName = pv.userName || "Unknown";
+    // Un update no vuelve a disparar onDocumentCreated: no hay recursión.
+    try {
+      await event.data!.ref.update({
+        countryCode: geo.countryCode,
+        country: geo.country,
+        city: geo.city,
+      });
+    } catch (err) {
+      logger.warn("Failed to enrich page view with geo", err);
+    }
+
+    const isAnonymous = pv.isAnonymous === true;
+
+    const increment = buildStatsIncrement(
+      {
+        normalizedPath: typeof pv.normalizedPath === "string" ? pv.normalizedPath : "/",
+        deviceType: typeof pv.deviceType === "string" ? pv.deviceType : "",
+        platform: typeof pv.platform === "string" ? pv.platform : "web",
+        browserName: typeof pv.browserName === "string" ? pv.browserName : "",
+        countryCode: geo.countryCode,
+        userId: typeof pv.userId === "string" ? pv.userId : "",
+        userName: typeof pv.userName === "string" ? pv.userName : "",
+        isAnonymous,
+      },
+      (n) => FieldValue.increment(n)
+    );
 
     await getDb()
       .collection("pageViewStats")
@@ -2268,14 +2347,8 @@ export const onPageViewCreated = onDocumentCreated(
       .set(
         {
           date: dateKey,
-          totalViews: FieldValue.increment(1),
           updatedAt: FieldValue.serverTimestamp(),
-          viewsByPath: { [pathKey]: FieldValue.increment(1) },
-          viewsByDevice: { [deviceType]: FieldValue.increment(1) },
-          viewsByPlatform: { [platform]: FieldValue.increment(1) },
-          viewsByBrowser: { [browserName]: FieldValue.increment(1) },
-          viewsByUser: { [userKey]: FieldValue.increment(1) },
-          userNames: { [userKey]: userName },
+          ...increment,
         },
         { merge: true }
       );
