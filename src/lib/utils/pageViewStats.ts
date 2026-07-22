@@ -63,17 +63,32 @@ export function viewsForAudience(stat: PageViewDailyStats, audience: Audience): 
 	return stat.registeredViews ?? total;
 }
 
-const NEUTRAL_FLAG = '🏳️';
-
-/** Emoji de bandera a partir del ISO-3166 alpha-2 (indicadores regionales). */
-export function countryFlag(code: string): string {
-	if (typeof code !== 'string') return NEUTRAL_FLAG;
+/**
+ * URL de la bandera en flagcdn.com (Flagpedia, gratuito y sin API key).
+ * Se usa imagen y no el emoji de bandera porque Windows no renderiza los
+ * regional indicators: 🇺🇸 degrada a las letras "US" en Segoe UI Emoji.
+ * null cuando no hay país resuelto ('XX', vacío o código inválido).
+ */
+export function countryFlagUrl(code: string, width: 20 | 40 = 20): string | null {
+	if (typeof code !== 'string') return null;
 	const upper = code.toUpperCase();
-	if (!/^[A-Z]{2}$/.test(upper) || upper === 'XX') return NEUTRAL_FLAG;
+	if (!/^[A-Z]{2}$/.test(upper) || upper === 'XX') return null;
+	return `https://flagcdn.com/w${width}/${upper.toLowerCase()}.png`;
+}
 
-	return String.fromCodePoint(
-		...[...upper].map((c) => 0x1f1e6 + (c.charCodeAt(0) - 65))
-	);
+/**
+ * Nombre del país en español vía Intl.DisplayNames (sin dependencias).
+ * 'XX' → 'Desconocido' (mismo literal que escribe el backend en UNKNOWN_GEO).
+ */
+export function countryName(code: string): string {
+	if (typeof code !== 'string' || !/^[A-Za-z]{2}$/.test(code)) return code || '—';
+	const upper = code.toUpperCase();
+	if (upper === 'XX') return 'Desconocido';
+	try {
+		return new Intl.DisplayNames(['es'], { type: 'region' }).of(upper) ?? upper;
+	} catch {
+		return upper;
+	}
 }
 
 /** Host del referrer, para mostrar en la tabla. '—' si es directo. */

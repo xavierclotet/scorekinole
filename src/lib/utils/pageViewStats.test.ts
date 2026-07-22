@@ -3,7 +3,8 @@ import {
 	readBranch,
 	sumBranches,
 	viewsForAudience,
-	countryFlag,
+	countryFlagUrl,
+	countryName,
 	formatReferrer
 } from './pageViewStats';
 import type { PageViewDailyStats } from '$lib/types/pageView';
@@ -109,20 +110,29 @@ describe('viewsForAudience', () => {
 	});
 });
 
-describe('countryFlag', () => {
-	it('convierte un código ISO en su emoji de bandera', () => {
-		expect(countryFlag('ES')).toBe('🇪🇸');
-		expect(countryFlag('FR')).toBe('🇫🇷');
+describe('countryFlagUrl', () => {
+	it('construye la URL de flagcdn para un código válido', () => {
+		expect(countryFlagUrl('ES')).toBe('https://flagcdn.com/w20/es.png');
+		expect(countryFlagUrl('us', 40)).toBe('https://flagcdn.com/w40/us.png');
 	});
 
-	it('acepta minúsculas', () => {
-		expect(countryFlag('es')).toBe('🇪🇸');
+	it('devuelve null para XX, vacío o códigos inválidos', () => {
+		expect(countryFlagUrl('XX')).toBeNull();
+		expect(countryFlagUrl('')).toBeNull();
+		expect(countryFlagUrl('ESP')).toBeNull();
+	});
+});
+
+describe('countryName', () => {
+	it('resuelve el nombre en español', () => {
+		expect(countryName('ES')).toBe('España');
+		expect(countryName('US')).toBe('Estados Unidos');
+		expect(countryName('fr')).toBe('Francia');
 	});
 
-	it('usa una bandera neutra para XX y para códigos inválidos', () => {
-		expect(countryFlag('XX')).toBe('🏳️');
-		expect(countryFlag('')).toBe('🏳️');
-		expect(countryFlag('ESP')).toBe('🏳️');
+	it('devuelve Desconocido para XX y cae al código o guion en entradas raras', () => {
+		expect(countryName('XX')).toBe('Desconocido');
+		expect(countryName('')).toBe('—');
 	});
 });
 

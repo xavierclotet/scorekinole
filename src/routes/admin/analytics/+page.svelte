@@ -10,7 +10,7 @@
   import { getPageViewsPaginated, getDailyStats } from '$lib/firebase/pageViews';
   import { TRACKED_ROUTES, type PageView, type PageViewDailyStats, type Audience } from '$lib/types/pageView';
   import { decodePathKey } from '$lib/utils/pageViewPaths';
-  import { sumBranches, viewsForAudience, countryFlag, formatReferrer } from '$lib/utils/pageViewStats';
+  import { sumBranches, viewsForAudience, countryFlagUrl, countryName, formatReferrer } from '$lib/utils/pageViewStats';
   import { getChartColors, getBaseChartOptions } from '$lib/utils/chartTheme';
   import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
   import {
@@ -162,7 +162,7 @@
     return Object.entries(totals)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
-      .map(([code, count]) => [`${countryFlag(code)} ${code}`, count] as [string, number]);
+      .map(([code, count]) => [countryName(code), count] as [string, number]);
   })());
 
   let topUsersData = $derived((() => {
@@ -818,14 +818,25 @@
                   </td>
                   <td class="user-cell">
                     {#if pv.isAnonymous}
-                      <span class="anon-badge">{m.analytics_anonymous()}</span>
+                      <span class="anon-badge">{m.analytics_anonymousVisitor()}</span>
                     {:else}
                       <span class="user-name">{pv.userName}</span>
                     {/if}
                   </td>
                   <td class="hide-small">
-                    <span class="country-cell" title={pv.country || ''}>
-                      {countryFlag(pv.countryCode || '')} {pv.countryCode || '—'}
+                    <span class="country-cell" title={countryName(pv.countryCode || '')}>
+                      {#if countryFlagUrl(pv.countryCode || '')}
+                        <img
+                          class="flag-img"
+                          src={countryFlagUrl(pv.countryCode || '')}
+                          srcset="{countryFlagUrl(pv.countryCode || '', 40)} 2x"
+                          alt={pv.countryCode}
+                          width="20"
+                          loading="lazy"
+                        />
+                      {:else}
+                        —
+                      {/if}
                     </span>
                   </td>
                   <td class="hide-small">
@@ -1261,9 +1272,10 @@
 
   .date-info {
     display: flex;
-    flex-direction: column;
-    gap: 0.1rem;
+    align-items: baseline;
+    gap: 0.35rem;
     font-size: 0.78rem;
+    white-space: nowrap;
   }
 
   .date-info small {
@@ -1431,6 +1443,13 @@
     gap: 0.3rem;
     font-size: 0.78rem;
     white-space: nowrap;
+  }
+
+  .flag-img {
+    width: 20px;
+    height: auto;
+    border-radius: 2px;
+    box-shadow: 0 0 1px rgba(0, 0, 0, 0.4);
   }
 
   .referrer-cell,

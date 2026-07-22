@@ -1465,6 +1465,7 @@
   "analytics_allRoutes": "All routes",
   "analytics_allVisitors": "All",
   "analytics_anonymous": "Anonymous",
+  "analytics_anonymousVisitor": "Anonymous",
   "analytics_anonymousVisits": "Anonymous visits",
   "analytics_browser": "Browser",
   "analytics_browserBreakdown": "Browsers",
