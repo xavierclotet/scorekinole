@@ -2,6 +2,14 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.69] - 2026-07-22
+- Analytics: anonymous visitors are now tracked — browser, country (flag), IP and referrer, alongside registered users
+- Analytics: audience filter (All / Registered / Anonymous) across cards, charts and table; new Countries and Browsers charts; two-series visits-over-time chart
+- Analytics: page views flow through the logPageView Cloud Function (spoof-resistant IP capture, origin allowlist, rate limit with hashed buckets, server-side bot filtering by user-agent)
+- Security: direct client writes to /pageViews closed — only the Cloud Function writes; pageViews excluded from the backup tool (restore would hang)
+- Privacy (GDPR): raw page views and the IP-geo cache are purged daily after 90 days; aggregated daily stats are kept
+- Admin analytics UI: country flags as images (Windows cannot render flag emojis), single-line date column, singular "Anonymous" badge
+
 ## [2.5.68] - 2026-07-22
 - Security: direct writes to /contactMessages closed — messages can only be created through the contact form Cloud Function (honeypot, rate limit and field validation can no longer be bypassed)
 - Security: blog translations are HTML-escaped before rendering, so a malicious translation API response can no longer inject markup (XSS)
