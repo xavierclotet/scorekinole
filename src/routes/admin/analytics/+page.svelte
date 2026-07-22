@@ -8,8 +8,9 @@
   import { adminTheme, theme } from '$lib/stores/theme';
   import { currentUser } from '$lib/firebase/auth';
   import { getPageViewsPaginated, getDailyStats } from '$lib/firebase/pageViews';
-  import { TRACKED_ROUTES, type PageView, type PageViewDailyStats } from '$lib/types/pageView';
+  import { TRACKED_ROUTES, type PageView, type PageViewDailyStats, type Audience } from '$lib/types/pageView';
   import { decodePathKey } from '$lib/utils/pageViewPaths';
+  import { sumBranches, viewsForAudience, countryFlag, formatReferrer } from '$lib/utils/pageViewStats';
   import { getChartColors, getBaseChartOptions } from '$lib/utils/chartTheme';
   import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
   import {
@@ -61,6 +62,7 @@
   // Filters
   let routeFilter = $state('all');
   let periodFilter: 'today' | '7d' | '30d' = $state('30d');
+  let audienceFilter: Audience = $state('all');
 
   // Date computation from period
   let dateRange = $derived((() => {
@@ -87,7 +89,8 @@
   // Summary stats derived from dailyStats
   let todayViews = $derived((() => {
     const today = new Date().toISOString().split('T')[0];
-    return dailyStats.find(s => s.date === today)?.totalViews || 0;
+    const stat = dailyStats.find(s => s.date === today);
+    return stat ? viewsForAudience(stat, audienceFilter) : 0;
   })());
 
   let weekViews = $derived((() => {
@@ -97,11 +100,11 @@
     const weekAgoStr = weekAgo.toISOString().split('T')[0];
     return dailyStats
       .filter(s => s.date >= weekAgoStr)
-      .reduce((sum, s) => sum + (s.totalViews || 0), 0);
+      .reduce((sum, s) => sum + viewsForAudience(s, audienceFilter), 0);
   })());
 
   let monthViews = $derived(
-    dailyStats.reduce((sum, s) => sum + (s.totalViews || 0), 0)
+    dailyStats.reduce((sum, s) => sum + viewsForAudience(s, audienceFilter), 0)
   );
 
   let uniqueSessionsCount = $derived((() => {
@@ -115,47 +118,51 @@
     return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
   }));
 
-  let lineChartValues = $derived(dailyStats.map(s => s.totalViews || 0));
+  let lineChartValues = $derived(
+    dailyStats.map(s => viewsForAudience(s, audienceFilter))
+  );
+
+  // Segunda serie del gráfico temporal: solo con el filtro en 'all' tiene
+  // sentido separar registrados de anónimos; filtrado ya es una sola serie.
+  let lineChartSplit = $derived(
+    audienceFilter === 'all'
+      ? {
+          registered: dailyStats.map(s => viewsForAudience(s, 'registered')),
+          anonymous: dailyStats.map(s => viewsForAudience(s, 'anonymous'))
+        }
+      : null
+  );
 
   let topPagesData = $derived((() => {
-    const totals: Record<string, number> = {};
-    for (const s of dailyStats) {
-      if (s.viewsByPath) {
-        for (const [pathKey, count] of Object.entries(s.viewsByPath)) {
-          // decodePathKey restores tracked routes exactly ('[id]' included);
-          // the old inline replace() showed '/tournaments/id'
-          const path = decodePathKey(pathKey);
-          totals[path] = (totals[path] || 0) + (count || 0);
-        }
-      }
-    }
+    const totals = sumBranches(dailyStats, 'viewsByPath', audienceFilter);
     return Object.entries(totals)
+      .map(([pathKey, count]) => [decodePathKey(pathKey), count] as [string, number])
       .sort((a, b) => b[1] - a[1])
       .slice(0, 8);
   })());
 
-  let deviceTotals = $derived((() => {
-    const totals: Record<string, number> = { mobile: 0, tablet: 0, desktop: 0 };
-    for (const s of dailyStats) {
-      if (s.viewsByDevice) {
-        for (const [device, count] of Object.entries(s.viewsByDevice)) {
-          totals[device] = (totals[device] || 0) + (count || 0);
-        }
-      }
-    }
-    return totals;
-  })());
+  let deviceTotals = $derived({
+    mobile: 0,
+    tablet: 0,
+    desktop: 0,
+    ...sumBranches(dailyStats, 'viewsByDevice', audienceFilter)
+  });
 
-  let platformTotals = $derived((() => {
-    const totals: Record<string, number> = { web: 0, android: 0, ios: 0 };
-    for (const s of dailyStats) {
-      if (s.viewsByPlatform) {
-        for (const [platform, count] of Object.entries(s.viewsByPlatform)) {
-          totals[platform] = (totals[platform] || 0) + (count || 0);
-        }
-      }
-    }
-    return totals;
+  let platformTotals = $derived({
+    web: 0,
+    android: 0,
+    ios: 0,
+    ...sumBranches(dailyStats, 'viewsByPlatform', audienceFilter)
+  });
+
+  let browserTotals = $derived(sumBranches(dailyStats, 'viewsByBrowser', audienceFilter));
+
+  let topCountriesData = $derived((() => {
+    const totals = sumBranches(dailyStats, 'viewsByCountry', audienceFilter);
+    return Object.entries(totals)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([code, count]) => [`${countryFlag(code)} ${code}`, count] as [string, number]);
   })());
 
   let topUsersData = $derived((() => {
@@ -173,18 +180,27 @@
         }
       }
     }
+    // viewsByUser no va partido por audiencia: los anónimos se agrupan todos
+    // bajo _anon, así que el filtro se aplica quitando o aislando esa clave.
     return Object.entries(totals)
+      .filter(([key]) => {
+        if (audienceFilter === 'registered') return key !== '_anon';
+        if (audienceFilter === 'anonymous') return key === '_anon';
+        return true;
+      })
       .sort((a, b) => b[1] - a[1])
       .slice(0, 8)
       .map(([key, count]) => [names[key] || key, count] as [string, number]);
   })());
 
   // Chart keys for theme reactivity
-  let lineChartKey = $derived(`line-${$theme}-${dailyStats.length}-${periodFilter}`);
-  let barChartKey = $derived(`bar-${$theme}-${topPagesData.length}-${periodFilter}`);
+  let lineChartKey = $derived(`line-${$theme}-${dailyStats.length}-${periodFilter}-${audienceFilter}`);
+  let barChartKey = $derived(`bar-${$theme}-${topPagesData.length}-${periodFilter}-${audienceFilter}`);
   let deviceChartKey = $derived(`device-${$theme}-${JSON.stringify(deviceTotals)}`);
   let platformChartKey = $derived(`platform-${$theme}-${JSON.stringify(platformTotals)}`);
-  let usersChartKey = $derived(`users-${$theme}-${topUsersData.length}-${periodFilter}`);
+  let browserChartKey = $derived(`browser-${$theme}-${JSON.stringify(browserTotals)}`);
+  let usersChartKey = $derived(`users-${$theme}-${topUsersData.length}-${periodFilter}-${audienceFilter}`);
+  let countryChartKey = $derived(`country-${$theme}-${topCountriesData.length}-${periodFilter}-${audienceFilter}`);
 
   // Request generation: each loadData call invalidates the previous one, so
   // a slow response from an old filter combination can never overwrite the
@@ -198,6 +214,7 @@
     // Access reactive values to trigger on filter changes
     const _period = periodFilter;
     const _route = routeFilter;
+    const _audience = audienceFilter;
     if ($currentUser) {
       loadData();
     }
@@ -224,7 +241,8 @@
       const filters = {
         dateFrom: dateRange.from.getTime(),
         dateTo: dateRange.to.getTime(),
-        normalizedPath: routeFilter !== 'all' ? routeFilter : undefined
+        normalizedPath: routeFilter !== 'all' ? routeFilter : undefined,
+        audience: audienceFilter
       };
 
       const [viewsResult, statsResult] = await Promise.all([
@@ -261,7 +279,8 @@
       const filters = {
         dateFrom: dateRange.from.getTime(),
         dateTo: dateRange.to.getTime(),
-        normalizedPath: routeFilter !== 'all' ? routeFilter : undefined
+        normalizedPath: routeFilter !== 'all' ? routeFilter : undefined,
+        audience: audienceFilter
       };
       const result = await getPageViewsPaginated(pageSize, lastDoc, filters);
 
@@ -543,6 +562,57 @@
       ios: 'iOS'
     });
   }
+
+  function initBrowserChart(canvas: HTMLCanvasElement) {
+    return initDonutChart(canvas, browserTotals, {});
+  }
+
+  function initCountryChart(canvas: HTMLCanvasElement) {
+    const colors = getChartColors();
+    const baseOpts = getBaseChartOptions(colors);
+
+    const chart = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels: topCountriesData.map(([label]) => label),
+        datasets: [{
+          data: topCountriesData.map(([, count]) => count),
+          backgroundColor: '#8b5cf660',
+          borderColor: '#8b5cf6',
+          borderWidth: 1,
+          borderRadius: 4
+        }]
+      },
+      options: {
+        ...baseOpts,
+        indexAxis: 'y' as const,
+        plugins: {
+          ...baseOpts.plugins,
+          legend: { display: false }
+        },
+        scales: {
+          x: {
+            ...baseOpts.scales.x,
+            beginAtZero: true,
+            ticks: {
+              ...baseOpts.scales.x.ticks,
+              stepSize: 1,
+              callback: (val: any) => Number.isInteger(val) ? val : ''
+            }
+          },
+          y: {
+            ...baseOpts.scales.y,
+            ticks: {
+              ...baseOpts.scales.y.ticks,
+              font: { size: 10 }
+            }
+          }
+        }
+      }
+    });
+
+    return { destroy() { chart.destroy(); } };
+  }
 </script>
 
 <SuperAdminGuard>
@@ -573,6 +643,18 @@
           </button>
           <button class="period-tab" class:active={periodFilter === '30d'} onclick={() => (periodFilter = '30d')}>
             {m.analytics_last30days()}
+          </button>
+        </div>
+
+        <div class="period-tabs audience-tabs">
+          <button class="period-tab" class:active={audienceFilter === 'all'} onclick={() => (audienceFilter = 'all')}>
+            {m.analytics_allVisitors()}
+          </button>
+          <button class="period-tab" class:active={audienceFilter === 'registered'} onclick={() => (audienceFilter = 'registered')}>
+            {m.analytics_registered()}
+          </button>
+          <button class="period-tab" class:active={audienceFilter === 'anonymous'} onclick={() => (audienceFilter = 'anonymous')}>
+            {m.analytics_anonymous()}
           </button>
         </div>
 
@@ -633,6 +715,12 @@
           {/key}
         </ChartWrapper>
 
+        <ChartWrapper title={m.analytics_countryBreakdown()} hasData={topCountriesData.length > 0} isLoading={isLoadingCharts} autoHeight={true}>
+          {#key countryChartKey}
+            <canvas use:initCountryChart style="min-height: {Math.max(120, topCountriesData.length * 28)}px"></canvas>
+          {/key}
+        </ChartWrapper>
+
         <ChartWrapper title={m.analytics_deviceBreakdown()} hasData={Object.values(deviceTotals).some(v => v > 0)} isLoading={isLoadingCharts}>
           {#key deviceChartKey}
             <canvas use:initDeviceChart></canvas>
@@ -642,6 +730,12 @@
         <ChartWrapper title={m.analytics_platformBreakdown()} hasData={Object.values(platformTotals).some(v => v > 0)} isLoading={isLoadingCharts}>
           {#key platformChartKey}
             <canvas use:initPlatformChart></canvas>
+          {/key}
+        </ChartWrapper>
+
+        <ChartWrapper title={m.analytics_browserBreakdown()} hasData={Object.values(browserTotals).some(v => v > 0)} isLoading={isLoadingCharts}>
+          {#key browserChartKey}
+            <canvas use:initBrowserChart></canvas>
           {/key}
         </ChartWrapper>
       </div>
@@ -664,9 +758,12 @@
               <tr>
                 <th>{m.analytics_path()}</th>
                 <th>{m.analytics_user()}</th>
+                <th class="hide-small">{m.analytics_country()}</th>
                 <th class="hide-small">{m.analytics_device()}</th>
                 <th class="hide-small">{m.analytics_platform()}</th>
                 <th class="hide-mobile">{m.analytics_browser()}</th>
+                <th class="hide-mobile">{m.analytics_referrer()}</th>
+                <th class="hide-mobile">{m.analytics_ip()}</th>
                 <th class="time-col">{m.admin_date()}</th>
               </tr>
             </thead>
@@ -677,7 +774,16 @@
                     <span class="path-badge">{formatPath(pv.normalizedPath)}</span>
                   </td>
                   <td class="user-cell">
-                    <span class="user-name">{pv.userName}</span>
+                    {#if pv.isAnonymous}
+                      <span class="anon-badge">{m.analytics_anonymous()}</span>
+                    {:else}
+                      <span class="user-name">{pv.userName}</span>
+                    {/if}
+                  </td>
+                  <td class="hide-small">
+                    <span class="country-cell" title={pv.country || ''}>
+                      {countryFlag(pv.countryCode || '')} {pv.countryCode || '—'}
+                    </span>
                   </td>
                   <td class="hide-small">
                     <span class="device-badge">
@@ -703,6 +809,12 @@
                   </td>
                   <td class="hide-mobile">
                     <span class="browser-text">{pv.browserName}</span>
+                  </td>
+                  <td class="hide-mobile">
+                    <span class="referrer-cell">{formatReferrer(pv.referrer || '')}</span>
+                  </td>
+                  <td class="hide-mobile">
+                    <span class="ip-cell">{pv.ip || '—'}</span>
                   </td>
                   <td class="time-col">
                     <div class="date-info">
@@ -1249,5 +1361,45 @@
     .stat-card {
       padding: 0.5rem;
     }
+  }
+
+  .audience-tabs {
+    margin-left: 0.5rem;
+  }
+
+  .anon-badge {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    background: #6666661a;
+    color: #666;
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+
+  .analytics-container:is([data-theme='dark'], [data-theme='violet']) .anon-badge {
+    background: #8b9bb31a;
+    color: #8b9bb3;
+  }
+
+  .country-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.78rem;
+    white-space: nowrap;
+  }
+
+  .referrer-cell,
+  .ip-cell {
+    font-size: 0.75rem;
+    color: #666;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .analytics-container:is([data-theme='dark'], [data-theme='violet']) .referrer-cell,
+  .analytics-container:is([data-theme='dark'], [data-theme='violet']) .ip-cell {
+    color: #8b9bb3;
   }
 </style>
