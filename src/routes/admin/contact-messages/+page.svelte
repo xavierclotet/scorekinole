@@ -80,9 +80,42 @@
     loadInitial();
   }
 
-  async function toggleRead(msg: ContactMessage) {
-    await markContactMessageRead(msg.id, !msg.read);
-    messages = messages.map((m) => (m.id === msg.id ? { ...m, read: !m.read } : m));
+  // The badge counts the active filter. A row stays in the list even once it
+  // no longer matches (it would vanish mid-read), so the count is nudged here.
+  function nudgeCount(f: typeof filter, read: boolean, undo = false) {
+    const dir = (read ? -1 : 1) * (undo ? -1 : 1);
+    if (f === 'unread') totalCount = Math.max(0, totalCount + dir);
+    else if (f === 'read') totalCount = Math.max(0, totalCount - dir);
+  }
+
+  async function setRead(msg: ContactMessage, read: boolean) {
+    if (msg.read === read) return;
+    const f = filter;
+    // Optimistic: the row reacts immediately, the write follows.
+    messages = messages.map((x) => (x.id === msg.id ? { ...x, read } : x));
+    nudgeCount(f, read);
+    try {
+      await markContactMessageRead(msg.id, read);
+    } catch (e) {
+      // A filter switch mid-flight already reloaded list and count; nothing to undo.
+      if (filter === f) {
+        messages = messages.map((x) => (x.id === msg.id ? { ...x, read: !read } : x));
+        nudgeCount(f, read, true);
+      }
+      console.error('Failed to update read state', e);
+    }
+  }
+
+  function toggleRead(msg: ContactMessage) {
+    setRead(msg, !msg.read);
+  }
+
+  function toggleExpand(msg: ContactMessage) {
+    const opening = expandedId !== msg.id;
+    expandedId = opening ? msg.id : null;
+    // Opening a message is reading it. Only on open, never on collapse, so a
+    // deliberate "mark unread" on an open row isn't undone.
+    if (opening) setRead(msg, true);
   }
 
   async function handleDelete(msg: ContactMessage) {
@@ -163,7 +196,7 @@
                 </td>
                 <td class="date-col hide-small">{formatDate(msg.createdAt)}</td>
                 <td class="actions-col">
-                  <button class="icon-btn" onclick={() => expandedId = expandedId === msg.id ? null : msg.id} title="Expand">
+                  <button class="icon-btn" onclick={() => toggleExpand(msg)} title="Expand">
                       {#if expandedId === msg.id}
                         <ChevronUp class="size-4" />
                       {:else}
