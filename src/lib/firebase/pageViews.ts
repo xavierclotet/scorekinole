@@ -1,10 +1,14 @@
 import { db, isFirebaseEnabled } from './config';
 import { currentUser } from './auth';
 import { isAdmin } from './admin';
-import type { PageView, PageViewDailyStats, PaginatedPageViewsResult } from '$lib/types/pageView';
+import type {
+	PageView,
+	PageViewDailyStats,
+	PaginatedPageViewsResult,
+	Audience
+} from '$lib/types/pageView';
 import {
 	collection,
-	addDoc,
 	getDocs,
 	getCountFromServer,
 	query,
@@ -12,32 +16,11 @@ import {
 	orderBy,
 	limit,
 	startAfter,
-	serverTimestamp,
 	type QueryDocumentSnapshot,
 	type DocumentData
 } from 'firebase/firestore';
 import { get } from 'svelte/store';
 import { browser } from '$app/environment';
-
-/**
- * Write a page view to Firestore + update daily aggregation
- */
-export async function writePageView(pageView: Omit<PageView, 'id'>): Promise<void> {
-	if (!browser || !isFirebaseEnabled() || !db) return;
-
-	try {
-		// Write the raw page view only. The daily `pageViewStats` aggregation is
-		// owned by the onPageViewCreated Cloud Function (Admin SDK): pageViewStats is
-		// admin-write-only by Firestore rules, so a client increment here would be
-		// rejected with "Missing or insufficient permissions" for every non-admin.
-		await addDoc(collection(db, 'pageViews'), {
-			...pageView,
-			createdAt: serverTimestamp()
-		});
-	} catch (error) {
-		console.warn('Failed to write page view:', error);
-	}
-}
 
 /**
  * Get page views with pagination and optional filters (admin only)
@@ -49,6 +32,7 @@ export async function getPageViewsPaginated(
 		dateFrom?: number;
 		dateTo?: number;
 		normalizedPath?: string;
+		audience?: Audience;
 	}
 ): Promise<PaginatedPageViewsResult> {
 	const emptyResult: PaginatedPageViewsResult = {
@@ -78,6 +62,11 @@ export async function getPageViewsPaginated(
 		}
 		if (filters?.normalizedPath && filters.normalizedPath !== 'all') {
 			constraints.push(where('normalizedPath', '==', filters.normalizedPath));
+		}
+		if (filters?.audience === 'anonymous') {
+			constraints.push(where('isAnonymous', '==', true));
+		} else if (filters?.audience === 'registered') {
+			constraints.push(where('isAnonymous', '==', false));
 		}
 
 		constraints.push(orderBy('timestamp', 'desc'));

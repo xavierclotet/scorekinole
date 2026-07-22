@@ -3,7 +3,6 @@ import { isFirebaseEnabled } from '$lib/firebase/config';
 import { currentUser } from '$lib/firebase/auth';
 import { APP_VERSION } from '$lib/constants';
 import { get } from 'svelte/store';
-import type { PageView } from '$lib/types/pageView';
 import { normalizePath } from './pageViewPaths';
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -38,15 +37,27 @@ function getBrowserName(): string {
 	return 'Other';
 }
 
-function getPlatform(): 'web' {
-	return 'web';
+/**
+ * Solo el referrer EXTERNO interesa: de dónde llega la gente al sitio. Una
+ * navegación interna reportaría nuestro propio dominio y ensuciaría los datos.
+ */
+function getExternalReferrer(): string {
+	const ref = document.referrer;
+	if (!ref) return '';
+	try {
+		if (new URL(ref).hostname === window.location.hostname) return '';
+	} catch {
+		return '';
+	}
+	return ref.slice(0, 400);
 }
 
+/**
+ * En DEV no se trackea: si no, navegar en local ensuciaría las métricas de
+ * producción (dev apunta a la Firestore real, no a emuladores).
+ */
 export function trackPageView(path: string): void {
 	if (!browser || !isFirebaseEnabled() || import.meta.env.DEV) return;
-
-	const user = get(currentUser);
-	if (!user) return;
 
 	if (path === lastTrackedPath) return;
 
@@ -58,29 +69,41 @@ export function trackPageView(path: string): void {
 	}, DEBOUNCE_MS);
 }
 
+/**
+ * Las visitas van a la Cloud Function logPageView, no directamente a Firestore:
+ * es el servidor el que ve la IP del visitante (la app es adapter-static, sin
+ * SSR). Las reglas deniegan el create desde cliente, así que esta es la única vía.
+ */
 async function sendPageView(path: string): Promise<void> {
 	const user = get(currentUser);
-	if (!user) return;
 
-	const pageView: Omit<PageView, 'id'> = {
+	const payload = {
 		path,
 		normalizedPath: normalizePath(path),
-		timestamp: Date.now(),
 		sessionId: getSessionId(),
-		userId: user.id,
-		userName: user.name || 'Unknown',
-		platform: getPlatform(),
 		deviceType: getDeviceType(),
 		browserName: getBrowserName(),
 		screenSize: `${window.innerWidth}x${window.innerHeight}`,
 		language: navigator.language,
-		appVersion: APP_VERSION
+		appVersion: APP_VERSION,
+		referrer: getExternalReferrer(),
+		userId: user?.id ?? '',
+		userName: user ? user.name || 'Unknown' : '',
+		isAnonymous: !user
 	};
 
+	const url = `https://europe-west1-${import.meta.env.VITE_FIREBASE_PROJECT_ID}.cloudfunctions.net/logPageView`;
+
 	try {
-		const { writePageView } = await import('$lib/firebase/pageViews');
-		await writePageView(pageView);
+		await fetch(url, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(payload),
+			// Sobrevive a que el usuario navegue fuera antes de que responda
+			keepalive: true
+		});
 	} catch (error) {
+		// El analytics nunca debe afectar a la navegación
 		console.warn('Failed to log page view:', error);
 	}
 }
