@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { browser } from '$app/environment';
@@ -9,8 +10,10 @@
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import { theme } from '$lib/stores/theme';
 	import { blogPosts } from '$lib/content/blog';
+	import { getBlogViews } from '$lib/firebase/blogStats';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import Calendar from '@lucide/svelte/icons/calendar';
+	import Eye from '@lucide/svelte/icons/eye';
 	import Tag from '@lucide/svelte/icons/tag';
 	import X from '@lucide/svelte/icons/x';
 
@@ -56,6 +59,12 @@
 			? sortedPosts.filter((p) => p.tags.includes(activeTag))
 			: sortedPosts
 	);
+
+	// Visualizaciones públicas por slug; {} mientras carga o si falla
+	let blogViews = $state<Record<string, number>>({});
+	onMount(async () => {
+		blogViews = await getBlogViews();
+	});
 
 	function setTag(tag: string) {
 		if (tag === activeTag) {
@@ -147,6 +156,12 @@
 								<Calendar size={14} />
 								{formatDate(post.date)}
 							</span>
+							{#if blogViews[post.slug]}
+								<span class="post-views" title={locale === 'es' ? 'Visualizaciones' : 'Views'}>
+									<Eye size={14} />
+									{blogViews[post.slug].toLocaleString(locale === 'en' ? 'en-US' : 'es-ES')}
+								</span>
+							{/if}
 						</div>
 						<h2 class="post-title">{post.title}</h2>
 						<p class="post-desc">{post.description}</p>
@@ -339,6 +354,12 @@
 	}
 
 	.post-date {
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+	}
+
+	.post-views {
 		display: flex;
 		align-items: center;
 		gap: 0.35rem;

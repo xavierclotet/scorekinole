@@ -8,6 +8,7 @@
   import { adminTheme, theme } from '$lib/stores/theme';
   import { currentUser } from '$lib/firebase/auth';
   import { getPageViewsPaginated, getDailyStats } from '$lib/firebase/pageViews';
+  import { backfillBlogStats } from '$lib/firebase/blogStats';
   import { TRACKED_ROUTES, type PageView, type PageViewDailyStats, type Audience } from '$lib/types/pageView';
   import { decodePathKey } from '$lib/utils/pageViewPaths';
   import { todayLocalStr } from '$lib/utils/analyticsDay';
@@ -64,6 +65,25 @@
   let routeFilter = $state('all');
   let periodFilter: 'today' | '7d' | '30d' = $state('30d');
   let audienceFilter: Audience = $state('all');
+
+  // Backfill one-off de /blogStats desde el histórico de pageViewStats
+  let backfillingBlog = $state(false);
+  let blogBackfillResult = $state('');
+
+  async function runBlogBackfill() {
+    if (backfillingBlog) return;
+    backfillingBlog = true;
+    blogBackfillResult = '';
+    try {
+      const bySlug = await backfillBlogStats();
+      const total = Object.values(bySlug).reduce((a, b) => a + b, 0);
+      blogBackfillResult = `${Object.keys(bySlug).length} posts · ${total} visitas`;
+    } catch (err) {
+      console.error('Blog backfill failed:', err);
+      blogBackfillResult = 'Error';
+    }
+    backfillingBlog = false;
+  }
 
   // Date computation from period
   let dateRange = $derived((() => {
@@ -681,6 +701,12 @@
           </div>
         </div>
         <div class="header-actions">
+          {#if blogBackfillResult}
+            <span class="backfill-result">{blogBackfillResult}</span>
+          {/if}
+          <button class="backfill-btn" onclick={runBlogBackfill} disabled={backfillingBlog} title="Recalcular visualizaciones del blog desde el histórico">
+            {backfillingBlog ? 'Backfilling…' : 'Backfill blog'}
+          </button>
           <ThemeToggle />
         </div>
       </div>
@@ -951,6 +977,33 @@
     display: flex;
     align-items: center;
     gap: 1rem;
+  }
+
+  .backfill-btn {
+    padding: 0.4rem 0.75rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--muted-foreground);
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .backfill-btn:hover:not(:disabled) {
+    color: var(--foreground);
+    border-color: var(--primary);
+  }
+
+  .backfill-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .backfill-result {
+    font-size: 0.75rem;
+    color: var(--muted-foreground);
   }
 
   .back-btn {

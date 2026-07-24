@@ -10,6 +10,7 @@ import {
   parseGeoResponse,
   encodePathKey,
   buildStatsIncrement,
+  blogSlugFromPath,
   GEO_CACHE_TTL_MS,
   UNKNOWN_GEO,
 } from './pageViewCore';
@@ -355,5 +356,43 @@ describe('buildStatsIncrement', () => {
     expect(out.viewsByDevice).toEqual({ anon: { unknown: { __inc: 1 } } });
     expect(out.viewsByBrowser).toEqual({ anon: { unknown: { __inc: 1 } } });
     expect(out.viewsByCountry).toEqual({ anon: { XX: { __inc: 1 } } });
+  });
+});
+
+describe('blogSlugFromPath', () => {
+  it('extrae el slug de un path de post', () => {
+    expect(blogSlugFromPath('/blog/como-anotar-puntos-partido-amistoso')).toBe(
+      'como-anotar-puntos-partido-amistoso'
+    );
+  });
+
+  it('devuelve null para el índice del blog', () => {
+    expect(blogSlugFromPath('/blog')).toBeNull();
+    expect(blogSlugFromPath('/blog/')).toBeNull();
+  });
+
+  it('devuelve null para rutas fuera del blog', () => {
+    expect(blogSlugFromPath('/')).toBeNull();
+    expect(blogSlugFromPath('/ranking')).toBeNull();
+    expect(blogSlugFromPath('/blogx/foo')).toBeNull();
+  });
+
+  it('devuelve null para subrutas más profundas', () => {
+    expect(blogSlugFromPath('/blog/foo/bar')).toBeNull();
+  });
+
+  it('rechaza caracteres fuera de [a-z0-9-]', () => {
+    expect(blogSlugFromPath('/blog/Foo')).toBeNull();
+    expect(blogSlugFromPath('/blog/foo_bar')).toBeNull();
+    expect(blogSlugFromPath('/blog/foo.bar')).toBeNull();
+  });
+
+  it('acepta 100 caracteres y rechaza 101', () => {
+    expect(blogSlugFromPath('/blog/' + 'a'.repeat(100))).toBe('a'.repeat(100));
+    expect(blogSlugFromPath('/blog/' + 'a'.repeat(101))).toBeNull();
+  });
+
+  it('rechaza input no-string', () => {
+    expect(blogSlugFromPath(undefined as unknown as string)).toBeNull();
   });
 });

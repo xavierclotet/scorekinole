@@ -12,12 +12,12 @@ export interface BlogPost {
 export const blogPosts: BlogPost[] = [
 	{
 		slug: 'como-anotar-puntos-partido-amistoso',
-		title: 'Cómo anotar puntos en un partido amistoso: por puntos vs por rondas',
-		description: 'Descubre cómo se anota un partido amistoso de crokinole en Scorekinole: la diferencia entre el modo "por puntos" y "por rondas", y cómo sumar y restar puntos con un simple toque o deslizando el dedo.',
+		title: 'Cómo anotar puntos en un partido amistoso: por puntos, por rondas o Counter',
+		description: 'Descubre cómo se anota un partido amistoso de crokinole en Scorekinole: la diferencia entre los modos "por puntos", "por rondas" y "Counter", y cómo sumar y restar puntos con un simple toque o deslizando el dedo.',
 		date: '2026-07-17',
 		author: 'Scorekinole Team',
 		image: '/og-image.png',
-		content: `Cuando juegas un partido amistoso en Scorekinole tienes dos formas de decidir cuándo termina la partida: **por puntos** o **por rondas**. Aquí te explicamos la diferencia y cómo se anota realmente en la pantalla de juego.
+		content: `Cuando juegas un partido amistoso en Scorekinole tienes tres formas de decidir cuándo termina la partida: **por puntos**, **por rondas** o el modo **Counter**. Aquí te explicamos la diferencia y cómo se anota realmente en la pantalla de juego.
 
 ## Cómo se suman los puntos: toca y desliza
 
@@ -36,11 +36,17 @@ Eliges un número objetivo (normalmente 7, 9 u 11) y gana el primer equipo en ll
 
 En lugar de un objetivo de puntos, se juega un número fijo de rondas (por ejemplo, 4). Cuando la diferencia de puntos anotados en la ronda llega a 2 (por ejemplo 2-0 o 1-1), la ronda se cierra sola, el marcador de ronda avanza y el hammer (última piedra) pasa al otro equipo. Al final de las N rondas, gana quien tenga más puntos acumulados.
 
+## Modo "Counter"
+
+¿Solo quieres un marcador gigante, sin más? El modo **Counter** es la opción más simple de las tres: dos marcadores independientes donde cada toque suma un incremento fijo que eliges tú (1, 5, 50 o 100 puntos — 5 por defecto), y gana el primer equipo que llega a la puntuación objetivo (100 por defecto), sin necesidad de ventaja de 2.
+
+Aquí no hay hammer, ni 20s, ni rondas: solo dos números grandes y una carrera hasta el objetivo. Y tranquilo con los dedos rápidos — al llegar al objetivo la app pide confirmación antes de dar la partida por terminada, así que un toque accidental siempre se puede deshacer.
+
 ## Extras opcionales
 
-Desde la configuración del partido puedes activar **Hammer** (quién tira último cada ronda), **20s** (discos en el agujero central, útiles para desempates) y **Mejor de N** (encadenar varias partidas). Ninguno es obligatorio — puedes jugar a pelo si quieres máxima rapidez.
+En los modos por puntos y por rondas puedes activar desde la configuración del partido **Hammer** (quién tira último cada ronda), **20s** (discos en el agujero central, útiles para desempates) y **Mejor de N** (encadenar varias partidas). Ninguno es obligatorio — puedes jugar a pelo si quieres máxima rapidez. El modo Counter prescinde de todos ellos a propósito: es su gracia.
 
-¿Todavía no lo has probado? Abre Scorekinole, pulsa "Nuevo Juego" y elige tu modo — llevar el marcador de crokinole nunca fue tan rápido.`,
+¿Todavía no lo has probado? Abre Scorekinole, pulsa "Nuevo Juego" y elige uno de los tres modos — llevar el marcador de crokinole nunca fue tan rápido.`,
 		tags: ['scorekinole', 'tutorial', 'guía', 'crokinole', 'amistoso']
 	},
 	{

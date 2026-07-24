@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { getLocale } from '$lib/paraglide/runtime.js';
@@ -8,9 +9,11 @@
 	import { theme } from '$lib/stores/theme';
 	import { blogPosts, type BlogPost } from '$lib/content/blog';
 	import { renderMarkdown } from '$lib/utils/blogMarkdown';
+	import { getBlogViews } from '$lib/firebase/blogStats';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import ArrowRight from '@lucide/svelte/icons/arrow-right';
 	import Calendar from '@lucide/svelte/icons/calendar';
+	import Eye from '@lucide/svelte/icons/eye';
 	import User from '@lucide/svelte/icons/user';
 	import Languages from '@lucide/svelte/icons/languages';
 
@@ -26,6 +29,13 @@
 	let translatedContent = $state<string | null>(null);
 	let showTranslation = $state(false);
 	let translationError = $state<string | null>(null);
+
+	// Visualizaciones públicas por slug; {} mientras carga o si falla
+	let blogViews = $state<Record<string, number>>({});
+	onMount(async () => {
+		blogViews = await getBlogViews();
+	});
+	let views = $derived(post ? (blogViews[post.slug] ?? 0) : 0);
 
 	// Reset translation state when navigating to another post
 	$effect(() => {
@@ -185,6 +195,12 @@
 						<User size={14} />
 						{post.author}
 					</span>
+					{#if views > 0}
+						<span class="meta-item" title={locale === 'es' ? 'Visualizaciones' : 'Views'}>
+							<Eye size={14} />
+							{views.toLocaleString(locale === 'en' ? 'en-US' : 'es-ES')}
+						</span>
+					{/if}
 				</div>
 
 				<h1 class="post-title">{post.title}</h1>

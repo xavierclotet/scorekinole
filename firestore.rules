@@ -318,6 +318,16 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Contadores públicos de visualizaciones por post del blog. Los escribe
+    // la CF onPageViewCreated (Admin SDK, salta las rules); solo números,
+    // sin PII, así que la lectura es pública. El create/update de admin
+    // habilita el botón one-off de backfill en /admin/analytics.
+    match /blogStats/{slug} {
+      allow read: if true;
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
+
     // ---------------------------------------------------------------
     // Contact messages
     // ---------------------------------------------------------------

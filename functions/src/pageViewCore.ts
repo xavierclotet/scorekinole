@@ -284,3 +284,17 @@ export function buildStatsIncrement(
     userNames: { [userKey]: userName },
   };
 }
+
+/**
+ * Extrae el slug de un path de detalle de post del blog.
+ *
+ * Solo /blog/<slug> con minúsculas/dígitos/guiones cuenta: /blog a secas,
+ * subrutas más profundas o caracteres raros devuelven null. El slug se usa
+ * como ID de documento en /blogStats, así que el formato estricto también
+ * evita IDs basura.
+ */
+export function blogSlugFromPath(normalizedPath: string): string | null {
+  if (typeof normalizedPath !== "string") return null;
+  const match = /^\/blog\/([a-z0-9-]{1,100})$/.exec(normalizedPath);
+  return match ? match[1] : null;
+}

@@ -36,6 +36,7 @@ import {
   isGeoCacheFresh,
   parseGeoResponse,
   buildStatsIncrement,
+  blogSlugFromPath,
   UNKNOWN_GEO,
   type GeoResult,
 } from "./pageViewCore";
@@ -2484,6 +2485,25 @@ export const onPageViewCreated = onDocumentCreated(
         },
         { merge: true }
       );
+
+    // Contador público por post del blog: /blogStats/<slug> alimenta las
+    // visualizaciones que muestra el blog (lectura pública, solo números).
+    const blogSlug = blogSlugFromPath(
+      typeof pv.normalizedPath === "string" ? pv.normalizedPath : ""
+    );
+    if (blogSlug) {
+      try {
+        await getDb().collection("blogStats").doc(blogSlug).set(
+          {
+            views: FieldValue.increment(1),
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+      } catch (err) {
+        logger.warn("Failed to increment blog view count", err);
+      }
+    }
   }
 );
 

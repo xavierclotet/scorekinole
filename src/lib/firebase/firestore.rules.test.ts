@@ -1019,6 +1019,53 @@ describe('PageViews', () => {
 });
 
 // -------------------------------------------------------------------------
+// BlogStats (contadores públicos de visualizaciones del blog)
+// -------------------------------------------------------------------------
+
+describe('BlogStats', () => {
+	async function setupBlogStat() {
+		await testEnv.withSecurityRulesDisabled(async (ctx) => {
+			await setDoc(doc(ctx.firestore(), 'blogStats', 'mi-post'), { views: 42 });
+		});
+	}
+
+	it('BS1 — anónimo puede leer blogStats', async () => {
+		await setupBlogStat();
+		const ctx = anonCtx();
+		await assertSucceeds(getDoc(doc(ctx.firestore(), 'blogStats', 'mi-post')));
+	});
+
+	it('BS2 — usuario normal NO puede escribir blogStats', async () => {
+		const ctx = userCtx('regular-user');
+		await assertFails(
+			setDoc(doc(ctx.firestore(), 'blogStats', 'mi-post'), { views: 9999 })
+		);
+	});
+
+	it('BS3 — anónimo NO puede escribir blogStats', async () => {
+		const ctx = anonCtx();
+		await assertFails(
+			setDoc(doc(ctx.firestore(), 'blogStats', 'mi-post'), { views: 1 })
+		);
+	});
+
+	it('BS4 — admin puede escribir blogStats (backfill)', async () => {
+		await setupUser('admin-uid', { isAdmin: true });
+		const ctx = userCtx('admin-uid');
+		await assertSucceeds(
+			setDoc(doc(ctx.firestore(), 'blogStats', 'mi-post'), { views: 10 })
+		);
+	});
+
+	it('BS5 — admin NO puede borrar blogStats', async () => {
+		await setupUser('admin-uid', { isAdmin: true });
+		await setupBlogStat();
+		const ctx = userCtx('admin-uid');
+		await assertFails(deleteDoc(doc(ctx.firestore(), 'blogStats', 'mi-post')));
+	});
+});
+
+// -------------------------------------------------------------------------
 // Pairs (doubles ranking/history — CF-managed; backup tool is super-admin only)
 // -------------------------------------------------------------------------
 

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
 	readBranch,
 	sumBranches,
+	sumBlogViews,
 	viewsForAudience,
 	countryFlagUrl,
 	countryName,
@@ -151,5 +152,39 @@ describe('formatReferrer', () => {
 
 	it('devuelve un guion ante una URL inválida', () => {
 		expect(formatReferrer('no-soy-una-url')).toBe('—');
+	});
+});
+
+describe('sumBlogViews', () => {
+	it('suma mapas planos antiguos y ramas reg/anon a través de varios días', () => {
+		const legacy = {
+			date: '2026-07-01',
+			viewsByPath: { '_blog_mi-post': 3, _ranking: 5 }
+		} as unknown as PageViewDailyStats;
+		const split = {
+			date: '2026-07-02',
+			viewsByPath: {
+				reg: { '_blog_mi-post': 2 },
+				anon: { '_blog_mi-post': 4, '_blog_otro-post': 7, _root: 9 }
+			}
+		} as unknown as PageViewDailyStats;
+
+		expect(sumBlogViews([legacy, split])).toEqual({
+			'mi-post': 9,
+			'otro-post': 7
+		});
+	});
+
+	it('ignora el índice del blog y claves sin slug', () => {
+		const stat = {
+			date: '2026-07-03',
+			viewsByPath: { _blog: 11, _blog_: 2 }
+		} as unknown as PageViewDailyStats;
+
+		expect(sumBlogViews([stat])).toEqual({});
+	});
+
+	it('devuelve vacío sin datos', () => {
+		expect(sumBlogViews([])).toEqual({});
 	});
 });
