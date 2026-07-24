@@ -2,6 +2,12 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.71] - 2026-07-24
+- Blog: per-post view counters — every visit to a post detail increments a public `/blogStats/{slug}` counter (written by the `onPageViewCreated` Cloud Function; no PII)
+- Blog: view count shown next to date/author on the post detail and on each card of the blog index (hidden while empty)
+- Blog: the friendly-match scoring post now covers the third game mode ("Counter") with updated title, description and extras section
+- Admin analytics: one-off "Backfill blog" button added and removed after seeding the counters from the pageViewStats history (kept in git history for reuse)
+
 ## [2.5.70] - 2026-07-24
 - Registration fix: doubles pairs routed to the waitlist keep their team name (it was silently dropped and lost on promotion)
 - Registration fix: admin promote/remove on the waitlist now re-checks DRAFT inside the transaction — a stale admin tab can no longer inject a participant into a started tournament
