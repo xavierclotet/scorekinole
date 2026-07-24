@@ -10,6 +10,7 @@
   import { getPageViewsPaginated, getDailyStats } from '$lib/firebase/pageViews';
   import { TRACKED_ROUTES, type PageView, type PageViewDailyStats, type Audience } from '$lib/types/pageView';
   import { decodePathKey } from '$lib/utils/pageViewPaths';
+  import { todayLocalStr } from '$lib/utils/analyticsDay';
   import { sumBranches, viewsForAudience, countryFlagUrl, countryName, formatReferrer } from '$lib/utils/pageViewStats';
   import { getChartColors, getBaseChartOptions } from '$lib/utils/chartTheme';
   import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
@@ -378,6 +379,17 @@
       },
       options: {
         ...baseOpts,
+        // Click en un día → zoom a la vista de detalle de ese día
+        onClick: (_evt: any, elements: any[]) => {
+          const idx = elements[0]?.index;
+          if (idx != null && dailyStats[idx]) {
+            goto(`/admin/analytics/${dailyStats[idx].date}`);
+          }
+        },
+        onHover: (evt: any, elements: any[]) => {
+          const target = evt.native?.target as HTMLElement | undefined;
+          if (target) target.style.cursor = elements.length ? 'pointer' : 'default';
+        },
         plugins: {
           ...baseOpts.plugins,
           legend: {
@@ -697,6 +709,11 @@
             {m.analytics_anonymous()}
           </button>
         </div>
+
+        <button class="live-btn" onclick={() => goto(`/admin/analytics/${todayLocalStr()}`)}>
+          <span class="live-dot"></span>
+          {m.analytics_todayLive()}
+        </button>
 
         <select bind:value={routeFilter} class="route-filter">
           <option value="all">{m.analytics_allRoutes()}</option>
@@ -1050,6 +1067,46 @@
     border-color: var(--primary);
     font-weight: 600;
     box-shadow: 0 2px 4px color-mix(in srgb, var(--primary) 40%, transparent);
+  }
+
+  .live-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.7rem;
+    background: color-mix(in srgb, #ef4444 8%, transparent);
+    border: 1px solid color-mix(in srgb, #ef4444 35%, transparent);
+    border-radius: 4px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #ef4444;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .live-btn:hover {
+    background: color-mix(in srgb, #ef4444 15%, transparent);
+    transform: translateY(-1px);
+  }
+
+  .live-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #ef4444;
+    animation: livePulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes livePulse {
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.4;
+      transform: scale(0.8);
+    }
   }
 
   .route-filter {

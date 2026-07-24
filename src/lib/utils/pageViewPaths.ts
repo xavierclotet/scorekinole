@@ -20,6 +20,7 @@ export function normalizePath(path: string): string {
 		return clean;
 	}
 	if (/^\/admin\/tournaments\/[^/]+$/.test(clean)) return '/admin/tournaments/[id]';
+	if (/^\/admin\/analytics\/[^/]+$/.test(clean)) return '/admin/analytics/[date]';
 	if (/^\/tournaments\/[^/]+$/.test(clean)) return '/tournaments/[id]';
 	if (/^\/users\/[^/]+$/.test(clean)) return '/users/[id]';
 

@@ -53,6 +53,15 @@ describe('normalizePath', () => {
     expect(normalizePath('/users/uid_with_underscore')).toBe('/users/[id]');
   });
 
+  it('normalizes analytics day view to /admin/analytics/[date]', () => {
+    expect(normalizePath('/admin/analytics/2026-07-23')).toBe('/admin/analytics/[date]');
+    expect(normalizePath('/admin/analytics/2026-07-23/')).toBe('/admin/analytics/[date]');
+  });
+
+  it('does NOT collapse the analytics dashboard itself', () => {
+    expect(normalizePath('/admin/analytics')).toBe('/admin/analytics');
+  });
+
   it('leaves unknown paths untouched (minus trailing slash)', () => {
     expect(normalizePath('/some/unknown/page')).toBe('/some/unknown/page');
   });

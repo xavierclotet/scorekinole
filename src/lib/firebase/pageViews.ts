@@ -11,16 +11,19 @@ import {
 	collection,
 	getDocs,
 	getCountFromServer,
+	onSnapshot,
 	query,
 	where,
 	orderBy,
 	limit,
 	startAfter,
 	type QueryDocumentSnapshot,
-	type DocumentData
+	type DocumentData,
+	type Unsubscribe
 } from 'firebase/firestore';
 import { get } from 'svelte/store';
 import { browser } from '$app/environment';
+import { localDayRange } from '$lib/utils/analyticsDay';
 
 /**
  * Get page views with pagination and optional filters (admin only)
@@ -137,4 +140,75 @@ export async function getDailyStats(
 		console.error('Error getting daily stats:', error);
 		return [];
 	}
+}
+
+/** Query compartida de la vista de día: visitas crudas del rango local del día. */
+function dayQuery(date: string) {
+	const { start, end } = localDayRange(date);
+	return query(
+		collection(db!, 'pageViews'),
+		where('timestamp', '>=', start),
+		where('timestamp', '<', end),
+		orderBy('timestamp', 'asc')
+	);
+}
+
+/**
+ * Visitas crudas de un día (admin). One-shot: para días pasados, donde un
+ * listener no aportaría nada.
+ */
+export async function getPageViewsForDay(date: string): Promise<PageView[]> {
+	if (!browser || !isFirebaseEnabled() || !db) return [];
+
+	const user = get(currentUser);
+	if (!user) return [];
+
+	const adminStatus = await isAdmin();
+	if (!adminStatus) return [];
+
+	try {
+		const snapshot = await getDocs(dayQuery(date));
+		return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as PageView);
+	} catch (error) {
+		console.error('Error getting day page views:', error);
+		return [];
+	}
+}
+
+/**
+ * Visitas de un día en tiempo real (admin), para el modo "hoy en directo".
+ * El chequeo de admin es async: si el caller desuscribe antes de que termine,
+ * el listener nunca llega a abrirse.
+ */
+export function subscribeToPageViewsForDay(
+	date: string,
+	callback: (views: PageView[]) => void
+): Unsubscribe {
+	let unsubscribe: Unsubscribe | null = null;
+	let cancelled = false;
+
+	(async () => {
+		if (!browser || !isFirebaseEnabled() || !db) return;
+
+		const user = get(currentUser);
+		if (!user) return;
+
+		const adminStatus = await isAdmin();
+		if (!adminStatus || cancelled) return;
+
+		unsubscribe = onSnapshot(
+			dayQuery(date),
+			(snapshot) => {
+				callback(snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as PageView));
+			},
+			(error) => {
+				console.error('Error in day page views listener:', error);
+			}
+		);
+	})();
+
+	return () => {
+		cancelled = true;
+		unsubscribe?.();
+	};
 }

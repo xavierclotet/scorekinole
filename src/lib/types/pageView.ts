@@ -80,6 +80,7 @@ export const TRACKED_ROUTES = [
 	'/tournaments/[id]',
 	'/admin',
 	'/admin/analytics',
+	'/admin/analytics/[date]',
 	'/admin/matches',
 	'/admin/tournaments',
 	'/admin/tournaments/create',
