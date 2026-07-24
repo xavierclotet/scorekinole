@@ -154,8 +154,8 @@
   let allPoints = $derived(visitorGroups.flatMap((g) => g.points));
 
   // Datasets: puntos coloreados por página (con leyenda) encima de una línea
-  // fina por visitante que une su recorrido (sin leyenda ni tooltip)
-  function buildDatasets(connectorColor: string) {
+  // por visitante que une su recorrido (sin leyenda ni tooltip)
+  function buildDatasets() {
     const pageDatasets = [...pageColors.entries()].map(([path, color]) => ({
       label: formatPath(path),
       data: allPoints.filter((pt) => pt.pv.normalizedPath === path) as never[],
@@ -165,13 +165,14 @@
       pointRadius: 5,
       pointHoverRadius: 7
     }));
-    const connectorDatasets = visitorGroups.map((g) => ({
+    // Paleta invertida para el visitante N: minimiza coincidir con el color
+    // de la página N (los puntos usan la paleta en orden directo)
+    const connectorDatasets = visitorGroups.map((g, i) => ({
       label: `__conn__${g.key}`,
       data: g.points as never[],
       showLine: true,
-      borderColor: connectorColor,
+      borderColor: `${BUMP_CHART_COLORS[BUMP_CHART_COLORS.length - 1 - (i % BUMP_CHART_COLORS.length)]}aa`,
       borderWidth: 2,
-      borderDash: [5, 4],
       backgroundColor: 'transparent',
       tension: 0,
       pointRadius: 0,
@@ -205,7 +206,7 @@
       type: 'scatter',
       data: {
         labels: visitorLabels,
-        datasets: buildDatasets(colors.mutedForeground)
+        datasets: buildDatasets()
       },
       options: {
         ...baseOpts,
@@ -278,10 +279,9 @@
     const labels = visitorLabels;
     const chart = chartInstance;
     if (!chart) return;
-    const colors = getChartColors();
     chart.data.labels = labels;
     (chart.options.scales!.y as { labels: string[] }).labels = labels;
-    chart.data.datasets = buildDatasets(colors.mutedForeground);
+    chart.data.datasets = buildDatasets();
     chart.update('none');
   });
 
