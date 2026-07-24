@@ -1478,7 +1478,10 @@
 
   function getStep4Errors(): string[] {
     const errors: string[] = [];
-    if (participants.length < 2) {
+    // With self-registration enabled the tournament legitimately starts empty
+    // (players sign up on the public page). The ≥2 minimum is enforced where it
+    // matters: at tournament start (admin page + tournamentStateMachine).
+    if (!regEnabled && participants.length < 2) {
       errors.push(m.wizard_errorMinParticipants());
     }
     // Switching gameType after adding participants used to pass validation and

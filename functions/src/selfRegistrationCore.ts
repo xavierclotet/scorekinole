@@ -402,6 +402,7 @@ export function applyRegister(
     ...(user.email ? { email: normalizeEmail(user.email) } : {}),
     ...(user.photoURL ? { photoURL: user.photoURL } : {}),
     ...(partner ? { partner } : {}),
+    ...(teamName ? { teamName } : {}),
   };
   return { outcome, update: { waitlist: [...waitlist, entry] } };
 }

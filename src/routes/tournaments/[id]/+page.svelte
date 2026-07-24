@@ -254,7 +254,9 @@
 		const inParticipants = tournament?.participants?.some(
 			p => p.userId === uid || p.partner?.userId === uid
 		) ?? false;
-		const inWaitlist = tournament?.waitlist?.some(w => w.userId === uid) ?? false;
+		const inWaitlist = tournament?.waitlist?.some(
+			w => w.userId === uid || w.partner?.userId === uid
+		) ?? false;
 		return inParticipants || inWaitlist;
 	});
 

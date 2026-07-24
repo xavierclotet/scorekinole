@@ -48,7 +48,11 @@
   let showPartnerField = $state(false);
 
   let reg = $derived(tournament.registration!);
-  let participantCount = $derived(tournament.participants.length);
+  // Slot-occupying rows only (WITHDRAWN/DSQ free their slot) — must match the
+  // server's capacity math in functions/src/selfRegistrationCore.ts, otherwise
+  // the card shows "full"/waitlist CTA while the server would still register.
+  let activeParticipants = $derived(tournament.participants.filter(p => !p.status || p.status === 'ACTIVE'));
+  let participantCount = $derived(activeParticipants.length);
   let waitlistCount = $derived(tournament.waitlist?.length ?? 0);
 
   // Backfill cache: legacy participant snapshots may have empty `userKey` while the
@@ -94,11 +98,26 @@
         )
       : false
   );
+  // Includes users named as REGISTERED partner inside a waitlist entry: they
+  // occupy a slot (the server rejects any new registration of theirs with
+  // already_registered), so they must see the waitlisted state + an exit button
+  // instead of a register CTA that always errors.
   let isUserOnWaitlist = $derived(
+    $currentUser
+      ? (tournament.waitlist ?? []).some(
+          w => w.userId === $currentUser!.id || w.partner?.userId === $currentUser!.id
+        )
+      : false
+  );
+  let isUserWaitlistPrimary = $derived(
     $currentUser ? (tournament.waitlist ?? []).some(w => w.userId === $currentUser!.id) : false
   );
   let waitlistPosition = $derived(
-    $currentUser ? (tournament.waitlist ?? []).findIndex(w => w.userId === $currentUser!.id) + 1 : 0
+    $currentUser
+      ? (tournament.waitlist ?? []).findIndex(
+          w => w.userId === $currentUser!.id || w.partner?.userId === $currentUser!.id
+        ) + 1
+      : 0
   );
   let userParticipant = $derived(
     $currentUser ? tournament.participants.find(p => p.userId === $currentUser!.id) : undefined
@@ -199,7 +218,12 @@
   async function handleLeaveWaitlist() {
     isLeavingWaitlist = true;
     errorMessage = '';
-    const result = await leaveWaitlist(tournament.id);
+    // A waitlist PRIMARY leaves via leaveWaitlist. A user who is only the
+    // REGISTERED partner inside someone else's waitlist entry exits via
+    // unregister, which detaches their partner slot server-side.
+    const result = isUserWaitlistPrimary
+      ? await leaveWaitlist(tournament.id)
+      : await unregisterFromTournament(tournament.id);
     isLeavingWaitlist = false;
     showConfirmLeaveWaitlist = false;
     if (result.success) {
@@ -403,6 +427,14 @@
           <UserPlus size={16} />
           {m.registration_joinWaitlist()}
         </button>
+      {:else if isFull && isDoubles}
+        <!-- Doubles waitlist joins go through the partner panel too: the
+             waitlist entry stores partner + teamName and promotion restores
+             them, so skipping the panel would silently enqueue a solo entry. -->
+        <button class="cta-primary cta-waitlist" onclick={() => showDoublesPanel = true}>
+          <UserPlus size={16} />
+          {m.registration_joinWaitlist()}
+        </button>
       {:else if isFull}
         <button class="cta-primary cta-waitlist" onclick={handleRegister} disabled={isRegistering}>
           {#if isRegistering}<LoaderCircle size={16} class="spin" />{:else}<UserPlus size={16} />{/if}
@@ -567,7 +599,7 @@
       <button class="cta-btn primary" onclick={() => handleRegister()}
         disabled={isRegistering || (partnerMode === 'search' && !selectedPartner) || (partnerMode === 'guest' && !partnerGuestName.trim())}>
         {#if isRegistering}<LoaderCircle size={15} class="spin" />{:else}<UserPlus size={15} />{/if}
-        {m.registration_confirmRegistration()}
+        {isFull ? m.registration_joinWaitlist() : m.registration_confirmRegistration()}
       </button>
     </div>
   </div>
@@ -580,7 +612,7 @@
       <span class="enrolled-count">{participantCount}{reg.maxParticipants ? `/${reg.maxParticipants}` : ''}</span>
     </div>
     <ul class="enrolled-grid">
-      {#each tournament.participants as p (p.id)}
+      {#each activeParticipants as p (p.id)}
         {@const mainHref = profileHref(p.userId, p.userKey, p.name)}
         {@const partnerHref = p.partner ? profileHref(p.partner.userId, p.partner.userKey, p.partner.name) : null}
         <li class="enrolled-item">

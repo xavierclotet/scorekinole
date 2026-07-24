@@ -708,24 +708,35 @@ describe('doubles: adminPromoteFromWaitlist partner field variants', () => {
   });
 });
 
-// ─── Doubles: teamName is not preserved through waitlist ─────────────────────
+// ─── Doubles: teamName through the waitlist path ─────────────────────────────
 
-describe('doubles: teamName data loss through waitlist path', () => {
-  it('⚠️ adminPromoteFromWaitlist cannot restore teamName (WaitlistEntry has no teamName field)', () => {
-    // When a doubles pair joins the waitlist with a custom team name, that name is LOST.
-    // WaitlistEntry does not have a teamName field, so the data is never stored.
-    // This means promoted doubles pairs lose their custom team name.
+describe('doubles: teamName through waitlist path', () => {
+  it('adminPromoteFromWaitlist carries teamName from the waitlist entry to the promoted participant', () => {
+    // WaitlistEntry supports teamName and the server (applyRegister in
+    // functions/src/selfRegistrationCore.ts) stores it on waitlisted sign-ups,
+    // so promotion must restore it on the participant row.
     const entry: WaitlistEntry = {
       userId: 'u1',
       userName: 'Player u1',
       userKey: 'key-u1',
       registeredAt: Date.now(),
       partner: { type: 'GUEST', name: 'Partner' },
-      // teamName would go here, but the interface does not support it
+      teamName: 'Los Invencibles',
     };
     const result = adminPromoteFromWaitlist([], [entry], 'u1', 'new-id');
-    // teamName is absent from the promoted participant
-    expect((result!.participants[0] as any).teamName).toBeUndefined();
+    expect(result!.participants[0].teamName).toBe('Los Invencibles');
+  });
+
+  it('omits teamName on promotion when the waitlist entry has none', () => {
+    const entry: WaitlistEntry = {
+      userId: 'u1',
+      userName: 'Player u1',
+      userKey: 'key-u1',
+      registeredAt: Date.now(),
+      partner: { type: 'GUEST', name: 'Partner' },
+    };
+    const result = adminPromoteFromWaitlist([], [entry], 'u1', 'new-id');
+    expect(result!.participants[0].teamName).toBeUndefined();
   });
 });
 

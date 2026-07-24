@@ -188,6 +188,40 @@ describe("applyRegister", () => {
     });
   });
 
+  it("keeps partner AND teamName on the waitlist entry when routed to the waitlist", () => {
+    // Doubles pair signs up while the tournament is full: the entry must retain
+    // everything needed to rebuild the participant row at promotion time.
+    const data = draftTournament({
+      registration: { enabled: true, maxParticipants: 1 },
+      participants: [{ id: "p-0", userId: "bob-uid", name: "Bob", status: "ACTIVE" }],
+    });
+    const partner = { type: "GUEST" as const, name: "Guest Gal" };
+    const result = applyRegister(data, alice, partner, "Los Cracks", NOW, "p-1");
+    expect(result.outcome).toBe("waitlisted");
+    const update = result.update as { waitlist: any[] };
+    expect(update.waitlist[0].partner).toEqual(partner);
+    expect(update.waitlist[0].teamName).toBe("Los Cracks");
+  });
+
+  it("teamName survives the full waitlist round-trip: register (full) → unregister → promotion", () => {
+    const data = draftTournament({
+      registration: { enabled: true, maxParticipants: 1 },
+      participants: [{ id: "p-0", userId: "bob-uid", name: "Bob", status: "ACTIVE" }],
+    });
+    const partner = { type: "GUEST" as const, name: "Guest Gal" };
+    const registered = applyRegister(data, alice, partner, "Los Cracks", NOW, "p-1");
+    const waitlisted = draftTournament({
+      registration: { enabled: true, maxParticipants: 1 },
+      participants: data.participants,
+      waitlist: (registered.update as { waitlist: any[] }).waitlist,
+    });
+    const result = applyUnregister(waitlisted, "bob-uid", NOW, "p-2");
+    expect(result.promoted).toBe(true);
+    const promoted = result.update.participants.find((p) => p.userId === "alice-uid");
+    expect(promoted?.teamName).toBe("Los Cracks");
+    expect(promoted?.partner).toEqual(partner);
+  });
+
   it("rejects duplicate registration", () => {
     const data = draftTournament({
       participants: [{ id: "p-0", userId: "alice-uid", name: "Alice" }],
@@ -389,6 +423,28 @@ describe("applyUnregister", () => {
     expect(result.update.participants).toHaveLength(1);
     expect(result.update.participants[0].userId).toBe("bob-uid");
     expect(result.update.participants[0].partner).toBeUndefined();
+  });
+
+  it("detaches the caller from a partner slot on a WAITLIST entry (waitlist-partner exit path)", () => {
+    // Alice is not a participant nor a waitlist primary — she's the REGISTERED
+    // partner inside Bob's waitlist entry. Unregister must clear that slot so
+    // she stops being blocked from registering elsewhere in the tournament.
+    const data = draftTournament({
+      participants: [{ id: "p-0", userId: "carol-uid", name: "Carol" }],
+      waitlist: [
+        {
+          userId: "bob-uid",
+          userName: "Bob",
+          partner: { type: "REGISTERED", userId: "alice-uid", name: "Alice" },
+        },
+      ],
+    });
+    const result = applyUnregister(data, "alice-uid", NOW, "p-new");
+    expect(result.promoted).toBe(false);
+    expect(result.update.participants).toHaveLength(1);
+    expect(result.update.waitlist).toHaveLength(1);
+    expect(result.update.waitlist[0].userId).toBe("bob-uid");
+    expect(result.update.waitlist[0].partner).toBeUndefined();
   });
 
   it("rejects when the caller is not registered at all", () => {

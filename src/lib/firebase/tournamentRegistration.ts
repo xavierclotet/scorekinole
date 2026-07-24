@@ -672,10 +672,18 @@ export async function adminPromoteFromWaitlistFirestore(
       if (!snapshot.exists()) throw new Error('Tournament not found');
 
       const tournament = parseTournamentData(snapshot.data());
+      // Re-check status INSIDE the transaction: a stale admin tab (tournament
+      // started on another device) must not inject a participant into a
+      // running tournament's roster — they would belong to no group/bracket.
+      if (tournament.status !== 'DRAFT') {
+        throw new Error('Cannot promote after tournament has started');
+      }
       const result = adminPromoteFromWaitlist(
         tournament.participants,
         tournament.waitlist || [],
-        userId
+        userId,
+        undefined,
+        tournament.status
       );
       if (!result) throw new Error('User not on waitlist');
 
@@ -714,6 +722,11 @@ export async function adminRemoveFromWaitlistFirestore(
       if (!snapshot.exists()) throw new Error('Tournament not found');
 
       const tournament = parseTournamentData(snapshot.data());
+      // Same in-transaction status gate as promote: waitlist edits are a
+      // registration-era (DRAFT) operation only.
+      if (tournament.status !== 'DRAFT') {
+        throw new Error('Cannot modify waitlist after tournament has started');
+      }
       const currentWaitlist = tournament.waitlist || [];
       const newWaitlist = adminRemoveFromWaitlist(currentWaitlist, userId);
       if (newWaitlist.length === currentWaitlist.length) throw new Error('User not on waitlist');
