@@ -2,6 +2,15 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.70] - 2026-07-24
+- Registration fix: doubles pairs routed to the waitlist keep their team name (it was silently dropped and lost on promotion)
+- Registration fix: admin promote/remove on the waitlist now re-checks DRAFT inside the transaction — a stale admin tab can no longer inject a participant into a started tournament
+- Registration fix: users named as REGISTERED partner in a waitlist entry now see the waitlisted state with a working exit button (before: a register form that always errored)
+- Registration: public capacity math counts only ACTIVE participants (matches the server; WITHDRAWN/DSQ rows free their slot) and the public list hides inactive rows
+- Registration: joining the waitlist of a full doubles tournament now opens the partner panel (partner + team name are kept on the waitlist entry)
+- Wizard: tournaments with self-registration enabled can be created with 0 participants — the ≥2 minimum is enforced at tournament start instead
+- Admin analytics day view: per-visitor connector colors in the timeline (inverted palette, no more dashed gray)
+
 ## [2.5.69] - 2026-07-22
 - Analytics: anonymous visitors are now tracked — browser, country (flag), IP and referrer, alongside registered users
 - Analytics: audience filter (All / Registered / Anonymous) across cards, charts and table; new Countries and Browsers charts; two-series visits-over-time chart
