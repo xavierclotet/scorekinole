@@ -52,25 +52,6 @@ export function sumBranches(
 	return totals;
 }
 
-/** Prefijo de las claves de viewsByPath que corresponden a posts del blog. */
-const BLOG_PATH_KEY_PREFIX = '_blog_';
-
-/**
- * Total de visitas por slug de post a lo largo de varios días, para el
- * backfill de /blogStats. Suma ambas audiencias: los mapas planos antiguos
- * (solo registrados) y las ramas reg/anon nuevas.
- */
-export function sumBlogViews(stats: PageViewDailyStats[]): Record<string, number> {
-	const byPath = sumBranches(stats, 'viewsByPath', 'all');
-	const bySlug: Record<string, number> = {};
-	for (const [key, count] of Object.entries(byPath)) {
-		if (!key.startsWith(BLOG_PATH_KEY_PREFIX)) continue;
-		const slug = key.slice(BLOG_PATH_KEY_PREFIX.length);
-		if (slug) bySlug[slug] = (bySlug[slug] || 0) + count;
-	}
-	return bySlug;
-}
-
 /** Total de visitas de un día para la audiencia pedida. */
 export function viewsForAudience(stat: PageViewDailyStats, audience: Audience): number {
 	const total = stat.totalViews || 0;
